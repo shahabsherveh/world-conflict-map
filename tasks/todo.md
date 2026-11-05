@@ -233,7 +233,7 @@ daily cron instructions, `.gitignore` finalization.
 
 ## Checkpoint: Complete
 - [x] Fresh-clone setup documented and verified
-- [x] All acceptance criteria met (27 tests passing)
+- [x] All acceptance criteria met (45 tests passing)
 - [ ] Visual browser smoke test by user (open http://localhost:8000)
 
 ---
@@ -243,8 +243,9 @@ daily cron instructions, `.gitignore` finalization.
 Updated after the code-review pass and context setup.
 
 ## Status
-All planned tasks complete. Post-review hardening applied (see below). Working tree is
-**not a git repository** — nothing is committed; files live on disk only.
+All planned tasks complete. Post-review hardening applied (see below). Working tree is a
+git repository with a single commit (`2695f1b Initial commit: Global Conflict Map`);
+`conflicts.db` and `.venv/` are untracked via `.gitignore`.
 
 ## Verification baseline (re-run these first)
 ```bash
@@ -255,6 +256,12 @@ black --check .   # clean
 alembic current   # bf7342e34e12 (head)
 curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
 ```
+
+> Caveat (verified while triaging remaining work): the checked-in `.venv` symlinks
+> `.venv/bin/python3 -> /usr/bin/python3`, which does not exist here, so `pytest`,
+> `black`, and `alembic` all fail with "required file not found". Only `ruff` (standalone
+> binary) runs. Rebuild the venv (`python3 -m venv .venv && pip install -r requirements.txt`)
+> before trusting or re-recording the baseline above.
 
 ## Changes since the original plan
 - Grouping: keyword overlap → proximity (100 km + time window), anchor cached per conflict.

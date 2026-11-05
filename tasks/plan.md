@@ -25,21 +25,23 @@ Build order follows CAPABILITY-MAP.md: `storage` → `ingestion` → `extraction
 ## Task List
 
 ### Phase 1: Foundation
-- [ ] Task 1: Project scaffolding
-- [ ] Task 2: Storage — data model + migrations
+- [x] Task 1: Project scaffolding
+- [x] Task 2: Storage — data model + migrations
 
 ### Phase 2: Data pipeline
-- [ ] Task 3: Ingestion — GDELT fetch + dedupe
-- [ ] Task 4: Extraction — adapter + filter + intensity
-- [ ] Task 5: Extraction — run pipeline + conflict grouping
+- [x] Task 3: Ingestion — GDELT fetch + dedupe
+- [x] Task 4: Extraction — adapter + filter + intensity
+- [x] Task 5: Extraction — run pipeline + conflict grouping
 
 ### Phase 3: API + UI
-- [ ] Task 6: API — routes + manual edits
-- [ ] Task 7: UI — map view + time scrub + click-for-news
-- [ ] Task 8: UI — manual edit/create controls
+- [x] Task 6: API — routes + manual edits
+- [x] Task 7: UI — map view + time scrub + click-for-news
+- [x] Task 8: UI — manual edit/create controls
 
 ### Phase 4: Polish
-- [ ] Task 9: End-to-end seed + README + cron
+- [x] Task 9: End-to-end seed + README + cron
+
+Task-by-task acceptance criteria and verification evidence: `tasks/todo.md`.
 
 ## Checkpoints
 - **After 1–2:** app runs, schema migrates cleanly, storage queries tested.

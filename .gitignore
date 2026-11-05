@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.py[cod]
+# local data (incl. conflicts.db) — never commit
 *.db
 .pytest_cache/
 .ruff_cache/
