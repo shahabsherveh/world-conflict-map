@@ -1,0 +1,188 @@
+from datetime import date
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+
+from app.api.routes import get_db
+from app.main import app
+from app.models import Base, Conflict, ConflictEvent, EditLog
+
+
+@pytest.fixture
+def client():
+    engine = create_engine(
+        "sqlite://",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    session = Session(engine)
+
+    def override():
+        yield session
+
+    app.dependency_overrides[get_db] = override
+    with TestClient(app) as c:
+        yield c, session
+    app.dependency_overrides.clear()
+    session.close()
+
+
+def seed(session: Session) -> Conflict:
+    conflict = Conflict(name="War A", country="SY", start_date=date(2024, 1, 1))
+    session.add(conflict)
+    session.flush()
+    session.add_all(
+        [
+            ConflictEvent(
+                conflict_id=conflict.id,
+                event_date=date(2024, 1, 10),
+                country="SY",
+                lat=1.0,
+                lon=2.0,
+                intensity=4,
+                source_url="http://x/a",
+            ),
+            ConflictEvent(
+                conflict_id=conflict.id,
+                event_date=date(2024, 2, 10),
+                country="SY",
+                lat=1.0,
+                lon=2.0,
+                intensity=5,
+                source_url="http://x/b",
+            ),
+        ]
+    )
+    session.commit()
+    return conflict
+
+
+def test_list_conflicts_filters_by_range(client) -> None:
+    c, session = client
+    seed(session)
+    resp = c.get("/api/conflicts", params={"start": "2024-02-01", "end": "2024-02-28"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "War A"
+    assert data[0]["event_count"] == 1
+    assert data[0]["intensity"] == 5
+    assert "headline" in data[0]
+
+
+def test_conflict_detail_includes_events(client) -> None:
+    c, session = client
+    conflict = seed(session)
+    resp = c.get(f"/api/conflicts/{conflict.id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["events"]) == 2
+    assert data["events"][0]["source_url"] in ("http://x/a", "http://x/b")
+
+
+def test_patch_conflict_logs_edit(client) -> None:
+    c, session = client
+    conflict = seed(session)
+    resp = c.patch(f"/api/conflicts/{conflict.id}", json={"name": "Renamed War"})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Renamed War"
+    logs = session.query(EditLog).all()
+    assert len(logs) == 1
+    assert logs[0].target_type == "conflict"
+    assert logs[0].field == "name"
+    assert logs[0].old_value == "War A"
+    assert logs[0].new_value == "Renamed War"
+
+
+def test_post_event_sets_manual_provenance(client) -> None:
+    c, _session = client
+    resp = c.post("/api/events", json={"event_date": "2024-03-01", "country": "UA", "intensity": 3})
+    assert resp.status_code == 201
+    assert resp.json()["provenance"] == "manual"
+
+
+def test_post_conflict_creates(client) -> None:
+    c, _session = client
+    resp = c.post(
+        "/api/conflicts", json={"name": "War B", "country": "UA", "start_date": "2024-05-01"}
+    )
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "War B"
+    assert resp.json()["status"] == "active"
+
+
+def test_post_event_with_conflict(client) -> None:
+    c, session = client
+    conflict = seed(session)
+    resp = c.post(
+        "/api/events",
+        json={"event_date": "2024-04-01", "conflict_id": conflict.id, "intensity": 2},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["conflict_id"] == conflict.id
+    assert resp.json()["provenance"] == "manual"
+
+
+def test_conflict_not_found(client) -> None:
+    c, _session = client
+    assert c.get("/api/conflicts/9999").status_code == 404
+
+
+def test_event_not_found(client) -> None:
+    c, _session = client
+    assert c.get("/api/events/9999").status_code == 404
+
+
+def test_sources_endpoint(client) -> None:
+    c, _session = client
+    resp = c.get("/api/sources")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "gdelt" in body["source"].lower()
+    assert body["base_url"].startswith("http")
+
+
+def test_event_headline_derived_from_source_url(client) -> None:
+    c, session = client
+    seed(session)
+    events = c.get("/api/events", params={"start": "2024-01-01", "end": "2024-12-31"}).json()
+    # seeded source_urls are "http://x/a" / "http://x/b" -> slug "a"/"b"
+    assert all(e["headline"] for e in events)
+
+
+def test_event_create_rejects_out_of_range_values(client) -> None:
+    c, _session = client
+    assert (
+        c.post("/api/events", json={"event_date": "2024-03-01", "intensity": 99}).status_code == 422
+    )
+    assert c.post("/api/events", json={"event_date": "2024-03-01", "lat": 999}).status_code == 422
+    assert (
+        c.post("/api/conflicts", json={"name": "X", "start_date": "2024-01-01", "status": "bogus"})
+    ).status_code == 422
+
+
+def test_conflict_list_query_count_is_bounded(client) -> None:
+    """Regression: listing conflicts must not issue one query per conflict."""
+    from sqlalchemy import event as sa_event
+
+    c, session = client
+    for _ in range(8):
+        seed(session)
+    bind = session.get_bind()
+    count = {"n": 0}
+
+    def before(*_args, **_kwargs):
+        count["n"] += 1
+
+    sa_event.listen(bind, "before_cursor_execute", before)
+    try:
+        resp = c.get("/api/conflicts", params={"start": "2024-01-01", "end": "2024-12-31"})
+    finally:
+        sa_event.remove(bind, "before_cursor_execute", before)
+    assert resp.status_code == 200
+    assert count["n"] <= 5, f"N+1 regression: {count['n']} queries for {len(resp.json())} conflicts"

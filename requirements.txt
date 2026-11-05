@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+httpx
+pydantic
+pyyaml
+pytest
+ruff
+black
+torch
+transformers
+huggingface_hub

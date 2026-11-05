@@ -1,0 +1,4 @@
+base_url: https://data.gdeltproject.org/gdeltv2
+lookback_days: 1
+zero_shot_threshold: 0.7
+repair_locations: false

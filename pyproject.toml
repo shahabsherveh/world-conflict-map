@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["app/migrations/versions"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = "app/migrations/versions"

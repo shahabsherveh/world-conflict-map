@@ -1,0 +1,1226 @@
+[
+  {
+    "raw": {
+      "global_event_id": "1331230555",
+      "event_root_code": "18",
+      "event_base_code": "180",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "",
+      "actor1_type1_code": "",
+      "actor2_name": "DUBLIN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Dublin, Dublin, Ireland",
+      "action_geo_country_code": "EI",
+      "source_url": "https://www.irishmirror.ie/news/irish-news/dublin-horror-arson-attack-live-37837104"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230590",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "",
+      "actor1_type1_code": "",
+      "actor2_name": "FIGHTER",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Jabal Habashi, Ta\u0091izz, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230591",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "",
+      "actor1_type1_code": "",
+      "actor2_name": "FIGHTER",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Abyan, Fars, Iran",
+      "action_geo_country_code": "IR",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230613",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "",
+      "actor1_type1_code": "",
+      "actor2_name": "UNITED STATES",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Pennsylvania, United States",
+      "action_geo_country_code": "US",
+      "source_url": "https://www.dailymail.com/news/article-16261595/Ice-certainly-factor-private-jet-crash-killed-nine-people-Florida-investigators-say-pilot-told-traffic-control-manageable.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230614",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "1",
+      "actor1_name": "",
+      "actor1_type1_code": "",
+      "actor2_name": "FLORIDA",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Pennsylvania, United States",
+      "action_geo_country_code": "US",
+      "source_url": "https://www.dailymail.com/news/article-16261595/Ice-certainly-factor-private-jet-crash-killed-nine-people-Florida-investigators-say-pilot-told-traffic-control-manageable.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230618",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "5",
+      "actor1_name": "AFGHAN",
+      "actor1_type1_code": "",
+      "actor2_name": "MILITANT",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Pakistan",
+      "action_geo_country_code": "PK",
+      "source_url": "https://english.aawsat.com/world/5337002-gunmen-kill-two-police-officers-escorting-polio-workers-pakistan"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230708",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "COMPANY",
+      "actor1_type1_code": "BUS",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Amsterdam, Noord-Holland, Netherlands",
+      "action_geo_country_code": "NL",
+      "source_url": "https://thenextweb.com/news/jennifer-burns-bright-data-public-web-data-login-tnw-podcast"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230709",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "COMPANY",
+      "actor1_type1_code": "BUS",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "New York, United States",
+      "action_geo_country_code": "US",
+      "source_url": "https://thenextweb.com/news/jennifer-burns-bright-data-public-web-data-login-tnw-podcast"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230790",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "CIVILIAN",
+      "actor1_type1_code": "CVL",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Hudaydah, Al ?udaydah, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230791",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "1",
+      "actor1_name": "CIVILIAN",
+      "actor1_type1_code": "CVL",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Sanaa, San\u0091a', Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230792",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "CIVILIAN",
+      "actor1_type1_code": "CVL",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Maqatirah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230793",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "CIVILIAN",
+      "actor1_type1_code": "CVL",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Arah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230803",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "5",
+      "actor1_name": "POPULATION",
+      "actor1_type1_code": "CVL",
+      "actor2_name": "WORLD BANK",
+      "actor2_type1_code": "IGO",
+      "action_geo_fullname": "India",
+      "action_geo_country_code": "IN",
+      "source_url": "https://www.downtoearth.org.in/economy/south-asias-vanishing-demographic-dividend-working-age-population-share-to-peak-within-a-decade-as-the-region-ages-rapidly"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230822",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "GERMANY",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Munich, Bayern, Germany",
+      "action_geo_country_code": "GM",
+      "source_url": "https://variety.com/2026/tv/festivals/shin-min-lee-jong-suk-remarried-empress-disney-hulu-1236908746/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230836",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "GERMANY",
+      "actor1_type1_code": "",
+      "actor2_name": "DISNEY",
+      "actor2_type1_code": "MNC",
+      "action_geo_fullname": "Munich, Bayern, Germany",
+      "action_geo_country_code": "GM",
+      "source_url": "https://variety.com/2026/tv/festivals/shin-min-lee-jong-suk-remarried-empress-disney-hulu-1236908746/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230904",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "NILE",
+      "actor1_type1_code": "",
+      "actor2_name": "SUDAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Khartoum, Al Khartum, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://eyeradio.org/liberation-veteran-and-bilpam-founder-gen-john-duit-yiech-dies-in-ethiopia/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331230905",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "NILE",
+      "actor1_type1_code": "",
+      "actor2_name": "SUDAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Blue Nile State, An Nil al Azraq, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://eyeradio.org/liberation-veteran-and-bilpam-founder-gen-john-duit-yiech-dies-in-ethiopia/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231024",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "8",
+      "actor1_name": "AUTHORITIES",
+      "actor1_type1_code": "GOV",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Russia",
+      "action_geo_country_code": "RS",
+      "source_url": "https://www.newindianexpress.com/world/2026/Nov/03/death-toll-hits-29-after-russian-strike-on-ukrainian-aid-site-with-48-still-missing"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231051",
+      "event_root_code": "18",
+      "event_base_code": "180",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "PRIME MINISTER",
+      "actor1_type1_code": "GOV",
+      "actor2_name": "UNITED KINGDOM",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "London, London, City of, United Kingdom",
+      "action_geo_country_code": "UK",
+      "source_url": "https://www.politics.co.uk/people/andrew-rosindell/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231052",
+      "event_root_code": "18",
+      "event_base_code": "180",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "PRIME MINISTER",
+      "actor1_type1_code": "GOV",
+      "actor2_name": "UNITED KINGDOM",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Thurrock, Thurrock, United Kingdom",
+      "action_geo_country_code": "UK",
+      "source_url": "https://www.politics.co.uk/people/andrew-rosindell/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231110",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "5",
+      "actor1_name": "HOSPITAL",
+      "actor1_type1_code": "HLH",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Khartoum, Al Khartum, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://english.aawsat.com/arab-world/5336979-sudan-files-complaint-against-ethiopia-un-security-council-over-drone-attacks"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231112",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "1",
+      "actor1_name": "NANNY",
+      "actor1_type1_code": "HLH",
+      "actor2_name": "BAHAMA",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "New York, United States",
+      "action_geo_country_code": "US",
+      "source_url": "https://www.dailymail.com/news/article-16261595/Ice-certainly-factor-private-jet-crash-killed-nine-people-Florida-investigators-say-pilot-told-traffic-control-manageable.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231118",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "1",
+      "actor1_name": "NANNY",
+      "actor1_type1_code": "HLH",
+      "actor2_name": "UNITED STATES",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "New York, United States",
+      "action_geo_country_code": "US",
+      "source_url": "https://www.dailymail.com/news/article-16261595/Ice-certainly-factor-private-jet-crash-killed-nine-people-Florida-investigators-say-pilot-told-traffic-control-manageable.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231128",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "5",
+      "actor1_name": "AFRICAN UNION",
+      "actor1_type1_code": "IGO",
+      "actor2_name": "AL QAEDA",
+      "actor2_type1_code": "IMG",
+      "action_geo_fullname": "Mogadishu, Banaadir, Somalia",
+      "action_geo_country_code": "SO",
+      "source_url": "https://www.timesofearth.com/2026/11/03/uganda-begins-withdrawing-troops-from-somalia-after-two-decades-of-fighting-al-shabab/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231147",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "UNITED NATIONS",
+      "actor1_type1_code": "IGO",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Khartoum, Al Khartum, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://english.aawsat.com/arab-world/5336979-sudan-files-complaint-against-ethiopia-un-security-council-over-drone-attacks"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231155",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "5",
+      "actor1_name": "AL QAEDA",
+      "actor1_type1_code": "IMG",
+      "actor2_name": "AFRICAN UNION",
+      "actor2_type1_code": "IGO",
+      "action_geo_fullname": "Mogadishu, Banaadir, Somalia",
+      "action_geo_country_code": "SO",
+      "source_url": "https://www.timesofearth.com/2026/11/03/uganda-begins-withdrawing-troops-from-somalia-after-two-decades-of-fighting-al-shabab/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231196",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "IRANIAN",
+      "actor1_type1_code": "",
+      "actor2_name": "IRAN",
+      "actor2_type1_code": "MIL",
+      "action_geo_fullname": "Qeshm, Kordestan, Iran",
+      "action_geo_country_code": "IR",
+      "source_url": "https://www.timesofearth.com/2026/11/03/u-s-attacks-irans-qeshm-island/"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231225",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "IRANIAN",
+      "actor1_type1_code": "MIL",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Qeshm, Kordestan, Iran",
+      "action_geo_country_code": "IR",
+      "source_url": "https://www.timesofearth.com/2026/11/03/u-s-attacks-irans-qeshm-island/"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231242",
+      "event_root_code": "18",
+      "event_base_code": "180",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "ISRAEL",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Hebron, Israel (general), Israel",
+      "action_geo_country_code": "IS",
+      "source_url": "https://english.aawsat.com/features/5336963-displaced-hebron-residents-return-home-scenes-destruction-after-israeli-operation"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231256",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "ISRAELI",
+      "actor1_type1_code": "",
+      "actor2_name": "PALESTINIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Hebron, Israel (general), Israel",
+      "action_geo_country_code": "IS",
+      "source_url": "https://english.aawsat.com/features/5336963-displaced-hebron-residents-return-home-scenes-destruction-after-israeli-operation"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231257",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "ISRAEL",
+      "actor1_type1_code": "",
+      "actor2_name": "WEST BANK",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Hebron, Israel (general), Israel",
+      "action_geo_country_code": "IS",
+      "source_url": "https://english.aawsat.com/features/5336963-displaced-hebron-residents-return-home-scenes-destruction-after-israeli-operation"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231264",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "ISRAEL",
+      "actor1_type1_code": "MIL",
+      "actor2_name": "ISRAEL",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Hebron, Israel (general), Israel",
+      "action_geo_country_code": "IS",
+      "source_url": "https://english.aawsat.com/features/5336963-displaced-hebron-residents-return-home-scenes-destruction-after-israeli-operation"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231267",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "ISRAEL",
+      "actor1_type1_code": "MIL",
+      "actor2_name": "PALESTINIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Hebron, Israel (general), Israel",
+      "action_geo_country_code": "IS",
+      "source_url": "https://english.aawsat.com/features/5336963-displaced-hebron-residents-return-home-scenes-destruction-after-israeli-operation"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231269",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "ISRAELI",
+      "actor1_type1_code": "MIL",
+      "actor2_name": "PALESTINIAN",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Hebron, Israel (general), Israel",
+      "action_geo_country_code": "IS",
+      "source_url": "https://english.aawsat.com/features/5336963-displaced-hebron-residents-return-home-scenes-destruction-after-israeli-operation"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231298",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "JUDGE",
+      "actor1_type1_code": "JUD",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Adelaide, South Australia, Australia",
+      "action_geo_country_code": "AS",
+      "source_url": "https://www.resilience.org/stories/2026-11-03/cop31-will-countries-finally-deliver-on-past-promises/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231299",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "JUDGE",
+      "actor1_type1_code": "JUD",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Brussels, Bruxelles-Capitale, Belgium",
+      "action_geo_country_code": "BE",
+      "source_url": "https://www.resilience.org/stories/2026-11-03/cop31-will-countries-finally-deliver-on-past-promises/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231326",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "JUDGE",
+      "actor1_type1_code": "JUD",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Dublin, Dublin, Ireland",
+      "action_geo_country_code": "EI",
+      "source_url": "https://www.carlow-nationalist.ie/news/courts/woman-used-elderly-mans-bank-card-to-buy-clothes-from-brown-thomas_arid-20332528.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231347",
+      "event_root_code": "18",
+      "event_base_code": "180",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "WORKER",
+      "actor1_type1_code": "LAB",
+      "actor2_name": "LEGISLATOR",
+      "actor2_type1_code": "LEG",
+      "action_geo_fullname": "Midnapore, West Bengal, India",
+      "action_geo_country_code": "IN",
+      "source_url": "https://www.hindustantimes.com/india-news/bengal-bjp-mla-who-opposed-extortion-hospitalised-after-assault-by-party-workers-101793700521884.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231374",
+      "event_root_code": "18",
+      "event_base_code": "182",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "LEGISLATOR",
+      "actor1_type1_code": "LEG",
+      "actor2_name": "WEST BENGAL",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Kolkata, West Bengal, India",
+      "action_geo_country_code": "IN",
+      "source_url": "https://www.hindustantimes.com/india-news/bengal-bjp-mla-who-opposed-extortion-hospitalised-after-assault-by-party-workers-101793700521884.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231396",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "NEWS AGENCY",
+      "actor1_type1_code": "MED",
+      "actor2_name": "ENGINEER",
+      "actor2_type1_code": "CVL",
+      "action_geo_fullname": "Sistan, Gilan, Iran",
+      "action_geo_country_code": "IR",
+      "source_url": "https://english.aawsat.com/world/5336971-iranian-police-officer-killed-attack-restive-southeast"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231397",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "NEWS AGENCY",
+      "actor1_type1_code": "MED",
+      "actor2_name": "ENGINEER",
+      "actor2_type1_code": "CVL",
+      "action_geo_fullname": "Afghanistan",
+      "action_geo_country_code": "AF",
+      "source_url": "https://english.aawsat.com/world/5336971-iranian-police-officer-killed-attack-restive-southeast"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231403",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "10",
+      "actor1_name": "NEWS AGENCY",
+      "actor1_type1_code": "MED",
+      "actor2_name": "TERRORIST GROUP",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Afghanistan",
+      "action_geo_country_code": "AF",
+      "source_url": "https://english.aawsat.com/world/5336971-iranian-police-officer-killed-attack-restive-southeast"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231416",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "8",
+      "actor1_name": "MILITARY",
+      "actor1_type1_code": "MIL",
+      "actor2_name": "GOVERNMENT",
+      "actor2_type1_code": "GOV",
+      "action_geo_fullname": "Al-Maqatirah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231417",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "MILITARY",
+      "actor1_type1_code": "MIL",
+      "actor2_name": "GOVERNMENT",
+      "actor2_type1_code": "GOV",
+      "action_geo_fullname": "Tur Al-Bahah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231430",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "DISNEY",
+      "actor1_type1_code": "MNC",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Munich, Bayern, Germany",
+      "action_geo_country_code": "GM",
+      "source_url": "https://variety.com/2026/tv/festivals/shin-min-lee-jong-suk-remarried-empress-disney-hulu-1236908746/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231486",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "LAHORE",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Lahore, Punjab, Pakistan",
+      "action_geo_country_code": "PK",
+      "source_url": "https://www.samaa.tv/2087359578-19-year-old-woman-killed-in-lahore-suthra-punjab-truck-crash"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231487",
+      "event_root_code": "19",
+      "event_base_code": "193",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "7",
+      "actor1_name": "LAHORE",
+      "actor1_type1_code": "",
+      "actor2_name": "AUTHORITIES",
+      "actor2_type1_code": "GOV",
+      "action_geo_fullname": "Lahore, Punjab, Pakistan",
+      "action_geo_country_code": "PK",
+      "source_url": "https://www.samaa.tv/2087359578-19-year-old-woman-killed-in-lahore-suthra-punjab-truck-crash"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231545",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "1",
+      "actor1_name": "RUSSIA",
+      "actor1_type1_code": "",
+      "actor2_name": "UKRAINIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Dnipro, Ukraine (general), Ukraine",
+      "action_geo_country_code": "UP",
+      "source_url": "https://www.newcastleherald.com.au/story/9385446/deaths-rise-after-russian-strike-on-ukrainian-aid-site/"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231546",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "7",
+      "actor1_name": "RUSSIA",
+      "actor1_type1_code": "",
+      "actor2_name": "UKRAINIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Moscow, Moskva, Russia",
+      "action_geo_country_code": "RS",
+      "source_url": "https://www.newcastleherald.com.au/story/9385446/deaths-rise-after-russian-strike-on-ukrainian-aid-site/"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231547",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "8",
+      "actor1_name": "RUSSIA",
+      "actor1_type1_code": "",
+      "actor2_name": "UKRAINE",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Russia",
+      "action_geo_country_code": "RS",
+      "source_url": "https://www.dw.com/en/zelenskyy-arrives-in-berlin-for-talks-with-merz-on-air-defense-and-energy-support-ahead-of-us-led-negotiations-with-russia/a-79836026"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231548",
+      "event_root_code": "19",
+      "event_base_code": "195",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "RUSSIA",
+      "actor1_type1_code": "",
+      "actor2_name": "UKRAINIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Komyshuvakha, Zaporiz'ka Oblast', Ukraine",
+      "action_geo_country_code": "UP",
+      "source_url": "https://cyprusnews.eu/cnn-kosmos/at-least-31-dead-after-russia-drops-nine-bombs-on-a-ukrainian-school-building/"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231549",
+      "event_root_code": "19",
+      "event_base_code": "195",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "RUSSIA",
+      "actor1_type1_code": "",
+      "actor2_name": "UKRAINIAN",
+      "actor2_type1_code": "EDU",
+      "action_geo_fullname": "Komyshuvakha, Zaporiz'ka Oblast', Ukraine",
+      "action_geo_country_code": "UP",
+      "source_url": "https://cyprusnews.eu/cnn-kosmos/at-least-31-dead-after-russia-drops-nine-bombs-on-a-ukrainian-school-building/"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231571",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "SUDAN",
+      "actor1_type1_code": "",
+      "actor2_name": "ETHIOPIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Khartoum, Al Khartum, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://english.aawsat.com/arab-world/5336979-sudan-files-complaint-against-ethiopia-un-security-council-over-drone-attacks"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231572",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "8",
+      "actor1_name": "SUDAN",
+      "actor1_type1_code": "",
+      "actor2_name": "ETHIOPIAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Tigray, Tigray, Ethiopia",
+      "action_geo_country_code": "ET",
+      "source_url": "https://english.aawsat.com/arab-world/5336979-sudan-files-complaint-against-ethiopia-un-security-council-over-drone-attacks"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231573",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "SUDAN",
+      "actor1_type1_code": "",
+      "actor2_name": "SOUTH SUDAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Blue Nile State, An Nil al Azraq, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://eyeradio.org/liberation-veteran-and-bilpam-founder-gen-john-duit-yiech-dies-in-ethiopia/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231574",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "SUDAN",
+      "actor1_type1_code": "",
+      "actor2_name": "SOUTH SUDAN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Blue Nile State, An Nil al Azraq, Sudan",
+      "action_geo_country_code": "SU",
+      "source_url": "https://eyeradio.org/liberation-veteran-and-bilpam-founder-gen-john-duit-yiech-dies-in-ethiopia/"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231587",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "TUNIS",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Tunis, (TS26), Tunisia",
+      "action_geo_country_code": "TS",
+      "source_url": "https://www.tap.info.tn/en/Portal-Top-News-EN/20760634-president-sa%C3%AFed"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231593",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "FIGHTER",
+      "actor1_type1_code": "UAF",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Abyan, Fars, Iran",
+      "action_geo_country_code": "IR",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231594",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "6",
+      "actor1_name": "TERRORIST",
+      "actor1_type1_code": "UAF",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Riyadh Region, Ar Riya?, Saudi Arabia",
+      "action_geo_country_code": "SA",
+      "source_url": "https://english.aawsat.com/gulf/5337019-coalition-says-drone-intercepted-and-destroyed-makkah-region"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231595",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "TERRORIST",
+      "actor1_type1_code": "UAF",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://english.aawsat.com/gulf/5337019-coalition-says-drone-intercepted-and-destroyed-makkah-region"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231598",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "FIGHTER",
+      "actor1_type1_code": "UAF",
+      "actor2_name": "YEMEN",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Maqatirah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231613",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "8",
+      "actor1_name": "UGANDAN",
+      "actor1_type1_code": "",
+      "actor2_name": "TANZANIA",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Kampala, Kampala, Uganda",
+      "action_geo_country_code": "UG",
+      "source_url": "https://allafrica.com/stories/202611030352.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231614",
+      "event_root_code": "19",
+      "event_base_code": "192",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "UGANDA",
+      "actor1_type1_code": "",
+      "actor2_name": "TANZANIA",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Kagera, Kigoma, Tanzania",
+      "action_geo_country_code": "TZ",
+      "source_url": "https://allafrica.com/stories/202611030352.html"
+    },
+    "label": 0
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231783",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "YEMEN",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Hudaydah, Al ?udaydah, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231784",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "2",
+      "actor1_name": "YEMEN",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Maqatirah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231785",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "1",
+      "actor1_name": "YEMEN",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Dhamar, Dhamar, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231786",
+      "event_root_code": "19",
+      "event_base_code": "194",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "3",
+      "actor1_name": "YEMEN",
+      "actor1_type1_code": "",
+      "actor2_name": "",
+      "actor2_type1_code": "",
+      "action_geo_fullname": "Al-Arah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  },
+  {
+    "raw": {
+      "global_event_id": "1331231787",
+      "event_root_code": "19",
+      "event_base_code": "190",
+      "quad_class": "4",
+      "num_sources": "1",
+      "num_articles": "4",
+      "actor1_name": "YEMEN",
+      "actor1_type1_code": "",
+      "actor2_name": "FIGHTER",
+      "actor2_type1_code": "UAF",
+      "action_geo_fullname": "Al-Maqatirah, La?ij, Yemen",
+      "action_geo_country_code": "YM",
+      "source_url": "https://www.samaa.tv/2087359569-at-least-20-civilians-killed-in-missile-strike-as-houthis-move-towards-aden"
+    },
+    "label": 1
+  }
+]
