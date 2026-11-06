@@ -233,7 +233,7 @@ daily cron instructions, `.gitignore` finalization.
 
 ## Checkpoint: Complete
 - [x] Fresh-clone setup documented and verified
-- [x] All acceptance criteria met (45 tests passing)
+- [x] All acceptance criteria met (73 tests passing)
 - [ ] Visual browser smoke test by user (open http://localhost:8000)
 
 ---
@@ -243,25 +243,22 @@ daily cron instructions, `.gitignore` finalization.
 Updated after the code-review pass and context setup.
 
 ## Status
-All planned tasks complete. Post-review hardening applied (see below). Working tree is a
-git repository with a single commit (`2695f1b Initial commit: Global Conflict Map`);
-`conflicts.db` and `.venv/` are untracked via `.gitignore`.
+All original plan tasks complete. Raw GDELT storage, two-phase processing, audit
+backfill, batched zero-shot filtering, and API hardening are applied. The working tree
+is clean on `main`; `conflicts.db`, `data/`, and `.venv/` are untracked via `.gitignore`.
 
 ## Verification baseline (re-run these first)
 ```bash
 source .venv/bin/activate
-pytest            # 45 passed
+pytest            # 73 passed
 ruff check .      # clean
 black --check .   # clean
-alembic current   # bf7342e34e12 (head)
+alembic current   # b7da7a666155 (head)
 curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
 ```
 
-> Caveat (verified while triaging remaining work): the checked-in `.venv` symlinks
-> `.venv/bin/python3 -> /usr/bin/python3`, which does not exist here, so `pytest`,
-> `black`, and `alembic` all fail with "required file not found". Only `ruff` (standalone
-> binary) runs. Rebuild the venv (`python3 -m venv .venv && pip install -r requirements.txt`)
-> before trusting or re-recording the baseline above.
+The earlier broken-venv caveat no longer applies; `pytest`, `black`, and `alembic` run
+normally in this environment.
 
 ## Changes since the original plan
 - Grouping: keyword overlap → proximity (100 km + time window), anchor cached per conflict.
@@ -294,12 +291,33 @@ curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
   672,142 not-armed-conflict, 31,817 filtered out, 13,713 duplicate (the existing
   conflict events). `scripts/process_raw.py` and `scripts/backfill_audit.py` added.
 
-## Open items (not started)
+## Remaining work (not started)
+
+### UI / product
 - [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel). HTTP/static
   smoke is done; no browser is installed in this environment.
-- [x] Store full GDELT row in `raw_event`; `num_sources` is available but not yet used.
-- [ ] Optional: fetch real article `<title>` instead of URL-slug headlines.
-- [x] Backfilled one week (2026-10-29..2026-11-04); add more history later if useful.
+- [ ] Marker clustering or a server-side event cap. A one-week view currently renders
+  ~13k per-event Leaflet markers.
+- [ ] Event edit/move UI: expose `PATCH /api/events` for lat/lon, type, intensity, source,
+  and other fields; today only conflict fields are editable.
+- [ ] Form feedback: show 4xx errors, default required dates, and make a newly created
+  conflict without events visible (the list currently requires at least one event).
+- [ ] Add `rel="noopener noreferrer"` to external source links.
+
+### Operations / data
+- [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
+  backup of the current ~1.4 GB DB before any pruning or reset.
+- [ ] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
+  document them as pre-metadata runs.
+- [ ] Mark stale `running` `ingestion_run` rows failed on startup.
+- [ ] Record whether the zero-shot filter was available/used in run audit metadata.
+
+### Optional
+- [ ] Use `num_sources` from `raw_event` for corroboration or confidence.
+- [ ] Backfill more history beyond 2026-10-29..2026-11-04.
+- [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
+- [ ] Pin dependencies and add CI.
 
 ## Approval state
-No pending approvals. Article-title fetching is still declined; raw payload storage is now implemented.
+No pending approvals. Article-title fetching is still declined; raw payload storage is
+implemented in `raw_event`.
