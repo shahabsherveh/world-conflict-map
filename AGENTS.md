@@ -21,6 +21,11 @@ pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 black app tests scripts                  # format
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
+
+# Chrome for the chrome-devtools MCP (see Gotchas #9); CDP on :9222
+/tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
+  --disable-dev-shm-usage --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/chrome-profile about:blank &
 alembic upgrade head                     # apply migrations
 alembic revision --autogenerate -m "…"   # new migration
 
@@ -69,8 +74,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - Guard performance invariants explicitly (see `test_conflict_list_query_count_is_bounded`).
 - `tests/ui/map-smoke.mjs` covers the map JavaScript (clustering, counts, time scrub) in
   jsdom against a running server. It is **not** part of pytest and has its own npm
-  dependency; run it when touching `app/static/app.js`. Visual/CSS checks still need a
-  real browser.
+  dependency; run it when touching `app/static/app.js`.
+- Visual/CSS checks need a real browser. Use the `chrome-devtools` MCP (codemode tools
+  `mcp__chrome_devtools__*`), which attaches to the headless Chrome on `:9222`; see
+  `tests/ui/README.md` for the workflow and what each layer covers.
 
 ## Boundaries
 
@@ -107,6 +114,14 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 7. **The zero-shot model downloads once** via `python scripts/download_model.py`; the pipeline
    degrades gracefully (skips the filter) if unavailable.
 8. **Auto-generated Alembic revisions are excluded** from ruff/black — don't reformat them.
+9. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
+   and Chrome refuses to run as root). Run Chrome yourself with
+   `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with
+   `--browserUrl http://127.0.0.1:9222` so it attaches instead of launching. Two rough
+   edges: `new_page` waits for `load` and times out while map tiles are still fetching
+   (the page is fine — keep using it), and `evaluate_script` replies with prose plus a
+   fenced JSON block, so parse the fence. The Chrome install lives in `/tmp`, so a
+   container rebuild deletes it.
 
 ## Known limitations
 

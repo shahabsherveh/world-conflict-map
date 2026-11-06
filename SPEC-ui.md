@@ -36,8 +36,12 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
 
 ## Testing strategy
-- Manual smoke checklist (primary).
-- Optional later: Playwright smoke tests (loads, renders markers, scrub triggers fetch).
+- `tests/ui/map-smoke.mjs`: jsdom + real Leaflet/markercluster against a running server —
+  marker/cluster counts checked against `/api/events`, bounded DOM, cluster clicks, scrub.
+  Run it when touching `app.js`; it is not part of pytest (needs npm + a server).
+- Real-browser checks through the `chrome-devtools` MCP (headless Chrome on `:9222`):
+  hit-testing, popups, "Pick on map", basemap. Setup: `tests/ui/README.md`.
+- A human visual pass (colour/contrast, cluster aesthetics) remains the last word.
 
 ## Boundaries
 - Always: fetch data from `/api/*` (never hardcode data in JS).

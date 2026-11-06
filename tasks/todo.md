@@ -275,8 +275,9 @@ normally in this environment.
 - UI manual correction: event edit form (including lat/lon and “Pick on map”),
   keyboard-operable conflict buttons, live notice/error region, loading/error/empty
   states, eventless manual conflicts listed, and safe external links.
-- HTTP/static smoke passed via `uvicorn --reload` (health, UI, JS/CSS, API). No Chromium/
-  Playwright in this environment, so the visual browser checklist is still user-run.
+- HTTP/static smoke passed via `uvicorn --reload` (health, UI, JS/CSS, API). Browser
+  checks now run through headless Chrome via the `chrome-devtools` MCP (setup in
+  `tests/ui/README.md`); a human visual pass is still worthwhile.
 - Removed: no-op `app/ingest/run.py`, dead `currentConflicts`, `persist_new_events`,
   unused `conflict_span`, unused `_headline` param, unsafe auto-repair wiring.
 - Added `scripts/fetch_gdelt.py` (resumable raw download with progress bar) and local
@@ -303,13 +304,12 @@ normally in this environment.
 - [x] Checked-in headless UI smoke: `tests/ui/map-smoke.mjs` (jsdom + real Leaflet
   against a running server). Covers clustering counts, bounded DOM, cluster clicks, and
   the time scrub. Not wired into pytest/CI (needs npm + a server).
-- [x] Real-browser smoke via headless Chrome 149 + CDP (installed by hand for the check;
-  not part of the repo): 13,066 events → 37 clusters + 2 dots at world zoom, labels sum
-  to the API count, scrub to 3 days re-renders exactly 4,275, cluster click zooms,
-  event popup + sidebar detail render, "Pick on map" fills lat/lon, no console errors.
-- [ ] User's own browser pass on a machine with OSM tile access: this sandbox cannot
-  load many `tile.openstreetmap.org` tiles, so basemap rendering is unverified (markers,
-  popups and panels all render on the blank background).
+- [x] Real-browser smoke via headless Chrome 149 through the `chrome-devtools` MCP
+  (attaches to Chrome on `:9222`; setup documented in `tests/ui/README.md`): 13,066
+  events → ~37 cluster bubbles + individual dots at world zoom, labels summing to the
+  API count, scrub to 3 days re-renders exactly 4,275, cluster click zooms, event popup +
+  sidebar detail render, "Pick on map" fills lat/lon, OSM tiles return 200, and no
+  console messages. The earlier grey tile gaps were transient fetches, not an app bug.
 
 ### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a

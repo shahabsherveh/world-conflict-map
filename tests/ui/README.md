@@ -32,11 +32,38 @@ cached under `node_modules/.cache/ui-smoke/`.
 
 jsdom has no layout engine or CSS. The viewport is stubbed (1200x800) so Leaflet
 computes usable bounds, but **visual** regressions — marker colours, cluster bubble
-styling, popup positioning — still need a real browser:
+styling, popup positioning — still need a real browser.
+
+## Real-browser checks (`chrome-devtools` MCP)
+
+Chrome cannot be launched by the MCP in this container (no binary at
+`/opt/google/chrome`, and `chrome-devtools-mcp` refuses to launch as root), so start it
+yourself and let the MCP attach over CDP:
 
 ```bash
-# manual: open http://localhost:8000, scrub the range, click a marker, edit an event
+/tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
+  --disable-dev-shm-usage --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/chrome-profile about:blank &
+
+pi mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest \
+  --browserUrl http://127.0.0.1:9222
 ```
 
+Then drive it with the codemode tools (`mcp__chrome_devtools__list_pages`,
+`evaluate_script`, `take_screenshot`, `list_console_messages`, …). Gotchas: `new_page`
+waits for the `load` event and can time out while map tiles are still fetching — the page
+is loaded, so carry on with it; `evaluate_script` returns prose plus a fenced `json`
+block; cluster labels only count events inside the current viewport, so compare totals to
+`/api/events` at the initial world view, not after zooming.
+
+What a real browser adds over the jsdom harness: real hit-testing (clicking a cluster or a
+marker dot), popup/sidebar rendering, "Pick on map", and the basemap.
+
+Verified in headless Chrome 149: 13,066 geolocated events render as ~37 cluster bubbles
+plus individual dots at world view (labels summing to 13,066), scrubbing to 3 days
+re-renders exactly 4,275, cluster clicks zoom, event clicks open popup + detail, "Pick on
+map" fills lat/lon, OSM tiles 200, and no console messages.
+
+A true visual pass (colours, contrast, cluster aesthetics) still belongs to a human eye.
 This harness is deliberately not wired into `pytest`/CI: it needs npm and a running
 server, and `AGENTS.md` treats new dependencies as a decision, not a default.

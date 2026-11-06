@@ -164,3 +164,6 @@ python scripts/evaluate.py  # precision/recall of the zero-shot filter (needs mo
 # headless UI smoke test (needs Node 18+ and a server on :8000)
 cd tests/ui && npm install && node map-smoke.mjs
 ```
+
+Visual/CSS checks use the `chrome-devtools` MCP against a headless Chrome on `:9222` —
+see `tests/ui/README.md` for the Chrome and MCP setup.
