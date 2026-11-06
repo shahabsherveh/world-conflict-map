@@ -290,7 +290,7 @@ async function main() {
     "the remainder note reads as text, not objects",
     (() => {
       const note = doc.querySelector("#conflict-list .list-note")?.textContent ?? "";
-      return !note.includes("[object") && /\d+ (off-screen|without events)/.test(note);
+      return !note.includes("[object") && /\d+ (off-screen|with no location)/.test(note);
     })(),
     doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
   );

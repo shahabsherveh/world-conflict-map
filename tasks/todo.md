@@ -313,7 +313,10 @@ normally in this environment.
   the header reports events in view, and clicking a row centres on the in-view event.
   Checked in jsdom (rows vs summary label, note text) and in headless Chrome: 1,177
   conflicts / 13,066 events at world view, 134 / 2,601 after zooming into a hot cluster,
-  matching the cluster labels on screen.
+  matching the cluster labels on screen. Follow-up from explaining "1177": the note said
+  those conflicts were "without events in this range", but all 493 have exactly one event
+  — GDELT just left it ungeocoded. "No location" is now derived from the events, and the
+  note says so.
 - [x] Cluster density heatmap: bubble colour on a log-scaled cool→hot ramp (hue 210°→0°,
   30→52 px) plus the event count, with a legend bottom-left. Checked in the jsdom
   harness (hue/size monotone in count) and in headless Chrome (2 events = hsl(189°)

@@ -258,11 +258,17 @@ function paintConflictList() {
     if (e.conflict_id != null && !focus.has(e.conflict_id)) focus.set(e.conflict_id, e);
   }
 
+  // "No location" means no geolocated event in the range at all — not "no events":
+  // GDELT leaves ~500 events here ungeocoded, and each of those conflicts is
+  // eventful but unmappable. Derive it from the events, not from the conflict's
+  // summary coordinate, which only reflects its latest event.
+  const locatedIds = new Set();
+  for (const e of rangeEvents) {
+    if (e.conflict_id != null && e.lat != null && e.lon != null) locatedIds.add(e.conflict_id);
+  }
   const inView = rangeConflicts.filter((c) => focus.has(c.id));
-  const noLocation = rangeConflicts.filter(
-    (c) => !focus.has(c.id) && (c.lat == null || c.lon == null),
-  );
-  const offScreen = rangeConflicts.length - inView.length - noLocation.length;
+  const noLocationCount = rangeConflicts.filter((c) => !locatedIds.has(c.id)).length;
+  const offScreen = rangeConflicts.length - inView.length - noLocationCount;
 
   count.textContent =
     `(${inView.length} of ${rangeConflicts.length} · ${eventsInView.toLocaleString()} ${
@@ -280,12 +286,12 @@ function paintConflictList() {
     return;
   }
 
-  // One summary line instead of hundreds of rows: most of the remainder is either
-  // off-screen or has no events in this range (and therefore no coordinates).
-  const rest = offScreen + noLocation.length;
+  // One summary line instead of hundreds of rows: the remainder is either
+  // off-screen or has no geolocated event at all.
+  const rest = offScreen + noLocationCount;
   const restText = [
     offScreen ? `${offScreen} off-screen` : "",
-    noLocation.length ? `${noLocation.length} without events in this range` : "",
+    noLocationCount ? `${noLocationCount} with no location` : "",
   ]
     .filter(Boolean)
     .join(", ");

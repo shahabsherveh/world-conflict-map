@@ -27,8 +27,9 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
   conflict's single summary coordinate: a conflict spans many places, and its summary
   point is just its latest event in range, so testing that one point drops conflicts whose
   incidents are on screen. Clicking a row centres on the in-view event, not the summary
-  point. Conflicts with no event in the selected range have no coordinates and are
-  summarised in one muted note (`X off-screen, Y without events in this range`); a newly
+  point. Conflicts whose events are all ungeocoded (GDELT leaves roughly 500 events in a
+  30-day window without coordinates) have no location and are
+  summarised in one muted note (`X off-screen, Y with no location`); a newly
   created conflict opens in the detail panel with an empty state instead of a list row.
 - Loading, empty, error, and save states are visible; API errors appear in a live notice
   region rather than failing silently.

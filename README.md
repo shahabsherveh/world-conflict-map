@@ -49,9 +49,9 @@ Open **http://localhost:8000**.
 - Click a marker to see the event, its conflict, and the underlying news source.
 - Use the side panel to **edit a conflict**, **edit or move an event** (including lat/lon
   via “Pick on map”), **add an event**, or **create a conflict**.
-- The side panel lists only the conflicts with events in the current view, showing the
-  event count too ("134 of 1670 · 2,601 events"); pan or zoom to reach the rest. A newly
-  created conflict opens in the detail panel even before it has events.
+- The side panel lists only the conflicts with a located event in the current view, and
+  shows the event count too ("134 of 1670 · 2,601 events"); pan or zoom to reach the
+  rest. A newly created conflict opens in the detail panel even before it has events.
 
 ## Daily cron
 
