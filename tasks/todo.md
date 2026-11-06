@@ -272,6 +272,11 @@ curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
   per-event Raw data panel, "Open conflict" drill-down.
 - Fixes: date-range `end_date IS NULL` leak, UTC date off-by-one, conflicting-city merge,
   N+1 in `/api/conflicts`, input bounds, CWD-dependent paths.
+- API hardening: null updates return 422, conflict/event date order is enforced, event
+  creation cannot reference a missing conflict, source URLs must be http(s), inverted
+  ranges are rejected, event create/update return headlines, and SQLite FKs are enabled.
+- HTTP/static smoke passed via `uvicorn --reload` (health, UI, JS/CSS, API). No Chromium/
+  Playwright in this environment, so the visual browser checklist is still user-run.
 - Removed: no-op `app/ingest/run.py`, dead `currentConflicts`, `persist_new_events`,
   unused `conflict_span`, unused `_headline` param, unsafe auto-repair wiring.
 - Added `scripts/fetch_gdelt.py` (resumable raw download with progress bar) and local
@@ -290,7 +295,8 @@ curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
   conflict events). `scripts/process_raw.py` and `scripts/backfill_audit.py` added.
 
 ## Open items (not started)
-- [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel).
+- [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel). HTTP/static
+  smoke is done; no browser is installed in this environment.
 - [x] Store full GDELT row in `raw_event`; `num_sources` is available but not yet used.
 - [ ] Optional: fetch real article `<title>` instead of URL-slug headlines.
 - [x] Backfilled one week (2026-10-29..2026-11-04); add more history later if useful.
