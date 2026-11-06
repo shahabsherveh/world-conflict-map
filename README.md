@@ -129,6 +129,21 @@ cp conflicts.db /tmp/conflicts.db.bak
 alembic downgrade base && alembic upgrade head
 ```
 
+### Rebuilding the conflict grouping
+
+Conflicts are derived from events by proximity, so a change to that rule leaves older
+rows grouped the old way. `scripts/regroup.py` re-derives every conflict from the stored
+events; it is a dry run unless you pass `--apply`:
+
+```bash
+cp conflicts.db conflicts.before-regroup.db
+python scripts/regroup.py            # report: conflicts before -> after, largest groups
+python scripts/regroup.py --apply
+```
+
+It rewrites `conflict` rows and each event's `conflict_id`, never coordinates — no marker
+moves. Conflict ids restart from 1, so an old `?conflict=ID` link will point elsewhere.
+
 ## Seed demo data (optional)
 
 To see the map immediately without hitting GDELT:

@@ -35,6 +35,7 @@ uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 python scripts/seed.py                   # demo data (no network)
 python scripts/evaluate.py               # filter precision/recall (needs model)
 python scripts/repair_locations.py       # dry-run coordinate inspection only
+python scripts/regroup.py                # dry-run conflict rebuild (--apply to write)
 python scripts/fetch_gdelt.py --days 7   # raw GDELT download to data/gdelt/
 python scripts/process_raw.py            # process pending raw_event rows
 python scripts/backfill_audit.py         # reconstruct ingestion_run rows
@@ -51,7 +52,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 | Shared queries | `app/queries.py` | cross-module read helpers live here, not in routes |
 | Config | `app/config.py` | path-independent, cached; defaults in `DEFAULTS` |
 | GDELT download | `app/ingest/gdelt.py`, `normalizer.py` | 61-column positional TSV, no header |
-| Extraction | `app/extract/` | `base.py` = swappable adapter seam |
+| Extraction | `app/extract/` | `base.py` = swappable adapter seam; `grouping.py` links events to conflicts (proximity, not keywords) |
 | API | `app/api/routes.py`, `schemas.py` | Pydantic models for every endpoint |
 | UI | `app/static/` | `app.js`, `index.html`, `style.css` |
 

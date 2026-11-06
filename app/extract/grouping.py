@@ -14,11 +14,11 @@ Isolated here so it can be replaced with richer clustering later.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.extract.location import haversine_km
-from app.models import Conflict, ConflictEvent
+from app.models import Conflict, ConflictEvent, EditLog
 
 DEFAULT_RADIUS_KM = 100.0
 
@@ -127,3 +127,23 @@ def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
             )
         event.conflict_id = match.id
     return created
+
+
+def regroup_all(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
+    """Unlink every event and rebuild the conflicts from scratch.
+
+    Repairs data produced by an older grouping rule; it is not part of the daily
+    run, which only ever links new events. Conflict rows are derived again, so
+    conflict-level curation (a renamed conflict, an ended status) is lost — check
+    for it before applying. Event rows are never rewritten apart from their
+    `conflict_id`, so no marker moves. Conflict ids restart from 1, so the audit
+    rows that point at them are dropped rather than left dangling.
+
+    Returns the number of conflicts created.
+    """
+    session.execute(update(ConflictEvent).values(conflict_id=None))
+    session.flush()
+    session.execute(delete(Conflict))
+    session.execute(delete(EditLog).where(EditLog.target_type == "conflict"))
+    session.flush()
+    return group_events(session, radius_km)
