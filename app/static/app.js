@@ -248,16 +248,17 @@ function paintConflictList() {
   const bounds = map.getBounds();
 
   // A conflict has ONE summary coordinate (its latest event in range), but its
-  // events can sit anywhere, so both lists are derived from the events instead:
-  // a conflict is "in view" when any of its events is on screen, and it has a
-  // location when any of its events is geolocated. The summary point cannot
-  // answer either question, and GDELT leaves ~500 events here ungeocoded, so
-  // those conflicts are eventful but unmappable. One pass decides both, and also
-  // yields where to fly to on click.
+  // events can sit anywhere, so everything here is derived from the events: a
+  // conflict is "in view" when any of its events is on screen, and it has a
+  // location when any of its events is geolocated. The summary point can answer
+  // neither question. One pass fills all three sets, and also yields where to fly
+  // to on click.
   const focus = new Map();
+  const eventfulIds = new Set();
   const locatedIds = new Set();
   let eventsInView = 0;
   for (const e of rangeEvents) {
+    if (e.conflict_id != null) eventfulIds.add(e.conflict_id);
     if (e.lat == null || e.lon == null) continue;
     if (e.conflict_id != null) locatedIds.add(e.conflict_id);
     if (!bounds.contains(L.latLng(e.lat, e.lon))) continue;
@@ -266,8 +267,13 @@ function paintConflictList() {
   }
 
   const inView = rangeConflicts.filter((c) => focus.has(c.id));
-  const noLocation = rangeConflicts.filter((c) => !locatedIds.has(c.id));
-  const offScreen = rangeConflicts.length - inView.length - noLocation.length;
+  // GDELT leaves ~500 events a window ungeocoded, and those conflicts are eventful
+  // but unmappable — that is the panel's population. A conflict with no events at
+  // all is not unplaceable, it is empty: it belongs in the detail panel's empty
+  // state, never in a list whose whole point is offering to place it.
+  const noLocation = rangeConflicts.filter((c) => eventfulIds.has(c.id) && !locatedIds.has(c.id));
+  const noEvents = rangeConflicts.filter((c) => !eventfulIds.has(c.id)).length;
+  const offScreen = rangeConflicts.length - inView.length - noLocation.length - noEvents;
 
   count.textContent =
     `(${inView.length} of ${rangeConflicts.length} · ${eventsInView.toLocaleString()} ${
@@ -285,12 +291,13 @@ function paintConflictList() {
     return;
   }
 
-  // One summary line instead of hundreds of rows: the remainder is either
-  // off-screen or has no geolocated event at all.
-  const rest = offScreen + noLocation.length;
+  // One summary line instead of hundreds of rows: the remainder is off-screen, has
+  // no geolocated event, or has no events yet.
+  const rest = offScreen + noLocation.length + noEvents;
   const restText = [
     offScreen ? `${offScreen} off-screen` : "",
     noLocation.length ? `${noLocation.length} with no location` : "",
+    noEvents ? `${noEvents} with no events yet` : "",
   ]
     .filter(Boolean)
     .join(", ");
@@ -394,7 +401,12 @@ async function setLocationFor(conflictId) {
     (e) => e.conflict_id === conflictId && (e.lat == null || e.lon == null),
   );
   await showConflict(conflictId);
-  if (unplaced.length !== 1) {
+  if (!unplaced.length) {
+    // Stale panel: the event gained coordinates since it was painted.
+    showNotice("This conflict has no unplaced event in this range.", "info");
+    return;
+  }
+  if (unplaced.length > 1) {
     showNotice("Several events here lack a location — open the one to place it.", "info");
     return;
   }

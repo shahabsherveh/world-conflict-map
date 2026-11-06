@@ -54,7 +54,9 @@ Open **http://localhost:8000**.
   rest. A newly created conflict opens in the detail panel even before it has events.
 - Conflicts the news feed left without coordinates — about 500 in a 30-day window — are
   listed in a separate **No location** panel with a **Set location →** action that reuses
-  "Pick on map". They are never auto-placed: a marker only appears where you put it.
+  "Pick on map". They are never auto-placed: a marker only appears where you put it. A
+  conflict with no events at all stays out of that panel — it is empty, not unplaceable,
+  and opens in the detail panel instead.
 
 ## Daily cron
 

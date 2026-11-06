@@ -29,8 +29,9 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
   incidents are on screen. Clicking a row centres on the in-view event, not the summary
   point. Conflicts whose events are all ungeocoded (GDELT leaves roughly 500 events in a
   30-day window without coordinates) have no location and are
-  summarised in one muted note (`X off-screen, Y with no location`); a newly
-  created conflict opens in the detail panel with an empty state instead of a list row.
+  summarised in one muted note (`X off-screen, Y with no location, Z with no events yet`);
+  a newly created conflict opens in the detail panel with an empty state instead of a list
+  row.
 - Loading, empty, error, and save states are visible; API errors appear in a live notice
   region rather than failing silently.
 - Conflict list entries are native buttons and keyboard operable.
@@ -95,11 +96,15 @@ So these conflicts get a home in the sidebar, not on the basemap.
 ### Behavior
 - A second collapsible in the sidebar, sibling to “Conflicts in view”, titled
   **“No location (N)”**; hidden when `N = 0`; collapsed by default.
-- `N` = conflicts in the selected range with no geolocated event — the same number the
-  in-view note reports, computed in the same pass so the two can never disagree.
-- Rows, newest event first: name, country, event date, headline, and a muted
-  “no coordinates” badge. Native `<button>`s, keyboard operable, escaped like every other
-  list.
+- `N` = conflicts in the selected range that **have an event in range but no geolocated
+  one** — the same number the in-view note reports, computed in the same pass so the two
+  can never disagree.
+- A conflict with no events yet is **not** listed here: it is empty rather than
+  unplaceable, and the detail panel already gives it an empty state. It is counted
+  separately in the note (`Z with no events yet`).
+- Rows, newest event first: name — or the headline when the name is the grouping
+  placeholder — event date, place, and a muted “no coordinates” badge. Native `<button>`s,
+  keyboard operable, escaped like every other list.
 - Clicking a row opens its conflict detail; the map does **not** move (there is nowhere to
   move to).
 - Each row carries **“Set location →”**: opens the conflict, expands its event's edit form
@@ -123,12 +128,16 @@ from the same `rangeEvents` array that feeds the header and the in-view list.
 ### Interaction with existing rules
 - “Conflicts in view” keeps its event-based membership; unplaced conflicts never match it.
 - The header denominator `M` stays “conflicts active in the range”, so the books balance:
-  **in-view + off-screen + no-location = M**.
+  **in-view + off-screen + no-location + with-no-events = M**.
+- A conflict with no events is never offered a “Set location” action; if a row is ever
+  clicked after its event gained coordinates, the handler says so instead of pretending
+  there are several candidates.
 - Manual placement reuses `PATCH /api/events/{id}` and its `edit_log` row; provenance stays
   `auto` unless the user changes it — the edit log is the audit trail.
 
 ### Testing strategy
 - jsdom harness: section appears with the expected count, hides at zero, rows are buttons,
+  every row still has an unplaced event (so an empty conflict can never appear there),
   clicking a row leaves the map view unchanged, “Set location” arms picking mode, and
   header / note / section counts agree.
 - Never save a coordinate from an automated test against the live DB; assert up to the

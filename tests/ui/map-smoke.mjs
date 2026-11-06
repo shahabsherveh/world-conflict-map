@@ -56,13 +56,25 @@ async function expectedMarkers(start, end) {
   return events.filter((e) => e.lat != null && e.lon != null).length;
 }
 
-// Conflicts with no geolocated event — the "No location" panel's population.
+// The "No location" panel's population: conflicts with an event in range but no
+// geolocated one. A conflict with no events at all is empty, not unplaceable, and
+// belongs in the detail panel's empty state.
 function expectedNoLocation({ events, conflicts }) {
   const located = new Set();
+  const eventful = new Set();
   for (const e of events) {
-    if (e.conflict_id != null && e.lat != null && e.lon != null) located.add(e.conflict_id);
+    if (e.conflict_id == null) continue;
+    eventful.add(e.conflict_id);
+    if (e.lat != null && e.lon != null) located.add(e.conflict_id);
   }
-  return conflicts.filter((c) => !located.has(c.id)).length;
+  return {
+    count: conflicts.filter((c) => eventful.has(c.id) && !located.has(c.id)).length,
+    unplacedIds: new Set(
+      events
+        .filter((e) => (e.lat == null || e.lon == null) && e.conflict_id != null)
+        .map((e) => e.conflict_id),
+    ),
+  };
 }
 
 function cachePath(url) {
@@ -165,7 +177,33 @@ async function main() {
   });
   const { window } = dom;
   const doc = window.document;
-  window.fetch = (url, opts) => fetch(new URL(url, BASE_URL).toString(), opts);
+  // Optional synthetic conflict for the "no events yet" case below. Injecting it
+  // into the payload keeps the harness read-only, which is the rule for the live
+  // DB (no test creates or edits records).
+  let injectEmptyConflict = false;
+  const EMPTY_CONFLICT_ID = 999999;
+  window.fetch = async (url, opts) => {
+    const response = await fetch(new URL(url, BASE_URL).toString(), opts);
+    if (!injectEmptyConflict || !String(url).startsWith("/api/conflicts")) return response;
+    const conflicts = await response.json();
+    conflicts.push({
+      id: EMPTY_CONFLICT_ID,
+      name: "Manual conflict with no events yet",
+      country: "UA",
+      start_date: isoDate(new Date()),
+      end_date: null,
+      status: "active",
+      intensity: 0,
+      lat: null,
+      lon: null,
+      event_count: 0,
+      headline: null,
+    });
+    return new Response(JSON.stringify(conflicts), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
   stubLayout(window);
 
   const errors = [];
@@ -244,13 +282,20 @@ async function main() {
 
   check(
     "no-location panel shows the conflicts with no geocoded event",
-    !table.hidden && rows.length === Math.min(expectedNoLoc, 200),
-    `${rows.length} rows, expected ${expectedNoLoc}`,
+    !table.hidden && rows.length === Math.min(expectedNoLoc.count, 200),
+    `${rows.length} rows, expected ${expectedNoLoc.count}`,
+  );
+  check(
+    "every no-location row still has an event in range",
+    [...rows].every((r) =>
+      expectedNoLoc.unplacedIds.has(Number(r.querySelector("button.conflict-item").dataset.id)),
+    ),
+    `${rows.length} rows, ${expectedNoLoc.unplacedIds.size} conflicts with an unplaced event`,
   );
   check(
     "panel count and in-view note agree",
-    doc.getElementById("nolocation-count").textContent === `(${expectedNoLoc})` &&
-      new RegExp(expectedNoLoc + " with no location").test(
+    doc.getElementById("nolocation-count").textContent === `(${expectedNoLoc.count})` &&
+      new RegExp(expectedNoLoc.count + " with no location").test(
         doc.querySelector("#conflict-list .list-note")?.textContent ?? "",
       ),
     doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
@@ -259,7 +304,7 @@ async function main() {
     "the list is capped with a note instead of rendering everything",
     (() => {
       const note = doc.querySelector("#nolocation-list .list-note")?.textContent ?? "";
-      return expectedNoLoc <= 200 || /showing 200 of \d+/.test(note);
+      return expectedNoLoc.count <= 200 || /showing 200 of \d+/.test(note);
     })(),
     doc.querySelector("#nolocation-list .list-note")?.textContent ?? "(no cap note)",
   );
@@ -410,6 +455,33 @@ async function main() {
     second.layers < first.layers || expectedNarrow >= expectedDefault,
     `${second.layers} vs ${first.layers}`,
   );
+
+  // A conflict with no events at all is empty, not unplaceable: it must not be
+  // offered for placement, and it counts in the note under its own label so the
+  // header numbers still add up.
+  const narrowConflicts = (await fetchRange(isoDate(daysAgo(3)), isoDate(new Date()))).conflicts;
+  injectEmptyConflict = true;
+  setDateInput(window, "end-date", isoDate(new Date()));
+  await waitForData(doc);
+  check(
+    "a conflict with no events is not offered for placement",
+    !doc.querySelector(`#nolocation-list .conflict-item[data-id="${EMPTY_CONFLICT_ID}"]`),
+    `${doc.querySelectorAll("#nolocation-list .nl-row").length} rows`,
+  );
+  check(
+    "a conflict with no events is counted as such in the note",
+    /\b1 with no events yet\b/.test(doc.querySelector("#conflict-list .list-note")?.textContent ?? "") &&
+      doc
+        .getElementById("conflict-count")
+        .textContent.includes(`of ${narrowConflicts.length + 1} `),
+    doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
+  );
+  check(
+    "the empty conflict is not on the map",
+    !doc.querySelector(`.leaflet-marker-icon[title*="Manual conflict"]`),
+    "no marker",
+  );
+  injectEmptyConflict = false;
 
   console.log(failures ? `\n${failures} FAILURE(S)` : "\nALL CHECKS PASSED");
   process.exit(failures ? 1 : 0);
