@@ -21,7 +21,9 @@ Pure Python (no ML deps). (Conventions: CAPABILITY-MAP.md)
 2. Map GDELT fields: `ActionGeo_*` → place/country/lat/lon; `Actor1Name`/`Actor2Name` → actors;
    `EventBaseCode` → `event_type`; `SQLDATE` → `event_date`; `SOURCEURL` → `source_url`;
    `GLOBALEVENTID` → `source_event_id`.
-3. `fatalities` from GDELT `NumKilled`/`NumWounded` where present, else null.
+3. `fatalities` stays null: the free GDELT 2.0 export carries no casualty columns, so the
+   adapter has nothing to map. Intensity is derived from event type + Goldstein scale
+   instead; manual edits may still set a count.
 4. `derive_intensity(event_type, fatalities, goldstein) -> 1..5` — a small pure, unit-tested
    function (severity by event type + fatality/tone adjustment, clamped to 1–5).
 5. `confidence` from `NumArticles`/`NumSources` (more coverage → higher), else default.
