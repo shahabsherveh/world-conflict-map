@@ -128,6 +128,110 @@ def test_post_event_with_conflict(client) -> None:
     assert resp.json()["provenance"] == "manual"
 
 
+def test_patch_rejects_null_required_fields(client) -> None:
+    c, session = client
+    conflict = seed(session)
+    event = session.query(ConflictEvent).first()
+
+    for payload in ({"name": None}, {"start_date": None}, {"status": None}):
+        assert c.patch(f"/api/conflicts/{conflict.id}", json=payload).status_code == 422
+    for payload in ({"event_date": None}, {"intensity": None}):
+        assert c.patch(f"/api/events/{event.id}", json=payload).status_code == 422
+
+
+def test_conflict_date_order_is_validated(client) -> None:
+    c, session = client
+    conflict = seed(session)
+
+    assert (
+        c.post(
+            "/api/conflicts",
+            json={"name": "Backwards", "start_date": "2024-06-01", "end_date": "2024-01-01"},
+        ).status_code
+        == 422
+    )
+    assert (
+        c.patch(f"/api/conflicts/{conflict.id}", json={"end_date": "2023-12-31"}).status_code == 422
+    )
+    assert (
+        c.patch(f"/api/conflicts/{conflict.id}", json={"end_date": "2024-03-01"}).status_code == 200
+    )
+    assert (
+        c.patch(f"/api/conflicts/{conflict.id}", json={"start_date": "2024-04-01"}).status_code
+        == 422
+    )
+
+
+def test_post_event_rejects_missing_conflict(client) -> None:
+    c, session = client
+    resp = c.post("/api/events", json={"event_date": "2024-01-01", "conflict_id": 9999})
+    assert resp.status_code == 404
+    assert session.query(ConflictEvent).count() == 0
+
+
+def test_event_source_url_must_be_http(client) -> None:
+    c, session = client
+    seed(session)
+    event = session.query(ConflictEvent).first()
+
+    assert (
+        c.post(
+            "/api/events",
+            json={"event_date": "2024-01-01", "source_url": "javascript:alert(1)"},
+        ).status_code
+        == 422
+    )
+    assert (
+        c.patch(f"/api/events/{event.id}", json={"source_url": "data:text/html,x"}).status_code
+        == 422
+    )
+    assert (
+        c.patch(
+            f"/api/events/{event.id}",
+            json={"source_url": "https://example.com/drone-attack"},
+        ).status_code
+        == 200
+    )
+
+
+def test_post_event_includes_headline(client) -> None:
+    c, _session = client
+    resp = c.post(
+        "/api/events",
+        json={
+            "event_date": "2024-01-01",
+            "source_url": "https://example.com/missile-strike",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["headline"] == "missile strike"
+
+
+def test_patch_event_includes_headline(client) -> None:
+    c, session = client
+    seed(session)
+    event = session.query(ConflictEvent).first()
+    resp = c.patch(
+        f"/api/events/{event.id}",
+        json={"source_url": "https://example.com/drone-attack"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["headline"] == "drone attack"
+
+
+def test_list_endpoints_reject_inverted_range(client) -> None:
+    c, _session = client
+    params = {"start": "2024-02-01", "end": "2024-01-01"}
+    assert c.get("/api/conflicts", params=params).status_code == 422
+    assert c.get("/api/events", params=params).status_code == 422
+
+
+def test_patch_conflict_rejects_empty_name(client) -> None:
+    c, session = client
+    conflict = seed(session)
+    assert c.patch(f"/api/conflicts/{conflict.id}", json={"name": ""}).status_code == 422
+
+
 def test_conflict_not_found(client) -> None:
     c, _session = client
     assert c.get("/api/conflicts/9999").status_code == 404

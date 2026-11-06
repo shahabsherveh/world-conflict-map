@@ -32,6 +32,8 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
 - FastAPI TestClient integration tests against a seeded in-memory/temp SQLite DB.
 - Test: time-frame filtering, conflict-detail shape, PATCH writes edit_log, POST sets
   `provenance='manual'`, and ingestion-run listing/ordering/limit bounds.
+- Test rejection paths: null updates, inverted date ranges, missing conflict references,
+  and non-http(s) source URLs.
 
 ## Boundaries
 - Always: validate inputs (Pydantic); return typed response models.
@@ -41,6 +43,7 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
 ## Success criteria
 - `GET /api/conflicts?start&end` returns exactly the conflicts overlapping the range.
 - PATCHing an event updates it and appends an edit_log row.
+- Invalid input returns 422 (or 404 for a missing referenced conflict), never 500.
 - The UI (static files) loads from `/`.
 
 ## Open questions

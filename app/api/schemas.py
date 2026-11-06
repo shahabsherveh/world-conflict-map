@@ -4,13 +4,24 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Intensity = Annotated[int, Field(ge=1, le=5)]
 Latitude = Annotated[float, Field(ge=-90.0, le=90.0)]
 Longitude = Annotated[float, Field(ge=-180.0, le=180.0)]
 ConflictStatus = Literal["active", "ended"]
+Name = Annotated[str, Field(min_length=1, max_length=255)]
+
+
+def _validate_source_url(value: str | None) -> str | None:
+    if value is None:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("source_url must be an absolute http(s) URL")
+    return value
 
 
 class ConflictEventOut(BaseModel):
@@ -74,20 +85,47 @@ class IngestionRunOut(BaseModel):
     items_new: int
 
 
+class SourcesOut(BaseModel):
+    source: str
+    base_url: str
+    lookback_days: int
+
+
 class ConflictUpdate(BaseModel):
-    name: str | None = None
+    name: Name | None = None
     country: str | None = None
     start_date: date | None = None
     end_date: date | None = None
     status: ConflictStatus | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_required_fields(cls, data):
+        if isinstance(data, dict):
+            for field in ("name", "start_date", "status"):
+                if field in data and data[field] is None:
+                    raise ValueError(f"{field} cannot be null")
+        return data
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        return self
+
 
 class ConflictCreate(BaseModel):
-    name: str
+    name: Name
     country: str | None = None
     start_date: date
     end_date: date | None = None
     status: ConflictStatus = "active"
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        return self
 
 
 class EventUpdate(BaseModel):
@@ -104,6 +142,20 @@ class EventUpdate(BaseModel):
     summary: str | None = None
     source_url: str | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_required_fields(cls, data):
+        if isinstance(data, dict):
+            for field in ("event_date", "intensity"):
+                if field in data and data[field] is None:
+                    raise ValueError(f"{field} cannot be null")
+        return data
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        return _validate_source_url(value)
+
 
 class EventCreate(BaseModel):
     place_name: str | None = None
@@ -119,3 +171,8 @@ class EventCreate(BaseModel):
     summary: str | None = None
     source_url: str | None = None
     conflict_id: int | None = None
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        return _validate_source_url(value)

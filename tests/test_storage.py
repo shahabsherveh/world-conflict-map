@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.db import make_engine
 from app.models import Base, Conflict, ConflictEvent, EditLog
 from app.queries import conflicts_active_in_range, events_in_range
 
@@ -78,6 +79,12 @@ def test_source_event_id_unique() -> None:
     session.add(ConflictEvent(source_event_id="EVT1", event_date=date(2024, 1, 2), country="X"))
     with pytest.raises(IntegrityError):
         session.commit()
+
+
+def test_make_engine_enables_sqlite_foreign_keys() -> None:
+    engine = make_engine("sqlite://")
+    with engine.connect() as connection:
+        assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
 
 
 def test_edit_log_appends() -> None:

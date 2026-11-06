@@ -18,6 +18,7 @@ from app.api.schemas import (
     EventCreate,
     EventUpdate,
     IngestionRunOut,
+    SourcesOut,
 )
 from app.config import load_config
 from app.db import get_session
@@ -43,6 +44,11 @@ def get_db():
 
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def _validate_range(start: date, end: date) -> None:
+    if start > end:
+        raise HTTPException(status_code=422, detail="start must be on or before end")
 
 
 def _headline(latest) -> str | None:
@@ -96,6 +102,7 @@ def _apply_patch(db: Session, obj, updates: dict, target_type: str) -> None:
 
 @router.get("/conflicts", response_model=list[ConflictSummary])
 def list_conflicts(start: date, end: date, db: DbSession):
+    _validate_range(start, end)
     conflicts = conflicts_active_in_range(db, start, end)
     if not conflicts:
         return []
@@ -136,6 +143,7 @@ def _event_out(event: ConflictEvent) -> ConflictEventOut:
 
 @router.get("/events", response_model=list[ConflictEventOut])
 def list_events(start: date, end: date, db: DbSession, conflict_id: int | None = None):
+    _validate_range(start, end)
     events = events_in_range(db, start, end, conflict_id=conflict_id)
     return [_event_out(e) for e in events]
 
@@ -153,7 +161,14 @@ def update_conflict(conflict_id: int, payload: ConflictUpdate, db: DbSession):
     conflict = db.get(Conflict, conflict_id)
     if conflict is None:
         raise HTTPException(status_code=404, detail="Conflict not found")
-    _apply_patch(db, conflict, payload.model_dump(exclude_unset=True), "conflict")
+
+    updates = payload.model_dump(exclude_unset=True)
+    new_start = updates.get("start_date", conflict.start_date)
+    new_end = updates.get("end_date", conflict.end_date)
+    if new_end is not None and new_end < new_start:
+        raise HTTPException(status_code=422, detail="end_date must be on or after start_date")
+
+    _apply_patch(db, conflict, updates, "conflict")
     db.commit()
     db.refresh(conflict)
     return conflict
@@ -176,16 +191,18 @@ def update_event(event_id: int, payload: EventUpdate, db: DbSession):
     _apply_patch(db, event, payload.model_dump(exclude_unset=True), "event")
     db.commit()
     db.refresh(event)
-    return event
+    return _event_out(event)
 
 
 @router.post("/events", response_model=ConflictEventOut, status_code=201)
 def create_event(payload: EventCreate, db: DbSession):
+    if payload.conflict_id is not None and db.get(Conflict, payload.conflict_id) is None:
+        raise HTTPException(status_code=404, detail="Conflict not found")
     event = ConflictEvent(provenance="manual", **payload.model_dump())
     db.add(event)
     db.commit()
     db.refresh(event)
-    return event
+    return _event_out(event)
 
 
 @router.get("/ingestion-runs", response_model=list[IngestionRunOut])
@@ -196,11 +213,11 @@ def list_ingestion_runs(
     return recent_ingestion_runs(db, limit)
 
 
-@router.get("/sources")
+@router.get("/sources", response_model=SourcesOut)
 def list_sources():
     cfg = load_config()
-    return {
-        "source": "GDELT 2.0 raw event files",
-        "base_url": cfg["base_url"],
-        "lookback_days": cfg["lookback_days"],
-    }
+    return SourcesOut(
+        source="GDELT 2.0 raw event files",
+        base_url=cfg["base_url"],
+        lookback_days=int(cfg["lookback_days"]),
+    )
