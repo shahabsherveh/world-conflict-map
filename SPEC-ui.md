@@ -21,11 +21,15 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 - Conflict detail shows the timeline and per-event Edit actions.
 - Edit mode: conflict fields, event fields (including lat/lon), add event, create conflict.
   “Pick on map” fills coordinates from a map click; manual lat/lon remains available.
-- The conflicts panel lists only conflicts whose marker falls inside the current map
+- The conflicts panel lists only conflicts with at least one event inside the current map
   view (pan/zoom re-filter the already-fetched data, no extra API calls), headed
-  “Conflicts in view (N of M)”. Conflicts with no event inside the selected range have no
-  coordinates, so they are counted in one muted note rather than listed; a newly created
-  conflict opens in the detail panel with an empty state instead of a list row.
+  “Conflicts in view (N of M · E events)”. Membership is decided from the events, not the
+  conflict's single summary coordinate: a conflict spans many places, and its summary
+  point is just its latest event in range, so testing that one point drops conflicts whose
+  incidents are on screen. Clicking a row centres on the in-view event, not the summary
+  point. Conflicts with no event in the selected range have no coordinates and are
+  summarised in one muted note (`X off-screen, Y without events in this range`); a newly
+  created conflict opens in the detail panel with an empty state instead of a list row.
 - Loading, empty, error, and save states are visible; API errors appear in a live notice
   region rather than failing silently.
 - Conflict list entries are native buttons and keyboard operable.

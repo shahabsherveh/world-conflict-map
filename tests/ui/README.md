@@ -30,7 +30,8 @@ cached under `node_modules/.cache/ui-smoke/`.
 - Clicking a cluster raises no errors.
 - Changing the "From" date re-queries and re-renders the exact set for the new range.
 - The conflicts panel follows the viewport: drilling into a conflict narrows the list, the
-  "N of M" summary matches the rendered rows, and the clicked conflict stays listed.
+  "N of M · E events" summary matches the rendered rows, the clicked conflict stays listed,
+  and the remainder note is real text (not `[object Object]`).
 - Single-event dots are smaller than the smallest cluster bubble.
 
 ## What it cannot assert

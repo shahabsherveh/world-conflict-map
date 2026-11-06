@@ -303,10 +303,17 @@ normally in this environment.
   individual dots at world zoom; every event is still in the cluster tree.
 - [x] Map reading aids: single-event dots shrunk to 6–12 px and moved onto the same
   heat ramp (severity fixes their shade, so they stay meaningful), and the conflicts
-  panel now lists only what is inside the current map view ("Conflicts in view (N of M)",
-  refiltered on pan/zoom from already-fetched data) with one muted line for the
-  off-screen/coordinate-less remainder. Checked in jsdom (rows vs summary label) and in
-  headless Chrome (1,177 in view at world zoom; 134 after zooming into a hot cluster).
+  panel now lists only what is inside the current map view ("Conflicts in view
+  (N of M · E events)", refiltered on pan/zoom from already-fetched data) with one muted
+  line for the off-screen/coordinate-less remainder.
+- [x] Fixed in-view membership: it was tested against each conflict's single summary
+  coordinate (its latest event in range), so conflicts whose incidents were on screen but
+  whose summary point was not got dropped, and the header undercounted. Membership now
+  comes from the events themselves (any event in bounds puts the conflict in the list),
+  the header reports events in view, and clicking a row centres on the in-view event.
+  Checked in jsdom (rows vs summary label, note text) and in headless Chrome: 1,177
+  conflicts / 13,066 events at world view, 134 / 2,601 after zooming into a hot cluster,
+  matching the cluster labels on screen.
 - [x] Cluster density heatmap: bubble colour on a log-scaled cool→hot ramp (hue 210°→0°,
   30→52 px) plus the event count, with a legend bottom-left. Checked in the jsdom
   harness (hue/size monotone in count) and in headless Chrome (2 events = hsl(189°)

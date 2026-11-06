@@ -287,6 +287,19 @@ async function main() {
     `label "${after.label}" vs ${after.items} rows`,
   );
   check(
+    "the remainder note reads as text, not objects",
+    (() => {
+      const note = doc.querySelector("#conflict-list .list-note")?.textContent ?? "";
+      return !note.includes("[object") && /\d+ (off-screen|without events)/.test(note);
+    })(),
+    doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
+  );
+  check(
+    "summary also reports how many events are in view",
+    /\(\d+ of \d+ · [\d,]+ events?\)/.test(after.label),
+    after.label,
+  );
+  check(
     "the conflict you clicked stays in the list",
     Boolean(doc.querySelector(`#conflict-list .conflict-item[data-id="${clickedId}"]`)),
     `id ${clickedId}`,

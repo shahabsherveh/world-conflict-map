@@ -55,6 +55,7 @@ let coordinateTarget = null;
 let noticeTimer = null;
 let conflictsRequestId = 0;
 let rangeConflicts = [];
+let rangeEvents = [];
 let conflictsLoaded = false;
 let listRepaintTimer = null;
 let detailRequestId = 0;
@@ -200,6 +201,7 @@ async function loadConflicts() {
       api.get(`/api/conflicts?${range}`),
     ]);
     if (requestId !== conflictsRequestId) return;
+    rangeEvents = events;
     renderConflictList(conflicts);
     renderEventMarkers(events);
   } catch (err) {
@@ -241,15 +243,31 @@ function paintConflictList() {
   const list = document.getElementById("conflict-list");
   const count = document.getElementById("conflict-count");
   const bounds = map.getBounds();
-  const inView = rangeConflicts.filter(
-    (c) => c.lat != null && c.lon != null && bounds.contains(L.latLng(c.lat, c.lon)),
+
+  // A conflict has ONE summary coordinate (its latest event in range), but its
+  // events can sit anywhere. Deciding visibility from that single point drops
+  // conflicts whose incidents are on screen — and counts events that are not.
+  // So membership comes from the events themselves: a conflict is "in view" when
+  // at least one of its events is. The same pass yields where to fly to on click.
+  const focus = new Map();
+  let eventsInView = 0;
+  for (const e of rangeEvents) {
+    if (e.lat == null || e.lon == null) continue;
+    if (!bounds.contains(L.latLng(e.lat, e.lon))) continue;
+    eventsInView += 1;
+    if (e.conflict_id != null && !focus.has(e.conflict_id)) focus.set(e.conflict_id, e);
+  }
+
+  const inView = rangeConflicts.filter((c) => focus.has(c.id));
+  const noLocation = rangeConflicts.filter(
+    (c) => !focus.has(c.id) && (c.lat == null || c.lon == null),
   );
-  const offScreen = rangeConflicts.length - inView.length;
+  const offScreen = rangeConflicts.length - inView.length - noLocation.length;
 
   count.textContent =
-    rangeConflicts.length > inView.length
-      ? `(${inView.length} of ${rangeConflicts.length})`
-      : `(${inView.length})`;
+    `(${inView.length} of ${rangeConflicts.length} · ${eventsInView.toLocaleString()} ${
+      eventsInView === 1 ? "event" : "events"
+    })`;
 
   const sorted = [...inView].sort(
     (a, b) => b.intensity - a.intensity || a.name.localeCompare(b.name),
@@ -262,14 +280,18 @@ function paintConflictList() {
     return;
   }
 
-  // One summary line instead of hundreds of rows: a conflict is only "located"
-  // when it has events inside the chosen range, so most off-screen entries also
-  // have no coordinates to fly to.
+  // One summary line instead of hundreds of rows: most of the remainder is either
+  // off-screen or has no events in this range (and therefore no coordinates).
+  const rest = offScreen + noLocation.length;
+  const restText = [
+    offScreen ? `${offScreen} off-screen` : "",
+    noLocation.length ? `${noLocation.length} without events in this range` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
   list.innerHTML =
     sorted.map(conflictItem).join("") +
-    (offScreen
-      ? `<li class="list-note">${offScreen} more in this range are off-screen or have no location.</li>`
-      : "");
+    (rest ? `<li class="list-note">${restText} (not shown).</li>` : "");
 
   const byId = new Map(rangeConflicts.map((c) => [String(c.id), c]));
   list.querySelectorAll(".conflict-item").forEach((button) => {
@@ -277,9 +299,10 @@ function paintConflictList() {
       const conflict = byId.get(button.dataset.id);
       if (!conflict) return;
       showConflict(conflict.id);
-      if (conflict.lat != null && conflict.lon != null) {
-        map.setView([conflict.lat, conflict.lon], 6);
-      }
+      // Centre on the incident that is on screen, not the conflict's summary
+      // point, which may be somewhere else entirely.
+      const anchor = focus.get(conflict.id);
+      if (anchor) map.setView([anchor.lat, anchor.lon], 6);
     };
   });
 }
