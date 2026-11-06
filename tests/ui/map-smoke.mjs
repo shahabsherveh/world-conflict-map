@@ -220,6 +220,18 @@ async function main() {
     doc.getElementById("legend")?.textContent?.trim() ?? "",
   );
   check(
+    "single dots are smaller than the smallest cluster",
+    (() => {
+      const dot = doc.querySelector(".leaflet-marker-icon.event-dot");
+      const sizes = heat.map((c) => c.size);
+      return !dot || Number.parseFloat(dot.style.width) < Math.min(...sizes);
+    })(),
+    (() => {
+      const dot = doc.querySelector(".leaflet-marker-icon.event-dot");
+      return dot ? `${dot.style.width} vs cluster ${Math.min(...heat.map((c) => c.size))}px` : "no dots";
+    })(),
+  );
+  check(
     "rendered icons stay bounded",
     first.clusters + first.dots > 0 && first.clusters + first.dots < 400,
     `${first.clusters} clusters + ${first.dots} dots for ${expectedDefault} events`,
@@ -230,13 +242,55 @@ async function main() {
     `${first.layers} layers vs ${expectedDefault} expected`,
   );
 
-  // Clicking a cluster must zoom/expand without throwing.
+  // Clicking a cluster must zoom/expand without throwing. Kept at world view:
+  // a spiderfy would need an SVG/canvas renderer, which jsdom does not have.
   const clusterNode = doc.querySelector(".leaflet-marker-icon.cluster");
   if (clusterNode) {
     clusterNode.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
     await new Promise((r) => setTimeout(r, 400));
   }
   check("cluster click raises no errors", errors.length === 0, errors.join(" | "));
+
+  // The panel lists what is on screen: drilling into one conflict narrows it,
+  // and the summary number must match the rows actually rendered.
+  const readList = () => ({
+    items: doc.querySelectorAll("#conflict-list .conflict-item").length,
+    label: doc.getElementById("conflict-count").textContent,
+  });
+  const stableList = async () => {
+    let last = -1;
+    let quiet = 0;
+    let state = readList();
+    for (let i = 0; i < 40 && quiet < 4; i += 1) {
+      await new Promise((r) => setTimeout(r, 150));
+      state = readList();
+      quiet = state.items === last ? quiet + 1 : 0;
+      last = state.items;
+    }
+    return state;
+  };
+
+  const before = await stableList();
+  const firstItem = doc.querySelector("#conflict-list .conflict-item");
+  const clickedId = firstItem.dataset.id;
+  firstItem.click();
+  const after = await stableList();
+
+  check(
+    "conflict list follows the map viewport",
+    after.items > 0 && after.items < before.items,
+    `${before.items} rows → ${after.items} after zooming in`,
+  );
+  check(
+    "summary count matches the rendered rows",
+    Number((after.label.match(/(\d+)/) || [])[1]) === after.items,
+    `label "${after.label}" vs ${after.items} rows`,
+  );
+  check(
+    "the conflict you clicked stays in the list",
+    Boolean(doc.querySelector(`#conflict-list .conflict-item[data-id="${clickedId}"]`)),
+    `id ${clickedId}`,
+  );
 
   // Time scrub: a 3-day window must re-query and re-render from scratch.
   setDateInput(window, "start-date", isoDate(daysAgo(3)));

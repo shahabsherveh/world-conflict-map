@@ -301,10 +301,16 @@ normally in this environment.
 - [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
   A 30-day range (13,066 geolocated events) renders as ~37 clusters plus a couple of
   individual dots at world zoom; every event is still in the cluster tree.
+- [x] Map reading aids: single-event dots shrunk to 6–12 px and moved onto the same
+  heat ramp (severity fixes their shade, so they stay meaningful), and the conflicts
+  panel now lists only what is inside the current map view ("Conflicts in view (N of M)",
+  refiltered on pan/zoom from already-fetched data) with one muted line for the
+  off-screen/coordinate-less remainder. Checked in jsdom (rows vs summary label) and in
+  headless Chrome (1,177 in view at world zoom; 134 after zooming into a hot cluster).
 - [x] Cluster density heatmap: bubble colour on a log-scaled cool→hot ramp (hue 210°→0°,
-  30→52 px) plus the event count, with a legend bottom-left. Single-event dots keep the
-  intensity palette. Checked in the jsdom harness (hue/size monotone in count) and in
-  headless Chrome (2 events = hsl(189°) 30 px, 2,161 events = hsl(0°) 52 px).
+  30→52 px) plus the event count, with a legend bottom-left. Checked in the jsdom
+  harness (hue/size monotone in count) and in headless Chrome (2 events = hsl(189°)
+  30 px, 2,161 events = hsl(0°) 52 px).
 - [x] Checked-in headless UI smoke: `tests/ui/map-smoke.mjs` (jsdom + real Leaflet
   against a running server). Covers clustering counts, bounded DOM, cluster clicks, and
   the time scrub. Not wired into pytest/CI (needs npm + a server).

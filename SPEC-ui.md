@@ -9,19 +9,23 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 (Conventions: CAPABILITY-MAP.md)
 
 ## Behavior
-- Map centered on world; one marker per event, size/colour by intensity (1–5), grouped by
-  Leaflet.markercluster at low zoom. Cluster bubbles encode density twice — colour on a
-  log-scaled heat ramp (blue = few, red = many) and size — and print the event count, so
-  hotspots are legible at a glance while the DOM stays bounded (a 30-day range is ~13k
-  events). A legend bottom-left explains the ramp. Per-event dots keep the intensity
-  ramp, so severity and density remain separate signals.
+- Map centered on world; one marker per event, grouped by Leaflet.markercluster at low
+  zoom. Cluster bubbles encode event density twice — colour on a log-scaled heat ramp
+  (blue = few, red = many) and size — and print the event count, so hotspots are legible
+  at a glance while the DOM stays bounded (a 30-day range is ~13k events). Single events
+  are small dots (6–12 px, well under the smallest bubble) on the same ramp, driven by
+  intensity so severity still reads once you zoom in. A legend bottom-left explains it.
 - Time controls (start + end date inputs) → `GET /api/events` + `GET /api/conflicts` → re-render.
 - Click marker → event detail with place/date/type/actors/intensity, provenance, source link,
   raw JSON, and an “Open conflict” action.
 - Conflict detail shows the timeline and per-event Edit actions.
 - Edit mode: conflict fields, event fields (including lat/lon), add event, create conflict.
   “Pick on map” fills coordinates from a map click; manual lat/lon remains available.
-- Newly created conflicts without events appear in the list and show an empty state.
+- The conflicts panel lists only conflicts whose marker falls inside the current map
+  view (pan/zoom re-filter the already-fetched data, no extra API calls), headed
+  “Conflicts in view (N of M)”. Conflicts with no event inside the selected range have no
+  coordinates, so they are counted in one muted note rather than listed; a newly created
+  conflict opens in the detail panel with an empty state instead of a list row.
 - Loading, empty, error, and save states are visible; API errors appear in a live notice
   region rather than failing silently.
 - Conflict list entries are native buttons and keyboard operable.
@@ -57,7 +61,7 @@ Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
 - Changing the time range updates markers without a full reload.
 - Clicking a marker shows its news; editing a conflict or event persists and re-renders.
 - Editing an event’s coordinates moves its marker after save.
-- A manually created conflict is visible before it has events.
+- A manually created conflict opens in the detail panel before it has events.
 - Invalid forms show an understandable error instead of failing silently.
 
 ## Open questions

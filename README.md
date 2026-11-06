@@ -43,13 +43,14 @@ Open **http://localhost:8000**.
 
 - Markers are sized and colored by intensity (1–5) and cluster by zoom, so a wide date
   range stays responsive. Cluster bubbles are a heatmap of event density — blue (few) to
-  red (many), with the count printed inside — while single events keep their intensity
-  colour.
+  red (many), with the count printed inside. Single events are drawn as small dots on the
+  same ramp, so the whole map speaks one colour language.
 - Change the **From / To** dates to see conflicts active in that window.
 - Click a marker to see the event, its conflict, and the underlying news source.
 - Use the side panel to **edit a conflict**, **edit or move an event** (including lat/lon
   via “Pick on map”), **add an event**, or **create a conflict**.
-- Newly created conflicts are visible even before they have events.
+- The side panel lists only the conflicts currently in view; pan or zoom to reach the
+  rest. A newly created conflict opens in the detail panel even before it has events.
 
 ## Daily cron
 

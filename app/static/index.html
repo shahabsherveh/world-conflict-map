@@ -6,7 +6,7 @@
   <title>Global Conflict Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="/style.css?v=10">
+  <link rel="stylesheet" href="/style.css?v=11">
 </head>
 <body>
   <div id="map"></div>
@@ -24,14 +24,14 @@
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     </header>
     <details id="conflicts-panel" open>
-      <summary>All conflicts <span id="conflict-count" class="muted"></span></summary>
-      <ul id="conflict-list" class="conflict-list" aria-label="Conflicts in range"></ul>
+      <summary>Conflicts in view <span id="conflict-count" class="muted"></span></summary>
+      <ul id="conflict-list" class="conflict-list" aria-label="Conflicts in the current map view"></ul>
     </details>
     <div id="detail"><p class="muted">Click a marker or conflict to see details.</p></div>
     <div id="edit-panel"></div>
   </aside>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>

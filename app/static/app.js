@@ -7,17 +7,20 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 // Cluster per-event markers: a 30-day range holds >13k events here, and one
 // Leaflet marker per event made the map unusably slow. Clustering keeps every
 // event in the client (no data loss) while bounding the rendered DOM.
-// Cluster bubbles encode event density twice: colour on a heat ramp (blue = few,
-// red = many) and size. Colour is what makes hotspots legible before the number
-// is read; per-event dots keep their intensity colour, so severity and density
-// stay separate signals instead of one overwriting the other.
+// One ramp shared by cluster bubbles (event density) and single dots (severity),
+// so colour means the same thing across the map: cool → hot.
+function heatColor(t) {
+  return `hsl(${Math.round(210 - 210 * t)}, 78%, ${Math.round(52 - 10 * t)}%)`;
+}
+
+// Cluster bubbles encode event density twice: colour on the ramp and size.
+// Log scale: 1 event → 0, 1000+ → 1. Linear would make everything except the
+// handful of huge clusters look identically cool.
 function clusterHeat(count) {
-  // Log scale: 1 event → 0, 1000+ → 1. Linear would make everything except the
-  // handful of huge clusters look identically cool.
   const t = Math.min(1, Math.log10(Math.max(1, count)) / 3);
   return {
     size: Math.round(28 + 24 * t),
-    background: `hsl(${Math.round(210 - 210 * t)}, 78%, ${Math.round(52 - 10 * t)}%)`,
+    background: heatColor(t),
     // Mid-ramp colours (green/yellow) need dark text to stay readable.
     color: t > 0.32 && t < 0.8 ? "#1b1b1b" : "#fff",
   };
@@ -51,9 +54,10 @@ let currentConflictId = null;
 let coordinateTarget = null;
 let noticeTimer = null;
 let conflictsRequestId = 0;
+let rangeConflicts = [];
+let conflictsLoaded = false;
+let listRepaintTimer = null;
 let detailRequestId = 0;
-
-const COLORS = ["#2c7bb6", "#abd9e9", "#fdae61", "#f46d43", "#d73027"];
 
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -80,10 +84,6 @@ function parseDateInput(value) {
   if (!value) return null;
   const parsed = new Date(`${value}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function intensityColor(intensity) {
-  return COLORS[Math.max(0, Math.min(4, (intensity || 1) - 1))];
 }
 
 function numberOrNull(value) {
@@ -191,6 +191,7 @@ async function loadConflicts() {
   const requestId = ++conflictsRequestId;
   const list = document.getElementById("conflict-list");
   const range = `start=${fmtDate(currentStart)}&end=${fmtDate(currentEnd)}`;
+  conflictsLoaded = false;
   list.setAttribute("aria-busy", "true");
   list.innerHTML = `<li class="empty">Loading conflicts…</li>`;
   try {
@@ -226,27 +227,72 @@ function updateRange() {
 }
 
 function renderConflictList(conflicts) {
+  rangeConflicts = conflicts;
+  conflictsLoaded = true;
+  paintConflictList();
+}
+
+// The panel lists what is on screen, not the whole time range: with 1,600+
+// conflicts in a 30-day window the full list was mostly off-map noise. The map's
+// own bounds decide, so pan and zoom re-filter the same fetched data (no extra
+// API calls).
+function paintConflictList() {
+  if (!conflictsLoaded) return;
   const list = document.getElementById("conflict-list");
   const count = document.getElementById("conflict-count");
-  count.textContent = `(${conflicts.length})`;
+  const bounds = map.getBounds();
+  const inView = rangeConflicts.filter(
+    (c) => c.lat != null && c.lon != null && bounds.contains(L.latLng(c.lat, c.lon)),
+  );
+  const offScreen = rangeConflicts.length - inView.length;
 
-  if (!conflicts.length) {
-    list.innerHTML = `<li class="empty">No conflicts in this range.</li>`;
+  count.textContent =
+    rangeConflicts.length > inView.length
+      ? `(${inView.length} of ${rangeConflicts.length})`
+      : `(${inView.length})`;
+
+  const sorted = [...inView].sort(
+    (a, b) => b.intensity - a.intensity || a.name.localeCompare(b.name),
+  );
+
+  if (!sorted.length) {
+    list.innerHTML = `<li class="empty">${
+      rangeConflicts.length ? "No conflicts in this view." : "No conflicts in this range."
+    }</li>`;
     return;
   }
 
-  const sorted = [...conflicts].sort(
-    (a, b) => b.intensity - a.intensity || a.name.localeCompare(b.name),
-  );
-  list.innerHTML = sorted
-    .map((c) => {
-      const hasEvents = c.event_count > 0;
-      const countLabel = hasEvents
-        ? `${c.event_count} event${c.event_count === 1 ? "" : "s"}`
-        : "no events yet";
-      const intensityLabel = hasEvents ? c.intensity : "—";
-      const dotColor = hasEvents ? intensityColor(c.intensity) : "#b8b8b8";
-      return `
+  // One summary line instead of hundreds of rows: a conflict is only "located"
+  // when it has events inside the chosen range, so most off-screen entries also
+  // have no coordinates to fly to.
+  list.innerHTML =
+    sorted.map(conflictItem).join("") +
+    (offScreen
+      ? `<li class="list-note">${offScreen} more in this range are off-screen or have no location.</li>`
+      : "");
+
+  const byId = new Map(rangeConflicts.map((c) => [String(c.id), c]));
+  list.querySelectorAll(".conflict-item").forEach((button) => {
+    button.onclick = () => {
+      const conflict = byId.get(button.dataset.id);
+      if (!conflict) return;
+      showConflict(conflict.id);
+      if (conflict.lat != null && conflict.lon != null) {
+        map.setView([conflict.lat, conflict.lon], 6);
+      }
+    };
+  });
+}
+
+function conflictItem(c) {
+  const hasEvents = c.event_count > 0;
+  const countLabel = hasEvents
+    ? `${c.event_count} event${c.event_count === 1 ? "" : "s"}`
+    : "no events yet";
+  const intensityLabel = hasEvents ? c.intensity : "—";
+  // Same ramp as the map markers, so the list reads like the legend.
+  const dotColor = hasEvents ? heatColor((c.intensity - 1) / 4) : "#b8b8b8";
+  return `
       <li>
         <button type="button" class="conflict-item" data-id="${c.id}">
           <span class="dot" style="background:${dotColor}"></span>
@@ -260,19 +306,6 @@ function renderConflictList(conflicts) {
           <span class="ci-intensity">${esc(String(intensityLabel))}</span>
         </button>
       </li>`;
-    })
-    .join("");
-
-  list.querySelectorAll(".conflict-item").forEach((button) => {
-    button.onclick = () => {
-      const conflict = sorted.find((x) => String(x.id) === button.dataset.id);
-      if (!conflict) return;
-      showConflict(conflict.id);
-      if (conflict.lat != null && conflict.lon != null) {
-        map.setView([conflict.lat, conflict.lon], 6);
-      }
-    };
-  });
 }
 
 function intensityClass(intensity) {
@@ -294,13 +327,16 @@ function renderEventMarkers(events) {
 
 function eventMarker(e) {
   const intensity = intensityClass(e.intensity);
-  const dotSize = 6 + intensity * 3;
+  // Same ramp as the clusters, driven by severity: intensity 1 is cool, 5 is hot.
+  // Dots stay well under the smallest bubble so they read as single events.
+  const t = (intensity - 1) / 4;
+  const dotSize = Math.round(6 + 6 * t);
   const text = e.headline || e.place_name || "event";
   const marker = L.marker([e.lat, e.lon], {
     icon: L.divIcon({
-      className: `event-dot event-dot-i${intensity}`,
+      className: "event-dot",
       iconSize: L.point(dotSize, dotSize),
-      html: "",
+      html: `<span style="background:${heatColor(t)}"></span>`,
       popupAnchor: [0, -dotSize / 2],
     }),
     title: text,
@@ -753,6 +789,13 @@ function stopCoordinatePick() {
   coordinateTarget = null;
   map.getContainer().classList.remove("picking");
 }
+
+// Repaint the panel when the viewport changes (zoom, pan, or a conflict click
+// that recentres). Debounced because a zoom fires several events at once.
+map.on("moveend zoomend", () => {
+  clearTimeout(listRepaintTimer);
+  listRepaintTimer = setTimeout(paintConflictList, 120);
+});
 
 map.on("click", (event) => {
   if (!coordinateTarget) return;
