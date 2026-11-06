@@ -36,6 +36,10 @@ cached under `node_modules/.cache/ui-smoke/`.
 - The "No location" panel counts the conflicts with no geocoded event (checked against the
   API), caps its rows with a note, opens detail without moving the map, and arms
   Pick-on-map from a row. It never saves a coordinate — that stays a human action.
+- A conflict with no events at all (injected into the payload, never written to the DB) is
+  counted as "no events yet" instead of being offered for placement.
+- Changing to a range with no conflicts clears the conflict list, the markers and the
+  "No location" panel — no stale rows from the previous range.
 
 ## What it cannot assert
 

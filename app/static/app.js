@@ -275,6 +275,10 @@ function paintConflictList() {
   const noEvents = rangeConflicts.filter((c) => !eventfulIds.has(c.id)).length;
   const offScreen = rangeConflicts.length - inView.length - noLocation.length - noEvents;
 
+  // Paint the panel before the empty-viewport return below: a range with nothing in
+  // view must clear it, not leave the previous range's rows on screen.
+  paintNoLocationList(noLocation);
+
   count.textContent =
     `(${inView.length} of ${rangeConflicts.length} · ${eventsInView.toLocaleString()} ${
       eventsInView === 1 ? "event" : "events"
@@ -304,8 +308,6 @@ function paintConflictList() {
   list.innerHTML =
     sorted.map(conflictItem).join("") +
     (rest ? `<li class="list-note">${restText} (not shown).</li>` : "");
-
-  paintNoLocationList(noLocation);
 
   const byId = new Map(rangeConflicts.map((c) => [String(c.id), c]));
   list.querySelectorAll(".conflict-item").forEach((button) => {

@@ -139,7 +139,8 @@ from the same `rangeEvents` array that feeds the header and the in-view list.
 - jsdom harness: section appears with the expected count, hides at zero, rows are buttons,
   every row still has an unplaced event (so an empty conflict can never appear there),
   clicking a row leaves the map view unchanged, “Set location” arms picking mode, and
-  header / note / section counts agree.
+  header / note / section counts agree. Changing to a range with nothing in it clears the
+  panel instead of leaving the previous range's rows on screen.
 - Never save a coordinate from an automated test against the live DB; assert up to the
   point where the user would click the map.
 - Real browser (chrome-devtools MCP): one full placement on a throwaway conflict, then

@@ -139,6 +139,17 @@ async function waitForData(doc, timeoutMs = 30_000) {
   return false;
 }
 
+// For ranges that render nothing: wait for the empty-state message instead.
+async function waitForListMessage(doc, pattern, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const text = doc.querySelector("#conflict-list .empty")?.textContent ?? "";
+    if (pattern.test(text)) return true;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return false;
+}
+
 // chunkedLoading adds events progressively, so wait until the rendered total
 // stops growing instead of guessing a fixed delay.
 async function waitForStable(window, { timeoutMs = 30_000, quietPolls = 6 } = {}) {
@@ -482,6 +493,29 @@ async function main() {
     "no marker",
   );
   injectEmptyConflict = false;
+
+  // A range with nothing in it must clear the sidebar, not just the header. The
+  // panel used to be painted only after the "nothing in view" return, so the
+  // previous range's rows stayed on screen under an empty header.
+  setDateInput(window, "start-date", "2001-01-01");
+  setDateInput(window, "end-date", "2001-01-02");
+  check(
+    "an empty range clears the conflict list",
+    await waitForListMessage(doc, /No conflicts in this range/),
+    doc.querySelector("#conflict-list .empty")?.textContent ?? "(no empty state)",
+  );
+  check(
+    "an empty range clears the No location panel",
+    doc.getElementById("nolocation-panel").hidden &&
+      doc.querySelectorAll("#nolocation-list .nl-row").length === 0,
+    `${doc.querySelectorAll("#nolocation-list .nl-row").length} rows,` +
+      ` hidden=${doc.getElementById("nolocation-panel").hidden}`,
+  );
+  check(
+    "an empty range clears the markers",
+    readRendered(window).layers === 0,
+    `${readRendered(window).layers} layers`,
+  );
 
   console.log(failures ? `\n${failures} FAILURE(S)` : "\nALL CHECKS PASSED");
   process.exit(failures ? 1 : 0);
