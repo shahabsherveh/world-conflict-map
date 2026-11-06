@@ -248,30 +248,26 @@ function paintConflictList() {
   const bounds = map.getBounds();
 
   // A conflict has ONE summary coordinate (its latest event in range), but its
-  // events can sit anywhere. Deciding visibility from that single point drops
-  // conflicts whose incidents are on screen — and counts events that are not.
-  // So membership comes from the events themselves: a conflict is "in view" when
-  // at least one of its events is. The same pass yields where to fly to on click.
+  // events can sit anywhere, so both lists are derived from the events instead:
+  // a conflict is "in view" when any of its events is on screen, and it has a
+  // location when any of its events is geolocated. The summary point cannot
+  // answer either question, and GDELT leaves ~500 events here ungeocoded, so
+  // those conflicts are eventful but unmappable. One pass decides both, and also
+  // yields where to fly to on click.
   const focus = new Map();
+  const locatedIds = new Set();
   let eventsInView = 0;
   for (const e of rangeEvents) {
     if (e.lat == null || e.lon == null) continue;
+    if (e.conflict_id != null) locatedIds.add(e.conflict_id);
     if (!bounds.contains(L.latLng(e.lat, e.lon))) continue;
     eventsInView += 1;
     if (e.conflict_id != null && !focus.has(e.conflict_id)) focus.set(e.conflict_id, e);
   }
 
-  // "No location" means no geolocated event in the range at all — not "no events":
-  // GDELT leaves ~500 events here ungeocoded, and each of those conflicts is
-  // eventful but unmappable. Derive it from the events, not from the conflict's
-  // summary coordinate, which only reflects its latest event.
-  const locatedIds = new Set();
-  for (const e of rangeEvents) {
-    if (e.conflict_id != null && e.lat != null && e.lon != null) locatedIds.add(e.conflict_id);
-  }
   const inView = rangeConflicts.filter((c) => focus.has(c.id));
-  const noLocationCount = rangeConflicts.filter((c) => !locatedIds.has(c.id)).length;
-  const offScreen = rangeConflicts.length - inView.length - noLocationCount;
+  const noLocation = rangeConflicts.filter((c) => !locatedIds.has(c.id));
+  const offScreen = rangeConflicts.length - inView.length - noLocation.length;
 
   count.textContent =
     `(${inView.length} of ${rangeConflicts.length} · ${eventsInView.toLocaleString()} ${
@@ -291,10 +287,10 @@ function paintConflictList() {
 
   // One summary line instead of hundreds of rows: the remainder is either
   // off-screen or has no geolocated event at all.
-  const rest = offScreen + noLocationCount;
+  const rest = offScreen + noLocation.length;
   const restText = [
     offScreen ? `${offScreen} off-screen` : "",
-    noLocationCount ? `${noLocationCount} with no location` : "",
+    noLocation.length ? `${noLocation.length} with no location` : "",
   ]
     .filter(Boolean)
     .join(", ");
@@ -302,7 +298,7 @@ function paintConflictList() {
     sorted.map(conflictItem).join("") +
     (rest ? `<li class="list-note">${restText} (not shown).</li>` : "");
 
-  paintNoLocationList(rangeConflicts.filter((c) => !locatedIds.has(c.id)));
+  paintNoLocationList(noLocation);
 
   const byId = new Map(rangeConflicts.map((c) => [String(c.id), c]));
   list.querySelectorAll(".conflict-item").forEach((button) => {
