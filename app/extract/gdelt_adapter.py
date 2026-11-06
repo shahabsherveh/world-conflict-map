@@ -35,10 +35,16 @@ def _summary(raw: dict[str, str]) -> str | None:
 
 
 def _confidence(raw: dict[str, str]) -> float:
+    """Article-count corroboration, 0.0..1.0.
+
+    A missing or unparsable count means the same thing — GDELT reported no
+    corroboration — so both give 0.0; two different values for one absence made
+    the column impossible to filter on.
+    """
     try:
         articles = int(raw.get("num_articles") or 0)
     except ValueError:
-        return 0.5
+        return 0.0
     return round(min(articles / 10.0, 1.0), 2)
 
 

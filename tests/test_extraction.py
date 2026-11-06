@@ -17,12 +17,12 @@ from app.extract.classifier import (
 )
 from app.extract.filter import filter_by_zero_shot
 from app.extract.gdelt_adapter import GDELTAdapter
-from app.extract.grouping import group_events
+from app.extract.grouping import group_events, regroup_all
 from app.extract.intensity import derive_intensity
 from app.extract.run import persist_drafts, resolve_target_days, to_drafts
 from app.ingest.gdelt import GDELTClient
 from app.ingest.normalizer import COLUMNS
-from app.models import Base, Conflict, ConflictEvent, IngestionRun, RawEvent
+from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun, RawEvent
 
 
 def make_session() -> Session:
@@ -115,6 +115,18 @@ def test_adapter_maps_battle() -> None:
 
 def test_adapter_is_a_base_source_adapter() -> None:
     assert issubclass(GDELTAdapter, BaseSourceAdapter)
+
+
+def test_confidence_treats_a_missing_count_as_no_corroboration() -> None:
+    """One absence, one value: an unparsable count means the same as no count."""
+    adapter = GDELTAdapter()
+    assert adapter.to_event_draft(make_raw(num_articles="7")).confidence == 0.7
+    assert adapter.to_event_draft(make_raw(num_articles="50")).confidence == 1.0
+    assert adapter.to_event_draft(make_raw(num_articles="")).confidence == 0.0
+    assert adapter.to_event_draft(make_raw(num_articles="n/a")).confidence == 0.0
+    raw = make_raw()
+    del raw["num_articles"]
+    assert adapter.to_event_draft(raw).confidence == 0.0
 
 
 def test_persist_drafts_creates_auto_events() -> None:
@@ -217,6 +229,43 @@ def test_group_events_keeps_one_conflict_per_theatre_with_autoflush_off() -> Non
     conflicts = list(session.scalars(select(Conflict)))
     assert [c.name for c in conflicts] == ["Aleppo, Aleppo, Syria"]
     assert {e.conflict_id for e in session.scalars(select(ConflictEvent))} == {conflicts[0].id}
+
+
+def test_regroup_all_merges_fragmented_conflicts_without_moving_markers() -> None:
+    """Legacy shape: one theatre split into a conflict per city.
+
+    Regrouping must collapse it and leave every coordinate exactly where it was —
+    a marker only ever moves because a human moved it.
+    """
+    session = make_session()
+    aleppo = Conflict(name="Aleppo", country="SY", start_date=date(2024, 1, 10))
+    azaz = Conflict(name="Azaz", country="SY", start_date=date(2024, 1, 12))
+    session.add_all([aleppo, azaz])
+    session.flush()
+    first, second = (
+        _ev("a", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 10),
+        _ev("b", "SY", "Azaz, Aleppo, Syria", 36.58, 37.05, 12),
+    )
+    first.conflict_id, second.conflict_id = aleppo.id, azaz.id
+    session.add_all([first, second])
+    session.flush()  # EditLog needs the event id
+    session.add_all(
+        [
+            EditLog(target_type="conflict", target_id=azaz.id, field="name", new_value="x"),
+            EditLog(target_type="event", target_id=second.id, field="lat", new_value="1"),
+        ]
+    )
+    session.commit()
+
+    created = regroup_all(session)
+    session.commit()
+
+    assert created == 1
+    events = session.scalars(select(ConflictEvent).order_by(ConflictEvent.id)).all()
+    assert len({e.conflict_id for e in events}) == 1
+    assert [(e.lat, e.lon) for e in events] == [(36.20, 37.13), (36.58, 37.05)]
+    # Reassigned ids must not leave audit rows pointing at the wrong conflict.
+    assert session.scalars(select(EditLog)).one().target_type == "event"
 
 
 def test_group_events_splits_distant_places() -> None:

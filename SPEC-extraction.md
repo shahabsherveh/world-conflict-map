@@ -26,7 +26,8 @@ Pure Python (no ML deps). (Conventions: CAPABILITY-MAP.md)
    instead; manual edits may still set a count.
 4. `derive_intensity(event_type, fatalities, goldstein) -> 1..5` — a small pure, unit-tested
    function (severity by event type + fatality/tone adjustment, clamped to 1–5).
-5. `confidence` from `NumArticles`/`NumSources` (more coverage → higher), else default.
+5. `confidence` from `NumArticles`/`NumSources` (more coverage → higher). A missing or
+   unparsable count is the same absence and gives `0.0`, not a second default.
 
 ## Commands
 - `pytest tests/test_extraction.py`
