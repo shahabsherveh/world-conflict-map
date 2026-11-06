@@ -41,7 +41,8 @@ uvicorn app.main:app --reload --port 8000
 
 Open **http://localhost:8000**.
 
-- Markers are sized and colored by intensity (1–5).
+- Markers are sized and colored by intensity (1–5) and cluster by zoom, so a wide date
+  range stays responsive; cluster bubbles show how many events they hold.
 - Change the **From / To** dates to see conflicts active in that window.
 - Click a marker to see the event, its conflict, and the underlying news source.
 - Use the side panel to **edit a conflict**, **edit or move an event** (including lat/lon

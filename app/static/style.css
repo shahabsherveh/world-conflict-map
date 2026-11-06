@@ -304,6 +304,71 @@ body {
   cursor: crosshair !important;
 }
 
+/* Per-event dots are divIcons (not circleMarkers) because markercluster only
+   clusters L.Marker instances. Size and colour both encode intensity. */
+.event-dot {
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-sizing: border-box;
+  opacity: 0.85;
+}
+
+.event-dot-i1 {
+  background: #2c7bb6;
+}
+
+.event-dot-i2 {
+  background: #abd9e9;
+}
+
+.event-dot-i3 {
+  background: #fdae61;
+}
+
+.event-dot-i4 {
+  background: #f46d43;
+}
+
+.event-dot-i5 {
+  background: #d73027;
+}
+
+.cluster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cluster-i1 {
+  background: rgba(44, 123, 182, 0.9);
+}
+
+.cluster-i2 {
+  background: rgba(126, 190, 214, 0.9);
+  color: #123;
+}
+
+.cluster-i3 {
+  background: rgba(253, 174, 97, 0.9);
+  color: #3a2100;
+}
+
+.cluster-i4 {
+  background: rgba(244, 109, 67, 0.9);
+}
+
+.cluster-i5 {
+  background: rgba(215, 48, 39, 0.9);
+}
+
 .prov {
   font-size: 10px;
   padding: 1px 4px;

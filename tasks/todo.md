@@ -297,10 +297,13 @@ normally in this environment.
 ## Remaining work (not started)
 
 ### UI / product
+- [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
+  A 30-day range (13,066 geolocated events) renders as ~37 clusters plus a couple of
+  individual dots at world zoom; every event is still in the cluster tree.
+  Verified headlessly with jsdom + real Leaflet/markercluster against the live API
+  (harness kept outside the repo — it needs npm, so adding it here would be a new dep).
 - [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel). HTTP/static
   smoke is done; no browser is installed in this environment.
-- [ ] Marker clustering or a server-side event cap. A one-week view currently renders
-  ~13k per-event Leaflet markers. Clustering would add a CDN dependency.
 
 ### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a

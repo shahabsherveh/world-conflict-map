@@ -4,7 +4,37 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
 }).addTo(map);
 
-const markers = L.layerGroup().addTo(map);
+// Cluster per-event markers: a 30-day range holds >13k events here, and one
+// Leaflet marker per event made the map unusably slow. Clustering keeps every
+// event in the client (no data loss) while bounding the rendered DOM.
+const markers = L.markerClusterGroup({
+  chunkedLoading: true,
+  // Default chunkSize=200 with a 200 ms interval means ~13k events take 15 s
+  // to appear; 1000 brings a full 30-day load down to a few seconds.
+  chunkSize: 1000,
+  maxClusterRadius: 55,
+  disableClusteringAtZoom: 13,
+  showCoverageOnHover: false,
+  iconCreateFunction(cluster) {
+    const children = cluster.getAllChildMarkers();
+    // Sessions in a cluster share a place, so show the worst intensity there
+    // rather than an average that would mute real escalation.
+    const intensity = children.reduce(
+      (worst, child) => Math.max(worst, child.options.eventIntensity || 1),
+      1,
+    );
+    const count = cluster.getChildCount();
+    const size = count >= 1000 ? 52 : count >= 100 ? 44 : count >= 10 ? 36 : 30;
+    return L.divIcon({
+      html: `<span>${count}</span>`,
+      className: `cluster cluster-i${intensity}`,
+      iconSize: L.point(size, size),
+    });
+  },
+});
+// addTo() after the assignment keeps `markers` usable from any option callback.
+markers.addTo(map);
+
 let currentStart = null;
 let currentEnd = null;
 let currentConflictId = null;
@@ -235,23 +265,53 @@ function renderConflictList(conflicts) {
   });
 }
 
+function intensityClass(intensity) {
+  return Math.max(1, Math.min(5, Math.round(intensity || 1)));
+}
+
 // One marker per EVENT: a conflict can span several cities, so plotting one
 // point per conflict would misplace the others.
 function renderEventMarkers(events) {
   markers.clearLayers();
+  const points = [];
   for (const e of events) {
     if (e.lat == null || e.lon == null) continue;
-    const circle = L.circleMarker([e.lat, e.lon], {
-      radius: 4 + (e.intensity || 1) * 2,
-      color: intensityColor(e.intensity),
-      fillColor: intensityColor(e.intensity),
-      fillOpacity: 0.7,
-    });
-    circle.bindTooltip(`${esc(e.headline || e.place_name || "event")}`, { direction: "top" });
-    circle.bindPopup(eventPopup(e));
-    circle.on("click", () => showEvent(e));
-    circle.addTo(markers);
+    points.push(eventMarker(e));
   }
+  // addLayers() (not addLayer() in a loop) is what enables chunkedLoading.
+  markers.addLayers(points);
+}
+
+function eventMarker(e) {
+  const intensity = intensityClass(e.intensity);
+  const dotSize = 6 + intensity * 3;
+  const text = e.headline || e.place_name || "event";
+  const marker = L.marker([e.lat, e.lon], {
+    icon: L.divIcon({
+      className: `event-dot event-dot-i${intensity}`,
+      iconSize: L.point(dotSize, dotSize),
+      html: "",
+      popupAnchor: [0, -dotSize / 2],
+    }),
+    title: text,
+    keyboard: true,
+    riseOnHover: true,
+  });
+  marker.options.eventIntensity = intensity;
+  // Bind the tooltip on first hover instead of eagerly: `bindTooltip` allocates
+  // a Tooltip object per marker, and only one is ever shown at a time.
+  marker.on("mouseover", () => {
+    if (!marker.getTooltip()) marker.bindTooltip(esc(text), { direction: "top" });
+    marker.openTooltip();
+  });
+  marker.on("click", () => {
+    showEvent(e);
+    L.popup({ maxWidth: 300 })
+      .setLatLng(marker.getLatLng())
+      .setContent(eventPopup(e))
+      .openOn(map);
+  });
+  return marker;
 }
 
 function eventPopup(e) {
