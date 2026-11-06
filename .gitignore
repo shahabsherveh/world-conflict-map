@@ -1,8 +1,9 @@
 .venv/
 __pycache__/
 *.py[cod]
-# local data (incl. conflicts.db) — never commit
+# local data (incl. conflicts.db and raw GDELT downloads) — never commit
 *.db
+data/
 .pytest_cache/
 .ruff_cache/
 .env
