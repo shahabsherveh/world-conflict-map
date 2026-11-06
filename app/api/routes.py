@@ -28,7 +28,6 @@ from app.queries import (
     conflicts_active_in_range,
     events_in_range,
     latest_event,
-    latest_events_by_conflict,
     recent_ingestion_runs,
 )
 
@@ -51,23 +50,26 @@ def _validate_range(start: date, end: date) -> None:
         raise HTTPException(status_code=422, detail="start must be on or before end")
 
 
-def _headline(latest) -> str | None:
-    """Prefer the newest article headline; fall back to event summary."""
-    if latest and latest.source_url:
-        text = slug_to_text(latest.source_url)
+def _headline(event: ConflictEvent) -> str | None:
+    """Prefer the article headline; fall back to the event summary.
+
+    GDELT sometimes links a bare article id rather than a slug, which says nothing
+    in a list, so it falls through to the summary.
+    """
+    if event.source_url:
+        text = slug_to_text(event.source_url)
         if text and not text.isdigit():
             return text
-    if latest and latest.summary:
-        return latest.summary
-    return None
+    return event.summary or None
 
 
 def _summarize(
-    conflict: Conflict, events: list[ConflictEvent], fallback_latest: ConflictEvent | None
+    conflict: Conflict, events: list[ConflictEvent], fallback_latest: ConflictEvent | None = None
 ) -> ConflictSummary:
     intensity = max((e.intensity for e in events), default=0)
     latest_in_range = max(events, key=lambda e: e.event_date) if events else None
-    # Headline should always be present, even when the range has no events.
+    # The detail view asks for events inside the conflict's own span, so a manually
+    # added event can sit outside it; keep a headline in that case.
     latest = latest_in_range or fallback_latest
     return ConflictSummary(
         id=conflict.id,
@@ -80,7 +82,7 @@ def _summarize(
         lat=latest_in_range.lat if latest_in_range else None,
         lon=latest_in_range.lon if latest_in_range else None,
         event_count=len(events),
-        headline=_headline(latest),
+        headline=_headline(latest) if latest else None,
     )
 
 
@@ -113,10 +115,10 @@ def list_conflicts(start: date, end: date, db: DbSession):
         if event.conflict_id is not None:
             by_conflict.setdefault(event.conflict_id, []).append(event)
 
-    latest_by_conflict = latest_events_by_conflict(db, [c.id for c in conflicts])
-    return [
-        _summarize(c, by_conflict.get(c.id, []), latest_by_conflict.get(c.id)) for c in conflicts
-    ]
+    # No out-of-range fallback here: conflicts_active_in_range returns a conflict
+    # only when it has an event in range (or has none at all), so every conflict
+    # with events has its newest one right here.
+    return [_summarize(c, by_conflict.get(c.id, [])) for c in conflicts]
 
 
 @router.get("/conflicts/{conflict_id}", response_model=ConflictDetail)

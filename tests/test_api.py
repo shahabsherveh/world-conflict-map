@@ -233,6 +233,64 @@ def test_patch_event_includes_headline(client) -> None:
     assert resp.json()["headline"] == "drone attack"
 
 
+def test_headline_falls_back_to_summary_for_numeric_article_ids(client) -> None:
+    """Regression: a bare article id says nothing in a list, so use the summary."""
+    c, _session = client
+    created = c.post(
+        "/api/events",
+        json={
+            "event_date": "2024-01-01",
+            "source_url": "https://example.com/2087359569",
+            "summary": "Shelling reported north of the city",
+        },
+    ).json()
+    assert created["headline"] == "Shelling reported north of the city"
+
+
+def test_conflict_summary_headline_comes_from_newest_event_in_range(client) -> None:
+    """The header must quote the latest incident, not the first one listed."""
+    c, session = client
+    seed(session)  # events on 2024-01-10 (slug "a") and 2024-02-10 (slug "b")
+    data = c.get("/api/conflicts", params={"start": "2024-01-01", "end": "2024-12-31"}).json()
+    assert data[0]["headline"] == "b"
+
+
+def test_conflict_detail_prefers_an_in_span_headline_over_a_later_one(client) -> None:
+    """A manual event outside the conflict's own span may supply the headline only
+    when the span itself has none — an event inside it wins."""
+    c, session = client
+    conflict = Conflict(
+        name="War A",
+        country="SY",
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 1, 31),
+        status="ended",
+    )
+    session.add(conflict)
+    session.flush()
+    session.add_all(
+        [
+            ConflictEvent(
+                conflict_id=conflict.id,
+                event_date=date(2024, 1, 10),
+                country="SY",
+                source_url="https://example.com/inside-the-span",
+            ),
+            ConflictEvent(
+                conflict_id=conflict.id,
+                event_date=date(2024, 6, 15),
+                country="SY",
+                source_url="https://example.com/after-the-span",
+            ),
+        ]
+    )
+    session.commit()
+
+    data = c.get(f"/api/conflicts/{conflict.id}").json()
+    assert [e["event_date"] for e in data["events"]] == ["2024-01-10"]
+    assert data["headline"] == "inside the span"
+
+
 def test_list_endpoints_reject_inverted_range(client) -> None:
     c, _session = client
     params = {"start": "2024-02-01", "end": "2024-01-01"}

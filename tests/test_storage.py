@@ -97,6 +97,38 @@ def test_events_in_range() -> None:
     assert [e.event_date for e in events] == [date(2024, 2, 10)]
 
 
+def test_conflicts_active_in_range_returns_only_eventful_or_eventless() -> None:
+    """Why the list endpoint needs no out-of-range headline fallback.
+
+    Membership is decided by an in-range event, so every conflict returned with
+    events already has its newest one in hand; the only other kind is a conflict
+    with no events at all, which has no headline to fall back to.
+    """
+    session = make_session()
+    eventful = Conflict(name="Eventful", country="X", start_date=date(2024, 1, 1))
+    quiet = Conflict(
+        name="Quiet", country="X", start_date=date(2024, 1, 1), end_date=date(2024, 1, 31)
+    )
+    manual = Conflict(name="Manual", country="X", start_date=date(2024, 2, 1))
+    session.add_all([eventful, quiet, manual])
+    session.flush()
+    session.add_all(
+        [
+            ConflictEvent(conflict_id=eventful.id, event_date=date(2024, 2, 5), country="X"),
+            ConflictEvent(conflict_id=quiet.id, event_date=date(2024, 1, 5), country="X"),
+        ]
+    )
+    session.commit()
+
+    start, end = date(2024, 2, 1), date(2024, 2, 28)
+    conflicts = conflicts_active_in_range(session, start, end)
+    assert [c.name for c in conflicts] == ["Eventful", "Manual"]
+
+    in_range = {e.conflict_id for e in events_in_range(session, start, end)}
+    for conflict in conflicts:
+        assert conflict.id in in_range or not conflict.events
+
+
 def test_source_event_id_unique() -> None:
     session = make_session()
     session.add(ConflictEvent(source_event_id="EVT1", event_date=date(2024, 1, 1), country="X"))
