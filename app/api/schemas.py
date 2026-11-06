@@ -13,6 +13,14 @@ Latitude = Annotated[float, Field(ge=-90.0, le=90.0)]
 Longitude = Annotated[float, Field(ge=-180.0, le=180.0)]
 ConflictStatus = Literal["active", "ended"]
 Name = Annotated[str, Field(min_length=1, max_length=255)]
+# Bounded like the columns they land in: an unbounded string would be stored
+# whole (SQLite ignores declared lengths) and then rendered in a list row.
+PlaceName = Annotated[str, Field(max_length=255)]
+Country = Annotated[str, Field(max_length=120)]
+EventType = Annotated[str, Field(max_length=80)]
+ActorName = Annotated[str, Field(max_length=255)]
+Summary = Annotated[str, Field(max_length=5000)]
+SourceUrl = Annotated[str, Field(max_length=1024)]
 
 
 def _validate_source_url(value: str | None) -> str | None:
@@ -93,7 +101,7 @@ class SourcesOut(BaseModel):
 
 class ConflictUpdate(BaseModel):
     name: Name | None = None
-    country: str | None = None
+    country: Country | None = None
     start_date: date | None = None
     end_date: date | None = None
     status: ConflictStatus | None = None
@@ -116,7 +124,7 @@ class ConflictUpdate(BaseModel):
 
 class ConflictCreate(BaseModel):
     name: Name
-    country: str | None = None
+    country: Country | None = None
     start_date: date
     end_date: date | None = None
     status: ConflictStatus = "active"
@@ -129,18 +137,18 @@ class ConflictCreate(BaseModel):
 
 
 class EventUpdate(BaseModel):
-    place_name: str | None = None
-    country: str | None = None
+    place_name: PlaceName | None = None
+    country: Country | None = None
     lat: Latitude | None = None
     lon: Longitude | None = None
     event_date: date | None = None
-    event_type: str | None = None
-    actor_a: str | None = None
-    actor_b: str | None = None
+    event_type: EventType | None = None
+    actor_a: ActorName | None = None
+    actor_b: ActorName | None = None
     fatalities: Annotated[int, Field(ge=0)] | None = None
     intensity: Intensity | None = None
-    summary: str | None = None
-    source_url: str | None = None
+    summary: Summary | None = None
+    source_url: SourceUrl | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -158,18 +166,18 @@ class EventUpdate(BaseModel):
 
 
 class EventCreate(BaseModel):
-    place_name: str | None = None
-    country: str | None = None
+    place_name: PlaceName | None = None
+    country: Country | None = None
     lat: Latitude | None = None
     lon: Longitude | None = None
     event_date: date
-    event_type: str | None = None
-    actor_a: str | None = None
-    actor_b: str | None = None
+    event_type: EventType | None = None
+    actor_a: ActorName | None = None
+    actor_b: ActorName | None = None
     fatalities: Annotated[int, Field(ge=0)] | None = None
     intensity: Intensity = 1
-    summary: str | None = None
-    source_url: str | None = None
+    summary: Summary | None = None
+    source_url: SourceUrl | None = None
     conflict_id: int | None = None
 
     @field_validator("source_url")

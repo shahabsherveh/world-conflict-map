@@ -33,10 +33,14 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
 - Test: time-frame filtering, conflict-detail shape, PATCH writes edit_log, POST sets
   `provenance='manual'`, and ingestion-run listing/ordering/limit bounds.
 - Test rejection paths: null updates, inverted date ranges, missing conflict references,
-  and non-http(s) source URLs.
+  non-http(s) source URLs, and text longer than its column.
 
 ## Boundaries
-- Always: validate inputs (Pydantic); return typed response models.
+- Always: validate inputs (Pydantic), with text bounds matching the stored columns
+  (`place_name`/actors 255, `country` 120, `event_type` 80, `source_url` 1024,
+  `summary` 5000) — SQLite ignores declared lengths, so an unbounded field would store a
+  multi-kilobyte string and then render it in a list row.
+- Always: return typed response models.
 - Ask first: adding endpoints, changing response schema.
 - Never: return raw DB rows; leak secrets in responses.
 

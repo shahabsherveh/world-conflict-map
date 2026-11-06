@@ -381,6 +381,37 @@ def test_event_create_rejects_out_of_range_values(client) -> None:
     ).status_code == 422
 
 
+def test_event_text_fields_are_bounded_like_their_columns(client) -> None:
+    """Regression: a 3 KB place name was stored whole and rendered in a list row."""
+    c, session = client
+    seed(session)
+    event = session.query(ConflictEvent).first()
+
+    for payload in (
+        {"place_name": "x" * 256},
+        {"country": "y" * 121},
+        {"event_type": "z" * 81},
+        {"actor_a": "a" * 256},
+        {"summary": "s" * 5001},
+        {"source_url": "https://example.com/" + "u" * 1024},
+    ):
+        assert (
+            c.post("/api/events", json={"event_date": "2024-03-01", **payload}).status_code == 422
+        ), payload
+        assert c.patch(f"/api/events/{event.id}", json=payload).status_code == 422, payload
+
+    assert (
+        c.post(
+            "/api/conflicts", json={"name": "X", "start_date": "2024-01-01", "country": "c" * 121}
+        ).status_code
+        == 422
+    )
+    assert (
+        c.patch(f"/api/conflicts/{event.conflict_id}", json={"country": "c" * 121}).status_code
+        == 422
+    )
+
+
 def test_conflict_list_query_count_is_bounded(client) -> None:
     """Regression: listing conflicts must not issue one query per conflict."""
     from sqlalchemy import event as sa_event
