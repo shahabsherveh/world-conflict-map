@@ -15,6 +15,7 @@ DEFAULTS = {
     "lookback_days": 1,
     "zero_shot_threshold": 0.7,
     "repair_locations": False,
+    "raw_retention_days": 30,
 }
 
 

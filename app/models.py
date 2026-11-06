@@ -58,6 +58,23 @@ class ConflictEvent(Base):
     conflict: Mapped[Conflict | None] = relationship(back_populates="events")
 
 
+class RawEvent(Base):
+    """Parsed GDELT row persisted before extraction/filtering."""
+
+    __tablename__ = "raw_event"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_event_id: Mapped[str] = mapped_column(String(64), unique=True)
+    source_day: Mapped[date] = mapped_column(Date, index=True)
+    event_date: Mapped[date | None] = mapped_column(Date, index=True)
+    event_root_code: Mapped[str | None] = mapped_column(String(8), index=True)
+    source_file: Mapped[str | None] = mapped_column(String(255))
+    payload: Mapped[str] = mapped_column(Text)
+    ingested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    outcome: Mapped[str | None] = mapped_column(String(32))
+
+
 class EditLog(Base):
     __tablename__ = "edit_log"
 
@@ -74,6 +91,8 @@ class IngestionRun(Base):
     __tablename__ = "ingestion_run"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    source_day: Mapped[date | None] = mapped_column(Date, index=True)
+    mode: Mapped[str | None] = mapped_column(String(16), index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(16), default="running")

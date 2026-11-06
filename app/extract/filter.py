@@ -14,14 +14,23 @@ def filter_by_zero_shot(
     """Drop drafts whose source URL slug doesn't classify as armed conflict.
 
     Drafts without a source URL are kept (the adapter's root-code filter has
-    already been applied; no semantic signal is available).
+    already been applied; no semantic signal is available). Slugs are deduped
+    before inference because GDELT often has many events per article.
     """
-    kept: list[EventDraft] = []
-    for draft in drafts:
-        if not draft.source_url:
-            kept.append(draft)
-            continue
-        is_conflict, _ = classifier.classify(slug_to_text(draft.source_url), threshold)
-        if is_conflict:
-            kept.append(draft)
-    return kept
+    indexed = [
+        (index, slug_to_text(draft.source_url))
+        for index, draft in enumerate(drafts)
+        if draft.source_url
+    ]
+    unique_texts = list(dict.fromkeys(text for _, text in indexed))
+
+    if hasattr(classifier, "classify_many"):
+        results = classifier.classify_many(unique_texts, threshold)
+    else:
+        results = [classifier.classify(text, threshold) for text in unique_texts]
+    by_text = dict(zip(unique_texts, results))
+
+    keep = [not draft.source_url for draft in drafts]
+    for index, text in indexed:
+        keep[index] = by_text[text][0]
+    return [draft for draft, accepted in zip(drafts, keep) if accepted]

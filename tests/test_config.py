@@ -11,3 +11,4 @@ def test_config_merges_file_over_defaults() -> None:
     assert cfg["lookback_days"] == 1
     assert isinstance(cfg["zero_shot_threshold"], float)
     assert cfg["base_url"].startswith("http")
+    assert cfg["raw_retention_days"] == 30

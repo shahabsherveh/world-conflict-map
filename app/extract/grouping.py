@@ -82,8 +82,14 @@ def _matches(
 
 def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
     """Link unlinked events to conflicts. Returns the number of conflicts created."""
+    # Process oldest first so a conflict is anchored on its earliest event;
+    # otherwise event insertion order can split one theatre into two conflicts.
     unlinked = list(
-        session.scalars(select(ConflictEvent).where(ConflictEvent.conflict_id.is_(None)))
+        session.scalars(
+            select(ConflictEvent)
+            .where(ConflictEvent.conflict_id.is_(None))
+            .order_by(ConflictEvent.event_date, ConflictEvent.id)
+        )
     )
     created = 0
     anchors: dict[int, tuple[float, float] | None] = {}

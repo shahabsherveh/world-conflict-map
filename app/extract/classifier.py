@@ -8,11 +8,14 @@ from urllib.parse import urlparse
 CONFLICT_LABEL = "armed conflict"
 NOT_CONFLICT_LABEL = "not armed conflict"
 DEFAULT_THRESHOLD = 0.7
+DEFAULT_BATCH_SIZE = 16
 
 
 def slug_to_text(url: str) -> str:
     """Turn an article URL slug into a headline-like text for display/classification."""
-    path = urlparse(url).path
+    # GDELT source URLs frequently end with a slash; without rstrip the slug is
+    # empty and every such event is silently dropped by the zero-shot filter.
+    path = urlparse(url).path.rstrip("/")
     slug = path.rsplit("/", 1)[-1]
     slug = re.sub(r"\.(html?|php|aspx?)$", "", slug)
     slug = re.sub(r"^\d{6,}[-_]", "", slug)  # leading article id, e.g. 2087359569-
@@ -37,3 +40,29 @@ class ZeroShotConflictClassifier:
         scores = dict(zip(result["labels"], result["scores"]))
         score = scores[CONFLICT_LABEL]
         return score >= threshold, score
+
+    def classify_many(
+        self, texts: list[str], threshold: float = DEFAULT_THRESHOLD
+    ) -> list[tuple[bool, float]]:
+        """Classify a list in batches; empty texts are dropped before inference."""
+        if not texts:
+            return []
+        non_empty = [text for text in texts if text.strip()]
+        results = (
+            self._pipeline(non_empty, self._labels, batch_size=DEFAULT_BATCH_SIZE)
+            if non_empty
+            else []
+        )
+        if isinstance(results, dict):  # single-item input fallback
+            results = [results]
+        result_iter = iter(results)
+        out: list[tuple[bool, float]] = []
+        for text in texts:
+            if not text.strip():
+                out.append((False, 0.0))
+                continue
+            result = next(result_iter)
+            scores = dict(zip(result["labels"], result["scores"]))
+            score = scores[CONFLICT_LABEL]
+            out.append((score >= threshold, score))
+        return out

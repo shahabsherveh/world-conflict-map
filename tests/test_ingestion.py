@@ -4,7 +4,7 @@ from datetime import date
 
 import httpx
 
-from app.ingest.gdelt import GDELTClient, parse_export_zip
+from app.ingest.gdelt import GDELTClient, parse_export_zip, read_day_from_dir
 from app.ingest.normalizer import COLUMNS, dedupe_new, parse_export_tsv
 
 
@@ -46,8 +46,9 @@ def test_parse_export_zip() -> None:
         archive.writestr(
             "sample.export.CSV", make_row(global_event_id="1", event_root_code="19") + "\n"
         )
-    events = parse_export_zip(buf.getvalue())
+    events = parse_export_zip(buf.getvalue(), source_name="sample.export.CSV.zip")
     assert events[0]["global_event_id"] == "1"
+    assert events[0]["_source_file"] == "sample.export.CSV.zip"
 
 
 def test_fifteen_minute_stamps() -> None:
@@ -70,6 +71,21 @@ def test_dedupe_new() -> None:
 def test_dedupe_new_skips_existing() -> None:
     events = [{"global_event_id": "a"}, {"global_event_id": "b"}]
     assert [e["global_event_id"] for e in dedupe_new(events, {"a"})] == ["b"]
+
+
+def test_read_day_from_dir_skips_missing_and_corrupt_files(tmp_path) -> None:
+    day = date(2024, 1, 1)
+    stamps = GDELTClient().fifteen_minute_stamps(day)
+    with zipfile.ZipFile(tmp_path / f"{stamps[0]}.export.CSV.zip", "w") as archive:
+        archive.writestr(
+            "sample.export.CSV",
+            make_row(global_event_id="1", event_root_code="19") + "\n",
+        )
+    (tmp_path / f"{stamps[1]}.export.CSV.zip").write_bytes(b"not a zip")
+
+    events = read_day_from_dir(tmp_path, day)
+    assert [event["global_event_id"] for event in events] == ["1"]
+    assert events[0]["_source_file"] == f"{stamps[0]}.export.CSV.zip"
 
 
 def test_fetch_day_skips_missing_files(monkeypatch) -> None:
