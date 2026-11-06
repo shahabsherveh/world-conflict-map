@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.api.routes import get_db
 from app.main import app
-from app.models import Base, Conflict, ConflictEvent, EditLog
+from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun
 
 
 @pytest.fixture
@@ -145,6 +145,45 @@ def test_sources_endpoint(client) -> None:
     body = resp.json()
     assert "gdelt" in body["source"].lower()
     assert body["base_url"].startswith("http")
+
+
+def test_ingestion_runs_returns_newest_first_and_honors_limit(client) -> None:
+    c, session = client
+    for index in range(3):
+        session.add(
+            IngestionRun(
+                source_day=date(2024, 1, 1 + index),
+                mode="full",
+                started_at=datetime(2024, 1, 1 + index),
+                finished_at=datetime(2024, 1, 1 + index, 0, 1),
+                status="success",
+                items_seen=100 + index,
+                items_new=index,
+            )
+        )
+    session.commit()
+
+    resp = c.get("/api/ingestion-runs", params={"limit": 2})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [run["items_new"] for run in data] == [2, 1]
+    assert data[0]["status"] == "success"
+    assert data[0]["source_day"] == "2024-01-03"
+    assert data[0]["mode"] == "full"
+    assert data[0]["finished_at"] is not None
+
+
+def test_ingestion_runs_empty(client) -> None:
+    c, _session = client
+    resp = c.get("/api/ingestion-runs")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_ingestion_runs_limit_bounds(client) -> None:
+    c, _session = client
+    assert c.get("/api/ingestion-runs", params={"limit": 0}).status_code == 422
+    assert c.get("/api/ingestion-runs", params={"limit": 101}).status_code == 422
 
 
 def test_event_headline_derived_from_source_url(client) -> None:

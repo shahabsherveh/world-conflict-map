@@ -61,6 +61,19 @@ class ConflictDetail(ConflictSummary):
     events: list[ConflictEventOut]
 
 
+class IngestionRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source_day: date | None
+    mode: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    items_seen: int
+    items_new: int
+
+
 class ConflictUpdate(BaseModel):
     name: str | None = None
     country: str | None = None

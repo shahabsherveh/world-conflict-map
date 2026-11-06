@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.schemas import (
@@ -17,6 +17,7 @@ from app.api.schemas import (
     ConflictUpdate,
     EventCreate,
     EventUpdate,
+    IngestionRunOut,
 )
 from app.config import load_config
 from app.db import get_session
@@ -27,6 +28,7 @@ from app.queries import (
     events_in_range,
     latest_event,
     latest_events_by_conflict,
+    recent_ingestion_runs,
 )
 
 router = APIRouter(prefix="/api")
@@ -184,6 +186,14 @@ def create_event(payload: EventCreate, db: DbSession):
     db.commit()
     db.refresh(event)
     return event
+
+
+@router.get("/ingestion-runs", response_model=list[IngestionRunOut])
+def list_ingestion_runs(
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+):
+    return recent_ingestion_runs(db, limit)
 
 
 @router.get("/sources")

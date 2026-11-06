@@ -5,7 +5,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Conflict, ConflictEvent
+from app.models import Conflict, ConflictEvent, IngestionRun
 
 
 def conflicts_active_in_range(session: Session, start: date, end: date) -> list[Conflict]:
@@ -73,3 +73,13 @@ def existing_source_event_ids(session: Session, ids: list[str]) -> set[str]:
         return set()
     stmt = select(ConflictEvent.source_event_id).where(ConflictEvent.source_event_id.in_(ids))
     return {row[0] for row in session.execute(stmt) if row[0]}
+
+
+def recent_ingestion_runs(session: Session, limit: int = 20) -> list[IngestionRun]:
+    """Newest pipeline runs first, with id as a stable tie-breaker."""
+    stmt = (
+        select(IngestionRun)
+        .order_by(IngestionRun.started_at.desc(), IngestionRun.id.desc())
+        .limit(limit)
+    )
+    return list(session.scalars(stmt))

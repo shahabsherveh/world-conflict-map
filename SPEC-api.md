@@ -14,6 +14,7 @@ FastAPI + Pydantic. (Conventions: CAPABILITY-MAP.md)
 - `GET /api/events/{id}` → single event detail incl. source_url
 - `PATCH /api/events/{id}`, `PATCH /api/conflicts/{id}` → manual edits (logged to edit_log)
 - `POST /api/events`, `POST /api/conflicts` → manual creation (`provenance='manual'`)
+- `GET /api/ingestion-runs?limit=` → recent pipeline runs, newest first (limit 1–100)
 - `GET /api/sources` → data-source list (transparency)
 - Static: `/` → `app/static/index.html`
 
@@ -30,7 +31,7 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
 ## Testing strategy
 - FastAPI TestClient integration tests against a seeded in-memory/temp SQLite DB.
 - Test: time-frame filtering, conflict-detail shape, PATCH writes edit_log, POST sets
-  `provenance='manual'`.
+  `provenance='manual'`, and ingestion-run listing/ordering/limit bounds.
 
 ## Boundaries
 - Always: validate inputs (Pydantic); return typed response models.
