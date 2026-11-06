@@ -331,6 +331,11 @@ normally in this environment.
   sidebar detail render, "Pick on map" fills lat/lon, OSM tiles return 200, and no
   console messages. The earlier grey tile gaps were transient fetches, not an app bug.
 
+- [ ] No-location panel (spec: `SPEC-ui.md` § Feature spec: surfacing no-location
+  conflicts). Not started — awaiting review of the spec: sidebar section listing the ~493
+  conflicts per 30-day window that have no geocoded event, with a "Set location" action
+  that reuses the existing Pick-on-map flow. No API change; never auto-geocode.
+
 ### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
