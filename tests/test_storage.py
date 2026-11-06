@@ -54,6 +54,25 @@ def test_conflicts_active_in_range() -> None:
     assert future == []
 
 
+def test_conflicts_active_in_range_includes_eventless_manual_conflict() -> None:
+    session = make_session()
+    session.add_all(
+        [
+            Conflict(name="Manual now", country="X", start_date=date(2024, 2, 1)),
+            Conflict(
+                name="Manual past",
+                country="X",
+                start_date=date(2023, 1, 1),
+                end_date=date(2023, 12, 31),
+            ),
+        ]
+    )
+    session.commit()
+
+    active = conflicts_active_in_range(session, date(2024, 1, 1), date(2024, 12, 31))
+    assert {conflict.name for conflict in active} == {"Manual now"}
+
+
 def test_events_in_range() -> None:
     session = make_session()
     conflict = Conflict(name="War A", country="X", start_date=date(2024, 1, 1))

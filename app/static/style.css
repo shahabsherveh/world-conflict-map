@@ -51,6 +51,33 @@ body {
   color: #555;
 }
 
+.notice {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 8px;
+  margin: 0 0 8px;
+  border: 1px solid #cfe2f3;
+  border-radius: 4px;
+  background: #eef6fc;
+  color: #174a6b;
+}
+
+.notice.error {
+  border-color: #f1b5b5;
+  background: #fdeeee;
+  color: #8a1f1f;
+}
+
+.notice.success {
+  border-color: #b9dfc7;
+  background: #eef8f1;
+  color: #1f5f35;
+}
+
+.notice[hidden] {
+  display: none;
+}
+
 .meta {
   font-size: 13px;
   color: #555;
@@ -91,17 +118,37 @@ body {
   list-style: none;
 }
 
+.empty.error {
+  color: #8a1f1f;
+}
+
+.conflict-list li {
+  list-style: none;
+}
+
 .conflict-item {
+  width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: flex-start;
   gap: 8px;
   padding: 6px 4px;
+  border: 0;
   border-bottom: 1px solid #f0f0f0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
 .conflict-item:hover {
   background: #f0f0f0;
+}
+
+.conflict-item:focus-visible {
+  outline: 2px solid #2c7bb6;
+  outline-offset: -2px;
 }
 
 .dot {
@@ -118,11 +165,13 @@ body {
 }
 
 .ci-name {
+  display: block;
   font-size: 13px;
   font-weight: 600;
 }
 
 .ci-meta {
+  display: block;
   font-size: 11px;
   color: #777;
   margin-top: 1px;
@@ -218,6 +267,43 @@ body {
   font-size: 12px;
 }
 
+.ev-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ev-edit-btn {
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.events .empty {
+  font-size: 12px;
+  color: #999;
+  padding: 6px 0;
+}
+
+.event-edit {
+  margin-top: 12px;
+  border-top: 1px solid #ddd;
+  padding-top: 6px;
+}
+
+.event-edit > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.picking {
+  cursor: crosshair !important;
+}
+
 .prov {
   font-size: 10px;
   padding: 1px 4px;
@@ -232,7 +318,8 @@ body {
   color: #0f5132;
 }
 
-#edit-panel label {
+#edit-panel label,
+.event-edit label {
   display: block;
   font-size: 12px;
   margin: 4px 0;
@@ -240,17 +327,47 @@ body {
 }
 
 #edit-panel input,
-#edit-panel select {
+#edit-panel select,
+#edit-panel textarea,
+.event-edit input,
+.event-edit select,
+.event-edit textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 4px;
   margin-top: 2px;
+  font: inherit;
 }
 
-#edit-panel button {
+#edit-panel textarea,
+.event-edit textarea {
+  resize: vertical;
+}
+
+#edit-panel button,
+.event-edit button {
   margin-top: 6px;
   padding: 6px 10px;
   cursor: pointer;
+}
+
+#edit-panel button:disabled,
+.event-edit button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.hint {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #777;
+  margin: 4px 0 8px;
 }
 
 hr {

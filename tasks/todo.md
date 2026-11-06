@@ -233,7 +233,7 @@ daily cron instructions, `.gitignore` finalization.
 
 ## Checkpoint: Complete
 - [x] Fresh-clone setup documented and verified
-- [x] All acceptance criteria met (73 tests passing)
+- [x] All acceptance criteria met (75 tests passing)
 - [ ] Visual browser smoke test by user (open http://localhost:8000)
 
 ---
@@ -250,7 +250,7 @@ is clean on `main`; `conflicts.db`, `data/`, and `.venv/` are untracked via `.gi
 ## Verification baseline (re-run these first)
 ```bash
 source .venv/bin/activate
-pytest            # 73 passed
+pytest            # 75 passed
 ruff check .      # clean
 black --check .   # clean
 alembic current   # b7da7a666155 (head)
@@ -272,6 +272,9 @@ normally in this environment.
 - API hardening: null updates return 422, conflict/event date order is enforced, event
   creation cannot reference a missing conflict, source URLs must be http(s), inverted
   ranges are rejected, event create/update return headlines, and SQLite FKs are enabled.
+- UI manual correction: event edit form (including lat/lon and “Pick on map”),
+  keyboard-operable conflict buttons, live notice/error region, loading/error/empty
+  states, eventless manual conflicts listed, and safe external links.
 - HTTP/static smoke passed via `uvicorn --reload` (health, UI, JS/CSS, API). No Chromium/
   Playwright in this environment, so the visual browser checklist is still user-run.
 - Removed: no-op `app/ingest/run.py`, dead `currentConflicts`, `persist_new_events`,
@@ -297,12 +300,7 @@ normally in this environment.
 - [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel). HTTP/static
   smoke is done; no browser is installed in this environment.
 - [ ] Marker clustering or a server-side event cap. A one-week view currently renders
-  ~13k per-event Leaflet markers.
-- [ ] Event edit/move UI: expose `PATCH /api/events` for lat/lon, type, intensity, source,
-  and other fields; today only conflict fields are editable.
-- [ ] Form feedback: show 4xx errors, default required dates, and make a newly created
-  conflict without events visible (the list currently requires at least one event).
-- [ ] Add `rel="noopener noreferrer"` to external source links.
+  ~13k per-event Leaflet markers. Clustering would add a CDN dependency.
 
 ### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
@@ -317,6 +315,7 @@ normally in this environment.
 - [ ] Backfill more history beyond 2026-10-29..2026-11-04.
 - [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
 - [ ] Pin dependencies and add CI.
+- [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
 ## Approval state
 No pending approvals. Article-title fetching is still declined; raw payload storage is

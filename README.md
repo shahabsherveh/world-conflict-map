@@ -43,8 +43,10 @@ Open **http://localhost:8000**.
 
 - Markers are sized and colored by intensity (1–5).
 - Change the **From / To** dates to see conflicts active in that window.
-- Click a marker to see its events and the underlying news source.
-- Use the side panel to **edit** a conflict, **add** an event, or **create** a new conflict.
+- Click a marker to see the event, its conflict, and the underlying news source.
+- Use the side panel to **edit a conflict**, **edit or move an event** (including lat/lon
+  via “Pick on map”), **add an event**, or **create a conflict**.
+- Newly created conflicts are visible even before they have events.
 
 ## Daily cron
 

@@ -9,12 +9,17 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 (Conventions: CAPABILITY-MAP.md)
 
 ## Behavior
-- Map centered on world; markers per conflict, radius/color by intensity (1–5).
-- Time controls (start + end date inputs, or a slider) → `GET /api/conflicts?start&end` → re-render.
-- Click marker → side panel: conflict name, country, intensity, status, event timeline
-  (each event with event_type, fatalities, and a link to the source article).
-- Edit mode: edit conflict (name/intensity/status/end_date), move/add event, create conflict
-  → PATCH/POST endpoints.
+- Map centered on world; one marker per event, radius/color by intensity (1–5).
+- Time controls (start + end date inputs) → `GET /api/events` + `GET /api/conflicts` → re-render.
+- Click marker → event detail with place/date/type/actors/intensity, provenance, source link,
+  raw JSON, and an “Open conflict” action.
+- Conflict detail shows the timeline and per-event Edit actions.
+- Edit mode: conflict fields, event fields (including lat/lon), add event, create conflict.
+  “Pick on map” fills coordinates from a map click; manual lat/lon remains available.
+- Newly created conflicts without events appear in the list and show an empty state.
+- Loading, empty, error, and save states are visible; API errors appear in a live notice
+  region rather than failing silently.
+- Conflict list entries are native buttons and keyboard operable.
 - Show `auto` vs `manual` provenance subtly, so it's clear what the machine produced.
 
 ## Commands
@@ -25,7 +30,7 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 - `app/static/index.html`, `app/static/app.js`, `app/static/style.css`
 
 ## Code style
-Conventions: CAPABILITY-MAP.md. Plain ES modules, `fetch()` to `/api/*`.
+Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
 
 ## Testing strategy
 - Manual smoke checklist (primary).
@@ -39,7 +44,10 @@ Conventions: CAPABILITY-MAP.md. Plain ES modules, `fetch()` to `/api/*`.
 ## Success criteria
 - Load `/`, see conflict markers for a seeded dataset.
 - Changing the time range updates markers without a full reload.
-- Clicking a marker shows its news; editing a conflict persists and re-renders.
+- Clicking a marker shows its news; editing a conflict or event persists and re-renders.
+- Editing an event’s coordinates moves its marker after save.
+- A manually created conflict is visible before it has events.
+- Invalid forms show an understandable error instead of failing silently.
 
 ## Open questions
 - Basemap: OSM standard tiles OK? (free, no key)

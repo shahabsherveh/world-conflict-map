@@ -75,6 +75,18 @@ def test_list_conflicts_filters_by_range(client) -> None:
     assert "headline" in data[0]
 
 
+def test_list_conflicts_includes_eventless_manual_conflict(client) -> None:
+    c, session = client
+    session.add(Conflict(name="Manual only", country="SY", start_date=date(2024, 1, 1)))
+    session.commit()
+
+    resp = c.get("/api/conflicts", params={"start": "2024-01-01", "end": "2024-12-31"})
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["name"] == "Manual only"
+    assert resp.json()[0]["event_count"] == 0
+
+
 def test_conflict_detail_includes_events(client) -> None:
     c, session = client
     conflict = seed(session)

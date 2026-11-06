@@ -9,17 +9,26 @@ from app.models import Conflict, ConflictEvent, IngestionRun
 
 
 def conflicts_active_in_range(session: Session, start: date, end: date) -> list[Conflict]:
-    """Conflicts with at least one event in [start, end].
+    """Conflicts with an event in [start, end], plus eventless conflicts.
 
-    "Ongoing" conflicts (end_date IS NULL) are bounded by their last known
-    event, so they stop appearing once they go quiet instead of matching every
-    future range.
+    "Ongoing" conflicts with events are bounded by their last known event, so
+    they stop appearing once they go quiet. Manually created conflicts can have
+    no events yet; include those when their own date span overlaps the range so
+    a newly created conflict is immediately visible.
     """
+    events_in_range = select(ConflictEvent.conflict_id).where(
+        ConflictEvent.event_date >= start, ConflictEvent.event_date <= end
+    )
     stmt = (
         select(Conflict)
-        .join(ConflictEvent, ConflictEvent.conflict_id == Conflict.id)
-        .where(ConflictEvent.event_date >= start, ConflictEvent.event_date <= end)
-        .distinct()
+        .where(
+            Conflict.id.in_(events_in_range)
+            | (
+                ~Conflict.events.any()
+                & (Conflict.start_date <= end)
+                & (Conflict.end_date.is_(None) | (Conflict.end_date >= start))
+            )
+        )
         .order_by(Conflict.start_date)
     )
     return list(session.scalars(stmt))
