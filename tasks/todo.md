@@ -300,10 +300,16 @@ normally in this environment.
 - [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
   A 30-day range (13,066 geolocated events) renders as ~37 clusters plus a couple of
   individual dots at world zoom; every event is still in the cluster tree.
-  Verified headlessly with jsdom + real Leaflet/markercluster against the live API
-  (harness kept outside the repo — it needs npm, so adding it here would be a new dep).
-- [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel). HTTP/static
-  smoke is done; no browser is installed in this environment.
+- [x] Checked-in headless UI smoke: `tests/ui/map-smoke.mjs` (jsdom + real Leaflet
+  against a running server). Covers clustering counts, bounded DOM, cluster clicks, and
+  the time scrub. Not wired into pytest/CI (needs npm + a server).
+- [x] Real-browser smoke via headless Chrome 149 + CDP (installed by hand for the check;
+  not part of the repo): 13,066 events → 37 clusters + 2 dots at world zoom, labels sum
+  to the API count, scrub to 3 days re-renders exactly 4,275, cluster click zooms,
+  event popup + sidebar detail render, "Pick on map" fills lat/lon, no console errors.
+- [ ] User's own browser pass on a machine with OSM tile access: this sandbox cannot
+  load many `tile.openstreetmap.org` tiles, so basemap rendering is unverified (markers,
+  popups and panels all render on the blank background).
 
 ### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a

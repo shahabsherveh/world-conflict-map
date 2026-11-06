@@ -160,4 +160,7 @@ and select it in `app/extract/run.py`. No other module changes.
 ```bash
 pytest                      # unit + integration tests
 python scripts/evaluate.py  # precision/recall of the zero-shot filter (needs model)
+
+# headless UI smoke test (needs Node 18+ and a server on :8000)
+cd tests/ui && npm install && node map-smoke.mjs
 ```

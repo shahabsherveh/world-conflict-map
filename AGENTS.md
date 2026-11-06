@@ -20,6 +20,7 @@ pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 black app tests scripts                  # format
+cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 alembic upgrade head                     # apply migrations
 alembic revision --autogenerate -m "…"   # new migration
 
@@ -66,6 +67,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
   a test that passes for the wrong reason is worse than none.
 - Regression tests for every bug fix (see `test_group_events_does_not_merge_distant_cities_in_one_country`).
 - Guard performance invariants explicitly (see `test_conflict_list_query_count_is_bounded`).
+- `tests/ui/map-smoke.mjs` covers the map JavaScript (clustering, counts, time scrub) in
+  jsdom against a running server. It is **not** part of pytest and has its own npm
+  dependency; run it when touching `app/static/app.js`. Visual/CSS checks still need a
+  real browser.
 
 ## Boundaries
 
