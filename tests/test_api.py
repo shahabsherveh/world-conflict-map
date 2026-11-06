@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.api.routes import get_db
+from app.db import make_session_factory
 from app.main import app
 from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun
 
@@ -20,7 +21,8 @@ def client():
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    session = Session(engine)
+    # Same settings as the app (autoflush off); see tests/test_extraction.make_session.
+    session = make_session_factory(engine)()
 
     def override():
         yield session

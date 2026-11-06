@@ -6,12 +6,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.db import make_engine
+from app.db import make_engine, make_session_factory
 from app.models import Base, Conflict, ConflictEvent, EditLog
 from app.queries import conflicts_active_in_range, events_in_range
 
 
 def make_session() -> Session:
+    """Session configured exactly like the app's (autoflush=False).
+
+    Production never autoflushes, so a fixture with it on can write a pending
+    row that the app has not written yet and hide real bugs (see
+    test_group_events_keeps_one_conflict_per_theatre_with_autoflush_off).
+    """
     engine = create_engine(
         "sqlite://",
         future=True,
@@ -19,7 +25,7 @@ def make_session() -> Session:
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    return Session(engine)
+    return make_session_factory(engine)()
 
 
 def test_conflicts_active_in_range() -> None:

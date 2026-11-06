@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.db import make_session_factory
 from app.ingest.raw_store import (
     mark_raw_events,
     pending_raw_events,
@@ -17,6 +18,12 @@ from app.models import Base, RawEvent
 
 
 def make_session() -> Session:
+    """Session configured exactly like the app's (autoflush=False).
+
+    Production never autoflushes, so a fixture with it on can write a pending
+    row that the app has not written yet and hide real bugs (see
+    test_group_events_keeps_one_conflict_per_theatre_with_autoflush_off).
+    """
     engine = create_engine(
         "sqlite://",
         future=True,
@@ -24,7 +31,7 @@ def make_session() -> Session:
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    return Session(engine)
+    return make_session_factory(engine)()
 
 
 def make_raw(event_id: str = "1", **overrides: str) -> dict[str, str]:

@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+from app.db import make_session_factory
 from app.extract import run as run_module
 from app.extract.base import BaseSourceAdapter, EventDraft
 from app.extract.classifier import (
@@ -25,6 +26,12 @@ from app.models import Base, Conflict, ConflictEvent, IngestionRun, RawEvent
 
 
 def make_session() -> Session:
+    """Session configured exactly like the app's (autoflush=False).
+
+    Production never autoflushes, so a fixture with it on can write a pending
+    row that the app has not written yet and hide real bugs (see
+    test_group_events_keeps_one_conflict_per_theatre_with_autoflush_off).
+    """
     engine = create_engine(
         "sqlite://",
         future=True,
@@ -32,7 +39,7 @@ def make_session() -> Session:
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    return Session(engine)
+    return make_session_factory(engine)()
 
 
 def make_raw(**overrides: str) -> dict[str, str]:
@@ -184,6 +191,34 @@ def test_group_events_links_nearby_places() -> None:
     assert len(session.scalars(select(Conflict)).all()) == 1
 
 
+def test_group_events_keeps_one_conflict_per_theatre_with_autoflush_off() -> None:
+    """Regression: grouping must not degrade to city-name matching mid-run.
+
+    A conflict created in this loop has no committed event yet, and the app
+    session never autoflushes, so looking its anchor up in the DB returned None
+    and was cached for the rest of the run. Every later event then had to match
+    the city name exactly, splitting one theatre into one conflict per city
+    (475 instead of 428 for a single day of GDELT data).
+    """
+    session = make_session()
+    session.add_all(
+        [
+            _ev("a", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 10),
+            _ev("b", "SY", "Azaz, Aleppo, Syria", 36.58, 37.05, 12),
+            _ev("c", "SY", "Manbij, Aleppo, Syria", 36.53, 37.95, 14),
+        ]
+    )
+    session.commit()
+
+    created = group_events(session)
+    session.commit()
+
+    assert created == 1, "each new city name became its own conflict"
+    conflicts = list(session.scalars(select(Conflict)))
+    assert [c.name for c in conflicts] == ["Aleppo, Aleppo, Syria"]
+    assert {e.conflict_id for e in session.scalars(select(ConflictEvent))} == {conflicts[0].id}
+
+
 def test_group_events_splits_distant_places() -> None:
     """Cities far apart in the same country are separate conflicts."""
     session = make_session()
@@ -249,6 +284,9 @@ def test_group_events_respects_time_window() -> None:
 
     # Same place, but well after the conflict ended -> new conflict.
     session.add(_ev("b", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 15))
+    # autoflush is off (the app's setting), so the new row needs an explicit flush
+    # before the UPDATE below can address it.
+    session.flush()
     session.query(ConflictEvent).filter(ConflictEvent.source_event_id == "b").update(
         {"event_date": date(2024, 6, 15)}
     )

@@ -41,6 +41,9 @@ def _anchor(session: Session, conflict: Conflict, cache: dict[int, tuple[float, 
     """Coordinates representing a conflict: those of its earliest geolocated event.
 
     Cached per conflict so grouping does not re-query for every candidate event.
+    Conflicts created in the current run must be seeded into the cache by the
+    caller: their event is still pending, and the session runs with
+    autoflush=False, so a query here would see nothing and cache None.
     """
     if conflict.id in cache:
         return cache[conflict.id]
@@ -114,5 +117,13 @@ def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
             session.add(match)
             session.flush()
             created += 1
+            # The conflict's own event is still pending (`conflict_id` is assigned
+            # below), so _anchor() cannot see it: seed the cache instead. Without
+            # this every later event of this conflict falls through to the
+            # city-name fallback below, fragmenting one theatre into per-city
+            # conflicts for the rest of the run.
+            anchors[match.id] = (
+                (event.lat, event.lon) if event.lat is not None and event.lon is not None else None
+            )
         event.conflict_id = match.id
     return created
