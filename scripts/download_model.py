@@ -3,7 +3,7 @@
 Run from anywhere:
     python scripts/download_model.py
 
-Downloads `cross-encoder/nli-deberta-v3-small` (~130 MB) into the HuggingFace
+Downloads `cross-encoder/nli-deberta-v3-small` (~570 MB) into the HuggingFace
 cache. After this completes, the zero-shot filter in app/extract/classifier.py
 works offline. To use a larger, higher-quality model instead, edit the
 `MODEL` constant below (e.g. `facebook/bart-large-mnli`, ~1.6 GB) and re-run.

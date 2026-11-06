@@ -41,6 +41,7 @@ def main() -> None:
 
     print("BASELINE (keep all):", metrics([1] * len(articles), truths))
 
+    print("Loading model...")
     clf = ZeroShotConflictClassifier()
     preds: list[int] = []
     for a in articles:

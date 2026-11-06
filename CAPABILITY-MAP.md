@@ -3,7 +3,7 @@
 | Module id | Responsibility | Depends on |
 |---|---|---|
 | `storage` | Data model + persistence: conflict events, conflicts, manual edits, ingestion runs, time-series state | — |
-| `ingestion` | Daily fetch of structured conflict events from GDELT → normalized, deduped raw events | `storage` |
+| `ingestion` | Daily fetch of structured conflict events from GDELT → normalized, deduped raw rows persisted before extraction | `storage` |
 | `extraction` | Event-source adapter: filter to armed conflicts, map fields, derive intensity. **Swappable source boundary (GDELT now, T5/LLM later).** | `ingestion`, `storage` |
 | `api` | HTTP API: query conflicts/events by time frame; manual edit/create | `storage` |
 | `ui` | Interactive map, time scrub, click-for-news, manual edit | `api` |

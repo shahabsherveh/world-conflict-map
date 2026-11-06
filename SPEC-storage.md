@@ -15,9 +15,14 @@ SQLite + SQLAlchemy 2.0 ORM + Alembic migrations. (Conventions: CAPABILITY-MAP.m
   source_url, confidence (0–1), provenance ('auto' | 'manual'), created_at, updated_at
 - `conflict`: id, name, country, start_date, end_date (nullable), status
   ('active' | 'ended'), created_at, updated_at
+- `raw_event`: id, source_event_id (unique), source_day, event_date (nullable),
+  event_root_code, source_file, payload (JSON of non-empty GDELT columns), ingested_at,
+  processed_at (nullable), outcome ('persisted' | 'duplicate' | 'filtered_out' |
+  'not_armed_conflict'). Raw rows are written before extraction/filtering.
 - `edit_log`: id, target_type ('event' | 'conflict'), target_id, field, old_value,
   new_value, edited_at
-- `ingestion_run`: id, started_at, finished_at, status, items_seen, items_new
+- `ingestion_run`: id, source_day (nullable), mode ('full' | 'raw_only' | 'backfill',
+  nullable), started_at, finished_at, status, items_seen, items_new
 
 ## Commands
 - `alembic revision --autogenerate -m "<msg>"`
@@ -48,6 +53,7 @@ Conventions: CAPABILITY-MAP.md. Models are SQLAlchemy 2.0 declarative with typed
   overlaps the range.
 - Duplicate `source_event_id` is rejected (unique constraint).
 - Manual edits are persisted and logged with old/new values.
+- Raw rows are deduped by `GLOBALEVENTID` and marked processed exactly once.
 
 ## Open questions
 - None blocking. Intensity scale settled at 1–5.

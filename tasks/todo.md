@@ -266,19 +266,34 @@ curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
 ## Changes since the original plan
 - Grouping: keyword overlap → proximity (100 km + time window), anchor cached per conflict.
 - Zero-shot filter added (`cross-encoder/nli-deberta-v3-small`, threshold 0.7);
-  measured 83% precision / 63% recall vs 32% baseline on a 25-article labelled set.
+  measured 80% precision / 100% recall vs 32% baseline on a 25-article labelled set
+  (after fixing trailing-slash URLs, which previously produced empty slugs).
 - UI: per-event markers, headline tooltips/popups, collapsible conflict list,
   per-event Raw data panel, "Open conflict" drill-down.
 - Fixes: date-range `end_date IS NULL` leak, UTC date off-by-one, conflicting-city merge,
   N+1 in `/api/conflicts`, input bounds, CWD-dependent paths.
 - Removed: no-op `app/ingest/run.py`, dead `currentConflicts`, `persist_new_events`,
   unused `conflict_span`, unused `_headline` param, unsafe auto-repair wiring.
+- Added `scripts/fetch_gdelt.py` (resumable raw download with progress bar) and local
+  ingestion via `python -m app.extract.run --start … --end … --source-dir data/gdelt`.
+- Zero-shot filtering now batches inference and dedupes slugs before classification.
+- Added `raw_event` storage (all parsed GDELT rows, JSON payload) before extraction;
+  `--raw-only` ingests without processing, and a second pass marks outcomes. Processed
+  raw rows are pruned after `raw_retention_days` (default 30).
+- `ingestion_run` now records `source_day` and `mode` (`full`/`raw_only`/`backfill`)
+  plus raw/persisted counts, exposed via `GET /api/ingestion-runs?limit=`. Seven
+  retrospective `backfill` rows reconstruct the original week: 717,672 seen / 13,713 new.
+- Backfilled 2026-10-29..2026-11-04 from the local GDELT cache:
+  13,713 events / 1,680 conflicts. Previous DB backed up in `/tmp/`.
+- Full-week raw store: 717,672 rows / 672 files, then all rows processed. Outcomes:
+  672,142 not-armed-conflict, 31,817 filtered out, 13,713 duplicate (the existing
+  conflict events). `scripts/process_raw.py` and `scripts/backfill_audit.py` added.
 
 ## Open items (not started)
 - [ ] Visual browser smoke test by the user (markers, scrub, edit, raw panel).
-- [ ] Optional: store full GDELT row as `raw_payload` (unlocks `num_sources` corroboration).
+- [x] Store full GDELT row in `raw_event`; `num_sources` is available but not yet used.
 - [ ] Optional: fetch real article `<title>` instead of URL-slug headlines.
-- [ ] Optional: backfill more days so the time scrub has history.
+- [x] Backfilled one week (2026-10-29..2026-11-04); add more history later if useful.
 
 ## Approval state
-No pending approvals. The user explicitly declined `raw_payload` and article-title fetching.
+No pending approvals. Article-title fetching is still declined; raw payload storage is now implemented.

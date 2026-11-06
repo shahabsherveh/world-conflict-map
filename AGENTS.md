@@ -29,6 +29,9 @@ uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 python scripts/seed.py                   # demo data (no network)
 python scripts/evaluate.py               # filter precision/recall (needs model)
 python scripts/repair_locations.py       # dry-run coordinate inspection only
+python scripts/fetch_gdelt.py --days 7   # raw GDELT download to data/gdelt/
+python scripts/process_raw.py            # process pending raw_event rows
+python scripts/backfill_audit.py         # reconstruct ingestion_run rows
 ```
 
 ## Architecture
@@ -105,6 +108,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - Headlines are derived from URL slugs (lowercase, occasionally truncated).
 - `fatalities` is always null: the free GDELT export has no casualty fields; intensity is
   derived from event type + Goldstein scale.
-- 50 of GDELT's 61 columns are discarded, including `num_sources` (would enable
-  corroboration filtering).
-- Zero-shot runs ~2 s/event on CPU — fine for a daily batch, not for bulk backfill.
+- The extraction adapter uses a subset of GDELT's 61 columns. `raw_event` now retains
+  all non-empty columns, so `num_sources` is available but not yet used for corroboration.
+- Zero-shot is batched (~0.03 s/event on CPU here), but it is still the dominant cost of
+  a multi-day backfill.

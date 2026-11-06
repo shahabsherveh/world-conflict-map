@@ -26,7 +26,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
-python scripts/download_model.py   # one-time; downloads the zero-shot model (~130 MB)
+python scripts/download_model.py   # one-time; downloads the zero-shot model (~570 MB)
 ```
 
 ## Run
@@ -57,6 +57,66 @@ crontab -e
 `scripts/daily.sh` runs the fetch→extract pipeline. `config/gdelt.yaml` controls the
 source URL, lookback window, and zero-shot threshold.
 
+## Fetch raw data or backfill history
+
+`scripts/fetch_gdelt.py` downloads raw `.export.CSV.zip` files without touching the DB.
+It resumes safely: existing complete files are skipped, and failed stamps are listed in
+`data/gdelt/fetch_failures.txt` for a re-run.
+
+```bash
+# Last 7 complete UTC days → data/gdelt/
+python scripts/fetch_gdelt.py --days 7
+
+# Explicit inclusive range
+python scripts/fetch_gdelt.py --start 2026-10-29 --end 2026-11-04
+
+# Optional: more parallel requests, or just print the plan
+python scripts/fetch_gdelt.py --days 7 --workers 16
+python scripts/fetch_gdelt.py --days 7 --dry-run
+```
+
+Then store the raw rows first (no extraction/filtering), and process them in a second pass:
+
+```bash
+# 1. Ingest raw GDELT rows into SQLite
+python -m app.extract.run --start 2026-10-29 --end 2026-11-04 \
+  --source-dir data/gdelt --raw-only
+
+# 2. Process pending raw rows: adapter → zero-shot → conflict events
+python -m app.extract.run --start 2026-10-29 --end 2026-11-04 \
+  --source-dir data/gdelt
+```
+
+To process pending raw rows without fetching or creating new `ingestion_run` rows:
+
+```bash
+python scripts/process_raw.py
+```
+
+For data processed before run auditing existed, `scripts/backfill_audit.py` reconstructs
+`ingestion_run` rows from the raw outcomes (idempotent per source day).
+
+Without `--raw-only`, the same command does both phases in one pass. Raw rows live in
+`raw_event` and are marked `persisted`, `duplicate`, `filtered_out`, or
+`not_armed_conflict`. They are much larger than filtered events: roughly 125k rows and
+~230 MB per day with indexes. `config/gdelt.yaml → raw_retention_days` prunes processed
+rows after 30 days by default; set it to `0` to keep them forever.
+
+If the zero-shot model is already cached but Hugging Face is slow/unreachable, force
+offline loading:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  python -m app.extract.run --start 2026-10-29 --end 2026-11-04 --source-dir data/gdelt
+```
+
+To start from a clean database, back it up first, then reset through Alembic:
+
+```bash
+cp conflicts.db /tmp/conflicts.db.bak
+alembic downgrade base && alembic upgrade head
+```
+
 ## Seed demo data (optional)
 
 To see the map immediately without hitting GDELT:
@@ -70,8 +130,9 @@ python scripts/seed.py
 - **Source:** GDELT 2.0 `.export.CSV.zip` files — free, no key, 15-minute granularity.
 - **Filter pipeline:** `app/extract/` — root-code filter → field mapping → zero-shot
   gate (`cross-encoder/nli-deberta-v3-small`, threshold `0.7`).
-- Measured on a labeled sample: **~83% precision / 63% recall** (vs ~32% precision
-  before filtering).
+- Measured on a labelled 25-article sample: **80% precision / 100% recall** (vs 32%
+  precision before filtering). The two remaining false positives are conflict-adjacent
+  stories (a UN complaint, a troop withdrawal).
 
 ## Architecture
 

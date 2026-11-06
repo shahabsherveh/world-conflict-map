@@ -21,15 +21,21 @@ GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
 - Enumerate the 96 15-minute timestamps for the target day.
 - Download each `*.export.CSV.zip`, unzip, parse the TSV into raw event dicts (positional columns).
 - Dedupe by `global_event_id` (`GLOBALEVENTID`).
+- Persist parsed rows into `raw_event` **before** extraction/filtering, then mark each row
+  with its outcome once processing completes.
 - Tolerate missing 15-min files (404 → skip) and per-file failures without crashing the run.
+- Prune processed raw rows after `raw_retention_days` (default 30); unprocessed rows are kept.
 - This module is a library only; the runnable entrypoint is `app.extract.run`, which calls it.
 
 ## Commands
 - `python -m app.extract.run` (fetch → filter → persist → group)
+- `python scripts/process_raw.py` (process pending `raw_event` rows only)
+- `python scripts/backfill_audit.py` (reconstruct `ingestion_run` rows from completed raw data)
 
 ## Project structure (module)
 - `app/ingest/gdelt.py` — download client (15-min stamps, zip fetch, TSV parse)
 - `app/ingest/normalizer.py` — `COLUMNS` + `parse_export_tsv` + `dedupe_new`
+- `app/ingest/raw_store.py` — raw-row persistence, pending queue, outcome marking, pruning
 - `config/gdelt.yaml`
 
 ## Code style
@@ -39,6 +45,7 @@ Conventions: CAPABILITY-MAP.md
 - Fixture TSV/zip (`tests/fixtures/gdelt/`) → assert positional column mapping and dedupe.
 - Test 15-min stamp enumeration (96 stamps, correct boundaries).
 - Test 404/missing-file tolerance via a mocked transport.
+- Test raw-row dedupe, pending selection, outcome marking, and retention pruning.
 
 ## Boundaries
 - Always: dedupe by `GLOBALEVENTID`; log per-run outcomes.
