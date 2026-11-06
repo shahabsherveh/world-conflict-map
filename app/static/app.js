@@ -60,6 +60,9 @@ let conflictsLoaded = false;
 let listRepaintTimer = null;
 let detailRequestId = 0;
 
+// Rendering 500 rows of a collapsed panel costs more than it is worth.
+const NO_LOCATION_CAP = 200;
+
 function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;",
@@ -299,6 +302,8 @@ function paintConflictList() {
     sorted.map(conflictItem).join("") +
     (rest ? `<li class="list-note">${restText} (not shown).</li>` : "");
 
+  paintNoLocationList(rangeConflicts.filter((c) => !locatedIds.has(c.id)));
+
   const byId = new Map(rangeConflicts.map((c) => [String(c.id), c]));
   list.querySelectorAll(".conflict-item").forEach((button) => {
     button.onclick = () => {
@@ -311,6 +316,97 @@ function paintConflictList() {
       if (anchor) map.setView([anchor.lat, anchor.lon], 6);
     };
   });
+}
+
+// Conflicts the geocoder could not place get a home in the sidebar: they can never be
+// "in view", and inventing a position (country centroid, map edge) would put a marker
+// where the source never said anything happened. The point of the panel is the
+// "Set location" action, which feeds the human-supplied coordinate into the normal
+// edit path (PATCH + edit_log) — no automatic geocoding anywhere.
+function paintNoLocationList(conflicts) {
+  const panel = document.getElementById("nolocation-panel");
+  const count = document.getElementById("nolocation-count");
+  const list = document.getElementById("nolocation-list");
+
+  if (!conflicts.length) {
+    panel.hidden = true;
+    list.innerHTML = "";
+    count.textContent = "";
+    return;
+  }
+
+  // Newest first: an unplaced conflict is usually the freshest story, and the one
+  // most worth fixing while the place is still in the headline.
+  const unplacedEvent = new Map();
+  for (const e of rangeEvents) {
+    if (e.lat != null && e.lon != null) continue;
+    const previous = unplacedEvent.get(e.conflict_id);
+    if (!previous || e.event_date > previous.event_date) unplacedEvent.set(e.conflict_id, e);
+  }
+  const sorted = [...conflicts].sort((a, b) => {
+    const da = unplacedEvent.get(a.id)?.event_date || a.start_date;
+    const db = unplacedEvent.get(b.id)?.event_date || b.start_date;
+    return db.localeCompare(da) || a.name.localeCompare(b.name);
+  });
+
+  const shown = sorted.slice(0, NO_LOCATION_CAP);
+  count.textContent = `(${conflicts.length})`;
+  panel.hidden = false;
+
+  const row = (c) => {
+    const lost = unplacedEvent.get(c.id);
+    const when = lost?.event_date || c.start_date;
+    const where = lost?.place_name ? ` · ${lost.place_name}` : "";
+    // Grouping names a conflict after its place, and these have none, so they all
+    // arrive as "Unnamed conflict". Lead with the headline instead of showing 200
+    // identical rows; the placeholder name carries no information.
+    const genericName = !c.name || /^unnamed conflict$/i.test(c.name.trim());
+    const title = genericName ? c.headline || "Untitled conflict" : c.name;
+    return `
+      <li class="nl-row">
+        <button type="button" class="conflict-item" data-id="${c.id}">
+          <span class="dot nl-dot"></span>
+          <span class="ci-body">
+            <span class="ci-name">${esc(title)}</span>
+            <span class="ci-meta">${esc(when)}${esc(where)} · no coordinates</span>
+            ${!genericName && c.headline ? `<span class="ci-headline">${esc(c.headline)}</span>` : ""}
+          </span>
+        </button>
+        <button type="button" class="nl-place" data-id="${c.id}">Set location →</button>
+      </li>`;
+  };
+
+  list.innerHTML =
+    shown.map(row).join("") +
+    (sorted.length > shown.length
+      ? `<li class="list-note">showing ${shown.length} of ${sorted.length} — narrow the date range to see the rest.</li>`
+      : "");
+
+  list.querySelectorAll(".conflict-item").forEach((button) => {
+    button.onclick = () => showConflict(Number(button.dataset.id));
+  });
+  list.querySelectorAll(".nl-place").forEach((button) => {
+    button.onclick = () => setLocationFor(Number(button.dataset.id));
+  });
+}
+
+// Opens the conflict, then arms the existing pick-on-map flow on its single
+// unplaced event. Several unplaced events means the caller must choose, so we
+// stop at the conflict detail rather than guessing.
+async function setLocationFor(conflictId) {
+  const unplaced = rangeEvents.filter(
+    (e) => e.conflict_id === conflictId && (e.lat == null || e.lon == null),
+  );
+  await showConflict(conflictId);
+  if (unplaced.length !== 1) {
+    showNotice("Several events here lack a location — open the one to place it.", "info");
+    return;
+  }
+  showEvent(unplaced[0]);
+  const editBlock = document.querySelector("#detail details.event-edit");
+  if (editBlock) editBlock.open = true;
+  startCoordinatePick("edit-ev-lat", "edit-ev-lon");
+  showNotice("Click the map to place this event, then save it.", "info");
 }
 
 function conflictItem(c) {

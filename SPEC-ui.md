@@ -35,6 +35,8 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
   region rather than failing silently.
 - Conflict list entries are native buttons and keyboard operable.
 - Show `auto` vs `manual` provenance subtly, so it's clear what the machine produced.
+- Conflicts with no geocoded event appear in a separate “No location (N)” panel that never
+  places them on the map; see the feature spec below for the full contract.
 
 ## Commands
 - No build step — served at `/` via uvicorn.
@@ -69,7 +71,7 @@ Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
 - A manually created conflict opens in the detail panel before it has events.
 - Invalid forms show an understandable error instead of failing silently.
 
-## Feature spec: surfacing no-location conflicts (proposed — not implemented)
+## Feature spec: surfacing no-location conflicts
 
 ### Objective
 Every conflict in the store should be reachable from the UI — including the ones the
@@ -107,6 +109,9 @@ So these conflicts get a home in the sidebar, not on the basemap.
   rather than guessing which one was meant.
 - At most 200 rows, with a trailing note “showing 200 of N — narrow the date range to see
   the rest”.
+- Grouping names a conflict after its place, and these have none, so all 493 arrive as
+  “Unnamed conflict”. A row therefore leads with the headline when the name is empty or
+  that placeholder, clamped to two lines; the placeholder name is not shown.
 - Nothing is ever written without a user click on the map (or typed lat/lon).
 
 ### Data and API
@@ -145,10 +150,10 @@ from the same `rangeEvents` array that feeds the header and the in-view list.
   a single-event conflict; the marker then appears and the row disappears.
 - Nothing is silently hidden: in-view + off-screen + no-location = range total.
 
-### Open questions
-1. Cap at 200 rows, or render all 493? (Recommend the cap plus a note.)
-2. Auto-open the section when the in-view list is empty (e.g. map parked over an ocean)?
-3. Want a “next unplaced” queue for cleanup sessions? (Recommend deferring.)
+### Decisions (resolved)
+1. Cap at 200 rows with a note — 493 rows of a collapsed panel is not worth rendering.
+2. Do not auto-open the section; the header count is the signal.
+3. No “next unplaced” queue for now — placement is a rare, deliberate act.
 
 ## Open questions
 - Basemap: OSM standard tiles OK? (free, no key) — yes.

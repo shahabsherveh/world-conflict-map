@@ -52,6 +52,9 @@ Open **http://localhost:8000**.
 - The side panel lists only the conflicts with a located event in the current view, and
   shows the event count too ("134 of 1670 · 2,601 events"); pan or zoom to reach the
   rest. A newly created conflict opens in the detail panel even before it has events.
+- Conflicts the news feed left without coordinates — about 500 in a 30-day window — are
+  listed in a separate **No location** panel with a **Set location →** action that reuses
+  "Pick on map". They are never auto-placed: a marker only appears where you put it.
 
 ## Daily cron
 

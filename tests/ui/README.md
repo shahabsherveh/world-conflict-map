@@ -33,6 +33,9 @@ cached under `node_modules/.cache/ui-smoke/`.
   "N of M · E events" summary matches the rendered rows, the clicked conflict stays listed,
   and the remainder note is real text (not `[object Object]`).
 - Single-event dots are smaller than the smallest cluster bubble.
+- The "No location" panel counts the conflicts with no geocoded event (checked against the
+  API), caps its rows with a note, opens detail without moving the map, and arms
+  Pick-on-map from a row. It never saves a coordinate — that stays a human action.
 
 ## What it cannot assert
 

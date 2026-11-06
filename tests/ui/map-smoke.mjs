@@ -41,11 +41,28 @@ function check(name, ok, detail = "") {
 const isoDate = (d) => d.toISOString().slice(0, 10);
 const daysAgo = (n) => new Date(Date.now() - n * 86_400_000);
 
+async function fetchRange(start, end) {
+  const [eventsRes, conflictsRes] = await Promise.all([
+    fetch(`${BASE_URL}/api/events?start=${start}&end=${end}`),
+    fetch(`${BASE_URL}/api/conflicts?start=${start}&end=${end}`),
+  ]);
+  if (!eventsRes.ok) throw new Error(`GET /api/events ${eventsRes.status}`);
+  if (!conflictsRes.ok) throw new Error(`GET /api/conflicts ${conflictsRes.status}`);
+  return { events: await eventsRes.json(), conflicts: await conflictsRes.json() };
+}
+
 async function expectedMarkers(start, end) {
-  const res = await fetch(`${BASE_URL}/api/events?start=${start}&end=${end}`);
-  if (!res.ok) throw new Error(`GET /api/events ${res.status}`);
-  const events = await res.json();
+  const { events } = await fetchRange(start, end);
   return events.filter((e) => e.lat != null && e.lon != null).length;
+}
+
+// Conflicts with no geolocated event — the "No location" panel's population.
+function expectedNoLocation({ events, conflicts }) {
+  const located = new Set();
+  for (const e of events) {
+    if (e.conflict_id != null && e.lat != null && e.lon != null) located.add(e.conflict_id);
+  }
+  return conflicts.filter((c) => !located.has(c.id)).length;
 }
 
 function cachePath(url) {
@@ -219,6 +236,74 @@ async function main() {
     Boolean(doc.querySelector("#legend .legend-bar")),
     doc.getElementById("legend")?.textContent?.trim() ?? "",
   );
+  // "No location" panel: the conflicts GDELT left ungeocoded.
+  const rangeData = await fetchRange(isoDate(daysAgo(30)), isoDate(new Date()));
+  const expectedNoLoc = expectedNoLocation(rangeData);
+  const table = doc.getElementById("nolocation-panel");
+  const rows = doc.querySelectorAll("#nolocation-list .nl-row");
+
+  check(
+    "no-location panel shows the conflicts with no geocoded event",
+    !table.hidden && rows.length === Math.min(expectedNoLoc, 200),
+    `${rows.length} rows, expected ${expectedNoLoc}`,
+  );
+  check(
+    "panel count and in-view note agree",
+    doc.getElementById("nolocation-count").textContent === `(${expectedNoLoc})` &&
+      new RegExp(expectedNoLoc + " with no location").test(
+        doc.querySelector("#conflict-list .list-note")?.textContent ?? "",
+      ),
+    doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
+  );
+  check(
+    "the list is capped with a note instead of rendering everything",
+    (() => {
+      const note = doc.querySelector("#nolocation-list .list-note")?.textContent ?? "";
+      return expectedNoLoc <= 200 || /showing 200 of \d+/.test(note);
+    })(),
+    doc.querySelector("#nolocation-list .list-note")?.textContent ?? "(no cap note)",
+  );
+  check(
+    "rows are distinguishable when the conflict has no name",
+    [...doc.querySelectorAll("#nolocation-list .ci-name")].every(
+      (n) => !/^unnamed conflict$/i.test(n.textContent.trim()),
+    ),
+    [...doc.querySelectorAll("#nolocation-list .ci-name")].slice(0, 2).map((n) => n.textContent.slice(0, 40)).join(" | "),
+  );
+  check(
+    "every no-location row is a button and keyboard operable",
+    [...rows].every((r) => r.querySelector("button.conflict-item")),
+    `${rows.length} rows`,
+  );
+
+  // Opening a row must not move the map: the in-view list must be unchanged.
+  const inViewBefore = doc.getElementById("conflict-count").textContent;
+  doc.querySelector("#nolocation-list .conflict-item").click();
+  await new Promise((r) => setTimeout(r, 400));
+  check(
+    "opening a no-location conflict does not move the map",
+    doc.getElementById("conflict-count").textContent === inViewBefore,
+    `${inViewBefore} → ${doc.getElementById("conflict-count").textContent}`,
+  );
+  check(
+    "opening a no-location conflict fills the detail pane",
+    Boolean(doc.querySelector("#detail h2")),
+    doc.querySelector("#detail h2")?.textContent ?? "",
+  );
+
+  // "Set location" must arm the existing pick-on-map flow, not invent a position.
+  doc.querySelector("#nolocation-list .nl-place").click();
+  await new Promise((r) => setTimeout(r, 900));
+  check(
+    "set-location arms pick-on-map on the unplaced event",
+    doc.getElementById("map").classList.contains("picking") &&
+      Boolean(doc.getElementById("edit-ev-lat")) &&
+      doc.getElementById("edit-ev-lat").value === "",
+    `picking=${doc.getElementById("map").classList.contains("picking")}`,
+  );
+  // Cancel so the rest of the run is unaffected.
+  doc.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
   check(
     "single dots are smaller than the smallest cluster",
     (() => {

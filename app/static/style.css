@@ -317,6 +317,58 @@ body {
   opacity: 0.85;
 }
 
+#nolocation-panel {
+  margin: 8px 0;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+#nolocation-panel > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #666;
+  padding: 6px 0;
+}
+
+#nolocation-panel[hidden] {
+  display: none;
+}
+
+.nl-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  list-style: none;
+}
+
+.nl-row .conflict-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.nl-dot {
+  background: #b8b8b8;
+}
+
+/* Headlines stand in for the missing name, so keep them to two lines. */
+.nl-row .ci-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nl-place {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .list-note {
   font-size: 11px;
   line-height: 1.4;
