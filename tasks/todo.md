@@ -301,12 +301,16 @@ normally in this environment.
 - [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
   A 30-day range (13,066 geolocated events) renders as ~37 clusters plus a couple of
   individual dots at world zoom; every event is still in the cluster tree.
+- [x] Cluster density heatmap: bubble colour on a log-scaled cool→hot ramp (hue 210°→0°,
+  30→52 px) plus the event count, with a legend bottom-left. Single-event dots keep the
+  intensity palette. Checked in the jsdom harness (hue/size monotone in count) and in
+  headless Chrome (2 events = hsl(189°) 30 px, 2,161 events = hsl(0°) 52 px).
 - [x] Checked-in headless UI smoke: `tests/ui/map-smoke.mjs` (jsdom + real Leaflet
   against a running server). Covers clustering counts, bounded DOM, cluster clicks, and
   the time scrub. Not wired into pytest/CI (needs npm + a server).
 - [x] Real-browser smoke via headless Chrome 149 through the `chrome-devtools` MCP
   (attaches to Chrome on `:9222`; setup documented in `tests/ui/README.md`): 13,066
-  events → ~37 cluster bubbles + individual dots at world zoom, labels summing to the
+  events → ~37 cluster heat bubbles + individual dots at world zoom, labels summing to the
   API count, scrub to 3 days re-renders exactly 4,275, cluster click zooms, event popup +
   sidebar detail render, "Pick on map" fills lat/lon, OSM tiles return 200, and no
   console messages. The earlier grey tile gaps were transient fetches, not an app bug.

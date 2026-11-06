@@ -192,6 +192,33 @@ async function main() {
     `${doc.querySelectorAll("#conflict-list .conflict-item").length} entries`,
   );
   check("clusters rendered", first.clusters > 0, `${first.clusters} clusters`);
+  // Density must drive both colour (heat ramp) and size: cool/small → hot/large.
+  const heat = [...doc.querySelectorAll(".leaflet-marker-icon.cluster")]
+    .map((el) => {
+      const style = el.querySelector("span")?.getAttribute("style") || "";
+      return {
+        count: Number(el.textContent) || 0,
+        hue: Number((/hsl\((\d+)/.exec(style) || [])[1]),
+        size: Number.parseFloat(el.style.width) || 0,
+      };
+    })
+    .sort((a, b) => a.count - b.count);
+  const hueRange = heat.length ? heat[0].hue - heat[heat.length - 1].hue : 0;
+  check(
+    "cluster colour ramps from cool to hot with density",
+    heat.every((c, i) => i === 0 || c.hue <= heat[i - 1].hue) && hueRange > 20,
+    `hue ${heat[0]?.hue}° (${heat[0]?.count} events) → ${heat.at(-1)?.hue}° (${heat.at(-1)?.count})`,
+  );
+  check(
+    "cluster size grows with density",
+    heat.every((c, i) => i === 0 || c.size >= heat[i - 1].size),
+    `${heat[0]?.size}px → ${heat.at(-1)?.size}px`,
+  );
+  check(
+    "density legend is present",
+    Boolean(doc.querySelector("#legend .legend-bar")),
+    doc.getElementById("legend")?.textContent?.trim() ?? "",
+  );
   check(
     "rendered icons stay bounded",
     first.clusters + first.dots > 0 && first.clusters + first.dots < 400,

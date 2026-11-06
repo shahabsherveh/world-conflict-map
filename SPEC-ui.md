@@ -10,9 +10,11 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 
 ## Behavior
 - Map centered on world; one marker per event, size/colour by intensity (1–5), grouped by
-  Leaflet.markercluster at low zoom. Cluster bubbles show their event count and the worst
-  intensity inside them, so escalation stays visible while the DOM stays bounded (a 30-day
-  range is ~13k events).
+  Leaflet.markercluster at low zoom. Cluster bubbles encode density twice — colour on a
+  log-scaled heat ramp (blue = few, red = many) and size — and print the event count, so
+  hotspots are legible at a glance while the DOM stays bounded (a 30-day range is ~13k
+  events). A legend bottom-left explains the ramp. Per-event dots keep the intensity
+  ramp, so severity and density remain separate signals.
 - Time controls (start + end date inputs) → `GET /api/events` + `GET /api/conflicts` → re-render.
 - Click marker → event detail with place/date/type/actors/intensity, provenance, source link,
   raw JSON, and an “Open conflict” action.

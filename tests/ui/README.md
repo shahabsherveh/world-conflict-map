@@ -25,6 +25,8 @@ cached under `node_modules/.cache/ui-smoke/`.
 - Every geolocated event in the default 30-day window is in the cluster layer tree
   (counts are checked against `/api/events`, not hardcoded).
 - The DOM stays bounded: ~13k events render as a few dozen cluster icons.
+- Cluster bubbles encode density: hue is monotone cooler→hotter and size grows as the
+  event count rises; the density legend exists.
 - Clicking a cluster raises no errors.
 - Changing the "From" date re-queries and re-renders the exact set for the new range.
 

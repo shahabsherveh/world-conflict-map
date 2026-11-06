@@ -7,6 +7,22 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 // Cluster per-event markers: a 30-day range holds >13k events here, and one
 // Leaflet marker per event made the map unusably slow. Clustering keeps every
 // event in the client (no data loss) while bounding the rendered DOM.
+// Cluster bubbles encode event density twice: colour on a heat ramp (blue = few,
+// red = many) and size. Colour is what makes hotspots legible before the number
+// is read; per-event dots keep their intensity colour, so severity and density
+// stay separate signals instead of one overwriting the other.
+function clusterHeat(count) {
+  // Log scale: 1 event → 0, 1000+ → 1. Linear would make everything except the
+  // handful of huge clusters look identically cool.
+  const t = Math.min(1, Math.log10(Math.max(1, count)) / 3);
+  return {
+    size: Math.round(28 + 24 * t),
+    background: `hsl(${Math.round(210 - 210 * t)}, 78%, ${Math.round(52 - 10 * t)}%)`,
+    // Mid-ramp colours (green/yellow) need dark text to stay readable.
+    color: t > 0.32 && t < 0.8 ? "#1b1b1b" : "#fff",
+  };
+}
+
 const markers = L.markerClusterGroup({
   chunkedLoading: true,
   // Default chunkSize=200 with a 200 ms interval means ~13k events take 15 s
@@ -16,19 +32,13 @@ const markers = L.markerClusterGroup({
   disableClusteringAtZoom: 13,
   showCoverageOnHover: false,
   iconCreateFunction(cluster) {
-    const children = cluster.getAllChildMarkers();
-    // Sessions in a cluster share a place, so show the worst intensity there
-    // rather than an average that would mute real escalation.
-    const intensity = children.reduce(
-      (worst, child) => Math.max(worst, child.options.eventIntensity || 1),
-      1,
-    );
     const count = cluster.getChildCount();
-    const size = count >= 1000 ? 52 : count >= 100 ? 44 : count >= 10 ? 36 : 30;
+    const heat = clusterHeat(count);
+    const label = `${count} event${count === 1 ? "" : "s"}`;
     return L.divIcon({
-      html: `<span>${count}</span>`,
-      className: `cluster cluster-i${intensity}`,
-      iconSize: L.point(size, size),
+      className: "cluster",
+      iconSize: L.point(heat.size, heat.size),
+      html: `<span title="${label}" style="background:${heat.background};color:${heat.color}">${count}</span>`,
     });
   },
 });
@@ -297,7 +307,6 @@ function eventMarker(e) {
     keyboard: true,
     riseOnHover: true,
   });
-  marker.options.eventIntensity = intensity;
   // Bind the tooltip on first hover instead of eagerly: `bindTooltip` allocates
   // a Tooltip object per marker, and only one is ever shown at a time.
   marker.on("mouseover", () => {
