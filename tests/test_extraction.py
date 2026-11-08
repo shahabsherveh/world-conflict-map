@@ -237,6 +237,36 @@ def test_group_events_keeps_one_conflict_per_theatre_with_autoflush_off() -> Non
     assert {e.conflict_id for e in session.scalars(select(ConflictEvent))} == {conflicts[0].id}
 
 
+def test_group_events_upgrades_an_unanchored_conflict_once_it_gets_coordinates() -> None:
+    """Regression: an anchorless conflict must not stay anchorless for the run.
+
+    The anchor is documented as "the earliest geolocated event", but the cache
+    stored None for a conflict whose first event had no coordinates and never
+    replaced it. Every later event then had to match the city name exactly, so a
+    nearby town in the same theatre became a second conflict.
+    """
+    session = make_session()
+    session.add_all(
+        [
+            # Oldest event carries no coordinates, so the conflict starts unanchored.
+            _ev("a", "SY", "Aleppo, Aleppo, Syria", None, None, 10),
+            # Same city: matches by name and gives the conflict its anchor.
+            _ev("b", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 11),
+            # ~46 km away, different city name: must match by distance, not name.
+            _ev("c", "SY", "Azaz, Aleppo, Syria", 36.58, 37.05, 12),
+        ]
+    )
+    session.commit()
+
+    created = group_events(session)
+    session.commit()
+
+    assert created == 1, "the anchorless conflict was never upgraded"
+    conflicts = list(session.scalars(select(Conflict)))
+    assert len(conflicts) == 1
+    assert {e.conflict_id for e in session.scalars(select(ConflictEvent))} == {conflicts[0].id}
+
+
 def test_regroup_all_merges_fragmented_conflicts_without_moving_markers() -> None:
     """Legacy shape: one theatre split into a conflict per city.
 
@@ -555,3 +585,49 @@ def test_run_records_failed_ingestion_run(monkeypatch, tmp_path) -> None:
     assert runs[0].mode == "full"
     assert runs[0].items_seen == 0
     assert runs[0].finished_at is not None
+
+
+def test_run_retries_raw_rows_stranded_by_a_failed_processing_pass(monkeypatch, tmp_path) -> None:
+    """Regression: raw rows committed before a crash were never retried.
+
+    `store_raw_events` commits before extraction, and the daily run only targets
+    recent days, so rows left pending for day X are never processed again — and
+    `prune_raw_events` only deletes processed rows, so they also accumulate
+    forever. The next run must pick them up.
+    """
+    stranded_day = date(2024, 1, 15)
+    next_day = date(2024, 1, 16)
+    write_sample_event_zip(tmp_path, stranded_day, "9001")
+    write_sample_event_zip(tmp_path, next_day, "9002")
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: None)
+
+    real_process = run_module.process_pending_raw_events
+    calls = {"n": 0}
+
+    def flaky_process(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("model died mid-run")
+        return real_process(*args, **kwargs)
+
+    monkeypatch.setattr(run_module, "process_pending_raw_events", flaky_process)
+
+    with pytest.raises(RuntimeError, match="model died mid-run"):
+        run_module.run(start=stranded_day, end=stranded_day, source_dir=tmp_path)
+
+    stranded = session.scalars(select(RawEvent)).one()
+    assert stranded.processed_at is None, "raw row should still be pending after the failure"
+
+    # The next day's run does not target the stranded day, yet must process it.
+    assert run_module.run(start=next_day, end=next_day, source_dir=tmp_path) == 0
+
+    outcomes = {
+        row.source_day: row.outcome
+        for row in session.scalars(select(RawEvent).order_by(RawEvent.source_day))
+    }
+    assert outcomes == {stranded_day: "persisted", next_day: "persisted"}
+    events = session.scalars(select(ConflictEvent)).all()
+    assert len(events) == 2

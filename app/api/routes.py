@@ -26,8 +26,8 @@ from app.extract.classifier import slug_to_text
 from app.models import Conflict, ConflictEvent, EditLog
 from app.queries import (
     conflicts_active_in_range,
+    events_for_conflict,
     events_in_range,
-    latest_event,
     recent_ingestion_runs,
 )
 
@@ -50,6 +50,16 @@ def _validate_range(start: date, end: date) -> None:
         raise HTTPException(status_code=422, detail="start must be on or before end")
 
 
+def _validate_coordinates(lat: float | None, lon: float | None) -> None:
+    """A marker needs both numbers; half a coordinate is silently unmappable.
+
+    The UI's map layer skips any event missing either value, so a record with only
+    `lat` (or with `lon` cleared) disappeared from the map with no error at all.
+    """
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=422, detail="lat and lon must be provided together")
+
+
 def _headline(event: ConflictEvent) -> str | None:
     """Prefer the article headline; fall back to the event summary.
 
@@ -63,14 +73,11 @@ def _headline(event: ConflictEvent) -> str | None:
     return event.summary or None
 
 
-def _summarize(
-    conflict: Conflict, events: list[ConflictEvent], fallback_latest: ConflictEvent | None = None
-) -> ConflictSummary:
+def _summarize(conflict: Conflict, events: list[ConflictEvent]) -> ConflictSummary:
     intensity = max((e.intensity for e in events), default=0)
-    latest_in_range = max(events, key=lambda e: e.event_date) if events else None
-    # The detail view asks for events inside the conflict's own span, so a manually
-    # added event can sit outside it; keep a headline in that case.
-    latest = latest_in_range or fallback_latest
+    # Newest event wins; `id` breaks same-day ties so the summary does not flip
+    # between requests (the DB only orders by event_date).
+    latest = max(events, key=lambda e: (e.event_date, e.id)) if events else None
     return ConflictSummary(
         id=conflict.id,
         name=conflict.name,
@@ -79,11 +86,17 @@ def _summarize(
         end_date=conflict.end_date,
         status=conflict.status,
         intensity=intensity,
-        lat=latest_in_range.lat if latest_in_range else None,
-        lon=latest_in_range.lon if latest_in_range else None,
+        lat=latest.lat if latest else None,
+        lon=latest.lon if latest else None,
         event_count=len(events),
         headline=_headline(latest) if latest else None,
     )
+
+
+def _in_conflict_span(event: ConflictEvent, conflict: Conflict) -> bool:
+    if event.event_date < conflict.start_date:
+        return False
+    return conflict.end_date is None or event.event_date <= conflict.end_date
 
 
 def _apply_patch(db: Session, obj, updates: dict, target_type: str) -> None:
@@ -126,9 +139,20 @@ def get_conflict(conflict_id: int, db: DbSession):
     conflict = db.get(Conflict, conflict_id)
     if conflict is None:
         raise HTTPException(status_code=404, detail="Conflict not found")
-    end = conflict.end_date or date.today()
-    events = events_in_range(db, conflict.start_date, end, conflict_id=conflict_id)
-    summary = _summarize(conflict, events, latest_event(db, conflict_id))
+    # List every linked event, not just those inside the conflict's own span: the
+    # list view counts by requested range, so span-scoping here made the sidebar
+    # promise events the panel refused to show (and hid anything dated in the
+    # future, since the upper bound was `today` when `end_date` was null).
+    events = events_for_conflict(db, conflict_id)
+    summary = _summarize(conflict, events)
+    in_span = [event for event in events if _in_conflict_span(event, conflict)]
+    if in_span:
+        # Headline preference only: what the conflict calls itself still describes
+        # its active span, so a late out-of-span (usually manual) event does not
+        # take the title.
+        summary = summary.model_copy(
+            update={"headline": _headline(max(in_span, key=lambda e: (e.event_date, e.id)))}
+        )
     return ConflictDetail(
         **summary.model_dump(),
         events=[_event_out(e) for e in events],
@@ -190,7 +214,12 @@ def update_event(event_id: int, payload: EventUpdate, db: DbSession):
     event = db.get(ConflictEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    _apply_patch(db, event, payload.model_dump(exclude_unset=True), "event")
+    updates = payload.model_dump(exclude_unset=True)
+    # Validate the merged record, not the payload: `{"lat": 1}` is a fine partial
+    # update when lon is already stored, but `{"lon": null}` alone would leave the
+    # row with half a coordinate.
+    _validate_coordinates(updates.get("lat", event.lat), updates.get("lon", event.lon))
+    _apply_patch(db, event, updates, "event")
     db.commit()
     db.refresh(event)
     return _event_out(event)
@@ -200,6 +229,7 @@ def update_event(event_id: int, payload: EventUpdate, db: DbSession):
 def create_event(payload: EventCreate, db: DbSession):
     if payload.conflict_id is not None and db.get(Conflict, payload.conflict_id) is None:
         raise HTTPException(status_code=404, detail="Conflict not found")
+    _validate_coordinates(payload.lat, payload.lon)
     event = ConflictEvent(provenance="manual", **payload.model_dump())
     db.add(event)
     db.commit()

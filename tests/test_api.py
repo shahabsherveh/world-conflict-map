@@ -99,6 +99,66 @@ def test_conflict_detail_includes_events(client) -> None:
     assert data["events"][0]["source_url"] in ("http://x/a", "http://x/b")
 
 
+def test_conflict_detail_lists_every_linked_event(client) -> None:
+    """Regression: the detail view must not hide events the list counted.
+
+    The list counted events in the requested range (2) while the detail view
+    re-scoped to [start_date, end_date] and returned 1, so the sidebar promised
+    events the panel would never show.
+    """
+    c, session = client
+    conflict = Conflict(
+        name="War A",
+        country="SY",
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 6, 1),
+    )
+    session.add(conflict)
+    session.flush()
+    session.add_all(
+        [
+            ConflictEvent(
+                conflict_id=conflict.id,
+                event_date=date(2024, 3, 1),
+                intensity=3,
+                lat=1.0,
+                lon=2.0,
+            ),
+            # After the conflict's end_date: still linked, so still part of it.
+            ConflictEvent(
+                conflict_id=conflict.id,
+                event_date=date(2024, 9, 1),
+                intensity=5,
+                lat=3.0,
+                lon=4.0,
+            ),
+        ]
+    )
+    session.commit()
+
+    listed = c.get("/api/conflicts", params={"start": "2024-01-01", "end": "2024-12-31"}).json()
+    detail = c.get(f"/api/conflicts/{conflict.id}").json()
+
+    assert listed[0]["event_count"] == 2
+    assert [e["event_date"] for e in detail["events"]] == ["2024-03-01", "2024-09-01"]
+    assert detail["event_count"] == len(detail["events"]) == listed[0]["event_count"]
+    assert detail["intensity"] == 5
+
+
+def test_conflict_detail_includes_events_dated_after_today(client) -> None:
+    """An open-ended conflict must not be cut off at today's date."""
+    c, session = client
+    conflict = Conflict(name="Future war", country="SY", start_date=date(2024, 1, 1))
+    session.add(conflict)
+    session.flush()
+    session.add(ConflictEvent(conflict_id=conflict.id, event_date=date(2999, 12, 31), intensity=3))
+    session.commit()
+
+    detail = c.get(f"/api/conflicts/{conflict.id}").json()
+    assert [e["event_date"] for e in detail["events"]] == ["2999-12-31"]
+    assert detail["event_count"] == 1
+
+
 def test_patch_conflict_logs_edit(client) -> None:
     c, session = client
     conflict = seed(session)
@@ -256,8 +316,9 @@ def test_conflict_summary_headline_comes_from_newest_event_in_range(client) -> N
 
 
 def test_conflict_detail_prefers_an_in_span_headline_over_a_later_one(client) -> None:
-    """A manual event outside the conflict's own span may supply the headline only
-    when the span itself has none — an event inside it wins."""
+    """The conflict's own span still names it: a late out-of-span event does not
+    take the headline. Such events are listed (they are linked to the conflict),
+    but they describe a different phase of it."""
     c, session = client
     conflict = Conflict(
         name="War A",
@@ -287,7 +348,9 @@ def test_conflict_detail_prefers_an_in_span_headline_over_a_later_one(client) ->
     session.commit()
 
     data = c.get(f"/api/conflicts/{conflict.id}").json()
-    assert [e["event_date"] for e in data["events"]] == ["2024-01-10"]
+    # Both linked events are listed; the headline comes from the in-span one.
+    assert [e["event_date"] for e in data["events"]] == ["2024-01-10", "2024-06-15"]
+    assert data["event_count"] == 2
     assert data["headline"] == "inside the span"
 
 
@@ -379,6 +442,34 @@ def test_event_create_rejects_out_of_range_values(client) -> None:
     assert (
         c.post("/api/conflicts", json={"name": "X", "start_date": "2024-01-01", "status": "bogus"})
     ).status_code == 422
+
+
+def test_event_coordinates_must_be_given_together(client) -> None:
+    """Regression: half a coordinate silently made an event unmappable.
+
+    `renderEventMarkers` skips events missing either number, so a record with only
+    `lat` (or `lon: null` patched onto a located event) vanished from the map with
+    no error anywhere.
+    """
+    c, session = client
+    seed(session)
+    event = session.query(ConflictEvent).first()
+
+    assert c.post("/api/events", json={"event_date": "2024-03-01", "lat": 12.0}).status_code == 422
+    assert c.post("/api/events", json={"event_date": "2024-03-01", "lon": 12.0}).status_code == 422
+    assert c.post("/api/events", json={"event_date": "2024-03-01"}).status_code == 201
+
+    # Patching one coordinate is fine when the merged record still has both...
+    assert c.patch(f"/api/events/{event.id}", json={"lat": 5.0}).status_code == 200
+    # ...but clearing just one leaves a stored record that can never be mapped.
+    assert c.patch(f"/api/events/{event.id}", json={"lon": None}).status_code == 422
+    session.refresh(event)
+    assert (event.lat, event.lon) == (5.0, 2.0), "a rejected patch must not be applied"
+
+    # Clearing both is allowed: it is the documented way to unplace an event.
+    assert c.patch(f"/api/events/{event.id}", json={"lat": None, "lon": None}).status_code == 200
+    session.refresh(event)
+    assert (event.lat, event.lon) == (None, None)
 
 
 def test_event_text_fields_are_bounded_like_their_columns(client) -> None:

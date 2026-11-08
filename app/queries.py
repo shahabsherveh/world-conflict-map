@@ -46,6 +46,21 @@ def events_in_range(
     return list(session.scalars(stmt))
 
 
+def events_for_conflict(session: Session, conflict_id: int) -> list[ConflictEvent]:
+    """Every event linked to a conflict, oldest first.
+
+    Deliberately unbounded by the conflict's own date span: `conflict_id` is the
+    authoritative link, and a human can shorten the span without unlinking the
+    events that fall outside it.
+    """
+    stmt = (
+        select(ConflictEvent)
+        .where(ConflictEvent.conflict_id == conflict_id)
+        .order_by(ConflictEvent.event_date, ConflictEvent.id)
+    )
+    return list(session.scalars(stmt))
+
+
 def latest_event(session: Session, conflict_id: int) -> ConflictEvent | None:
     stmt = (
         select(ConflictEvent)

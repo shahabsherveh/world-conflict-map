@@ -126,6 +126,12 @@ def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
                 (event.lat, event.lon) if event.lat is not None and event.lon is not None else None
             )
         event.conflict_id = match.id
+        # A conflict whose earlier events had no coordinates starts anchorless, so
+        # `_matches` fell back to comparing city names. Now that this event gives it
+        # coordinates, record them: leaving None cached keeps the fallback for the
+        # rest of the run and splits one theatre into a conflict per city.
+        if anchors.get(match.id) is None and event.lat is not None and event.lon is not None:
+            anchors[match.id] = (event.lat, event.lon)
     return created
 
 

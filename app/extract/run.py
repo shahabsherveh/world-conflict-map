@@ -21,6 +21,7 @@ from app.ingest.normalizer import dedupe_new
 from app.ingest.raw_store import (
     mark_raw_events,
     pending_raw_events,
+    pending_raw_source_days,
     prune_raw_events,
     raw_payload,
     store_raw_events,
@@ -123,6 +124,39 @@ def process_pending_raw_events(
     return processed, new_total
 
 
+def retry_stranded_raw_days(
+    session: Session,
+    adapter: BaseSourceAdapter,
+    classifier: ZeroShotConflictClassifier | None,
+    threshold: float,
+    targets: list[date],
+) -> int:
+    """Process pending raw rows for days this run does not fetch.
+
+    `store_raw_events` commits before extraction, so a failure inside processing
+    (the model dying mid-run, a killed process) leaves rows pending for that day.
+    The daily run only targets recent days, so those rows were never retried — and
+    `prune_raw_events` only deletes processed rows, so they accumulated forever
+    while their events never reached the map.
+
+    Days in `targets` are skipped: the caller stores and processes those itself.
+    Returns the number of events persisted.
+    """
+    new_events = 0
+    for source_day in pending_raw_source_days(session):
+        if source_day in targets:
+            continue
+        processed, new_count = process_pending_raw_events(
+            session, adapter, classifier, threshold, source_day
+        )
+        new_events += new_count
+        print(
+            f"{source_day}: retried {processed} stranded raw rows, {new_count} new events",
+            flush=True,
+        )
+    return new_events
+
+
 def load_classifier() -> ZeroShotConflictClassifier | None:
     try:
         return ZeroShotConflictClassifier()
@@ -183,6 +217,9 @@ def run(
     total_raw = 0
     created = 0
     try:
+        if not raw_only:
+            total_new += retry_stranded_raw_days(session, adapter, classifier, threshold, targets)
+
         for target in targets:
             run_record = IngestionRun(
                 status="running",
