@@ -327,6 +327,10 @@ The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
 - `scripts/seed.py` offsets demo event coordinates (Leaflet spiderfies exactly coincident
   points, which jsdom cannot render) and gives the no-location demo a single unplaced
   event so the "Set location" flow is exercisable.
+- Added `scripts/cutover-data.sh` for the first deploy: SQLite backup API (WAL-safe),
+  integrity + row-count verification, `.bak` instead of overwrite, container-mount guard,
+  optional `hf-cache` copy. Rehearsed against a synthetic DB (including an uncheckpointed
+  WAL writer); the real cutover is a one-command human step (`docs/ci-cd.md`).
 
 ## Remaining work (not started)
 
@@ -388,13 +392,17 @@ change and how to know it worked.
   `GCM_DATA_DIR` in `scripts/_data-dir.sh` (default `./config`), reference it in
   `docker-compose.yml` for both services, and state that deployed config edits go
   through git. Done when `deploy.sh` and `docker-daily.sh` mount the same file.
-- [ ] **Write and rehearse the first-deploy cutover.** Why: `docker-compose.yml` now
-  pins `name: global-conflict-map`, so an existing `workspace` stack keeps port 8000 and
-  the app starts on an empty DB, looking like data loss. How: `docker compose -p
-  workspace down`; copy `data/db/conflicts.db` (and `hf-cache/`, or accept a ~570 MB
-  re-download) into `/var/lib/global-conflict-map/db`; `docker compose ps` to confirm no
-  old containers; deploy. Done when the first deploy serves the existing 1,437 conflicts
-  with no port conflict.
+- [x] **Write and rehearse the first-deploy cutover.** `scripts/cutover-data.sh` is the
+  runbook: dry-run by default, `--apply` to copy, `--force` to replace (the old target is
+  renamed `.bak-<timestamp>`, nothing is deleted). Rehearsed against a synthetic schema:
+  dry run writes nothing; copy verifies `integrity=ok` and equal `conflict`/
+  `conflict_event` counts; re-apply refuses without `--force`; an uncheckpointed WAL
+  writer's row survives the copy (a plain `cp` would lose it); a wrong/empty SQLite file
+  is rejected before writing; a container mounting the target aborts the run; `--owner`
+  chowns the result; `hf-cache` is copied when present. Still a human step on the real
+  host: `docker compose -p workspace down`, then
+  `./scripts/cutover-data.sh --apply --owner "$USER"`, then confirm `/api/conflicts`
+  returns the counted rows.
 - [ ] **Run the CI/CD pipeline on the runner once.** Why: the orchestration has
   never executed on GitHub Actions — only actionlint plus local replication. Unverified:
   `workflow_run` firing for the commit that adds `deploy.yml`, the
