@@ -10,3 +10,16 @@ extend-exclude = ["app/migrations/versions"]
 line-length = 100
 target-version = ["py311"]
 extend-exclude = "app/migrations/versions"
+
+[project]
+name = "global-conflict-map"
+version = "0.1.0"
+# The app targets 3.11 (Dockerfile, AGENTS.md). Declared explicitly so uv
+# doesn't default the lockfile to the host's interpreter and silently exclude
+# the runtime we actually ship.
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "ty>=0.0.99",
+]
