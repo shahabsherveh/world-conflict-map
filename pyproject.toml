@@ -6,10 +6,10 @@ pythonpath = ["."]
 line-length = 100
 extend-exclude = ["app/migrations/versions"]
 
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-extend-exclude = "app/migrations/versions"
+[tool.ruff.format]
+# ruff format replaces black; these match the settings black was using.
+quote-style = "double"
+indent-style = "space"
 
 [project]
 name = "global-conflict-map"

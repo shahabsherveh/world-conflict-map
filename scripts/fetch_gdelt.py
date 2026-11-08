@@ -154,7 +154,7 @@ def main() -> int:
 
     stamps = [stamp for day in days for stamp in GDELTClient().fifteen_minute_stamps(day)]
     print(
-        f"days: {days[0]} .. {days[-1]} ({len(days)}), " f"files: {len(stamps)}, out: {args.out}",
+        f"days: {days[0]} .. {days[-1]} ({len(days)}), files: {len(stamps)}, out: {args.out}",
         flush=True,
     )
     if args.dry_run:

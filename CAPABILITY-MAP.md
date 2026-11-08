@@ -24,7 +24,7 @@ Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 - Extract (fetch + filter + persist): `python -m app.extract.run`
 - Serve: `uvicorn app.main:app --reload --port 8000`
 - Test: `pytest`
-- Lint: `ruff check . && black --check .`
+- Lint: `ruff check . && ruff format --check .`
 
 ### Project structure
 - `app/` — backend package
@@ -35,7 +35,7 @@ Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 - `docs/` — intent and specs
 
 ### Code style
-- Python: PEP 8, black-formatted, full type hints, ruff lint.
+- Python: PEP 8, ruff-formatted (`ruff format`), full type hints, ruff lint.
 - JS: plain modern ES, no framework, no build step.
 
 ### Testing strategy

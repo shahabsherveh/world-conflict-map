@@ -9,7 +9,7 @@ daily from news data. Read this file before working in the repo.
 - `httpx` (GDELT downloads), `pyyaml` (config)
 - `transformers` + `torch` (zero-shot filter, CPU)
 - Vanilla ES modules + Leaflet + OpenStreetMap tiles — **no frontend build step**
-- Tests: pytest · Lint: ruff · Format: black (line length 100)
+- Tests: pytest · Lint: ruff check · Format: ruff format (line length 100)
 
 ## Commands
 
@@ -19,7 +19,7 @@ source .venv/bin/activate
 pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
-black app tests scripts                  # format
+ruff format app tests scripts            # format
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 
 # Chrome for the chrome-devtools MCP (see Gotchas #9); CDP on :9222
@@ -83,7 +83,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 ## Boundaries
 
 **Always**
-- Run `pytest`, `ruff check .`, `black app tests scripts` before calling work done.
+- Run `pytest`, `ruff check .`, `ruff format app tests scripts` before calling work done.
 - Use Alembic for schema changes.
 - Keep markers per-event; never re-position a marker from aggregated conflict data.
 - Assert on measured behaviour (query counts, HTTP status) rather than assuming.
@@ -114,7 +114,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    (mitigated by `no-store` middleware + `?v=N`).
 7. **The zero-shot model downloads once** via `python scripts/download_model.py`; the pipeline
    degrades gracefully (skips the filter) if unavailable.
-8. **Auto-generated Alembic revisions are excluded** from ruff/black — don't reformat them.
+8. **Auto-generated Alembic revisions are excluded** from ruff lint/format — don't reformat them.
 9. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
    and Chrome refuses to run as root). Run Chrome yourself with
    `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with
