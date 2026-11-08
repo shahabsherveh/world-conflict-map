@@ -294,6 +294,20 @@ normally in this environment.
 - Full-week raw store: 717,672 rows / 672 files, then all rows processed. Outcomes:
   672,142 not-armed-conflict, 31,817 filtered out, 13,713 duplicate (the existing
   conflict events). `scripts/process_raw.py` and `scripts/backfill_audit.py` added.
+- Migrated formatting from black to `ruff format` (one tool for lint and format, no
+  separate dependency). Output was nearly identical — exactly one file changed, where
+  ruff joins an implicit f-string concat black left split. The Alembic exclusion was
+  verified to still protect the three auto-generated revisions (stripping it makes ruff
+  want to reformat all three). `black` dropped from `requirements.txt` and confirmed
+  absent from the rebuilt image. Earlier entries above still say black; that is accurate
+  for when they were written and is left as-is deliberately.
+- Containerized the app and the daily pipeline (`Dockerfile`, `docker-compose.yml`,
+  `docker/pipeline-entrypoint.sh`, `scripts/docker-daily.sh`). No apt layer: torch's
+  CPU wheel bundles its own `libgomp.so.1`. Verified a clean build, migrations from an
+  empty DB, and the same 1,437 conflicts served as on the host.
+- Added a `ty` dev dependency group with `uv.lock`, pinned to `requires-python >=3.11`
+  to match the Dockerfile. `ty check app` surfaced three DML `.rowcount` type errors,
+  fixed by routing the calls through one `CursorResult`-casting helper.
 
 ## Remaining work (not started)
 
@@ -345,6 +359,15 @@ normally in this environment.
   document them as pre-metadata runs.
 - [ ] Mark stale `running` `ingestion_run` rows failed on startup.
 - [ ] Record whether the zero-shot filter was available/used in run audit metadata.
+
+### Tooling
+- [x] Migrate formatting from black to `ruff format` (one tool for lint + format, drops
+  a dependency). Only one file differed — ruff joins an implicit f-string concat that
+  black kept split. Verified the Alembic exclusion still protects the three
+  auto-generated revisions: with it stripped, ruff would reformat all three. `black`
+  removed from `requirements.txt` and confirmed absent from the rebuilt image. Historical
+  entries earlier in this file still reference black — accurate for when they were run,
+  left untouched on purpose.
 
 ### Optional
 - [ ] Use `num_sources` from `raw_event` for corroboration or confidence.
