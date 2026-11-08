@@ -69,6 +69,37 @@ crontab -e
 `scripts/daily.sh` runs the fetch→extract pipeline. `config/gdelt.yaml` controls the
 source URL, lookback window, and zero-shot threshold.
 
+## Docker
+
+Serve the app and run the daily pipeline in containers (no host venv needed).
+
+```bash
+docker compose up -d --build   # build the image, start the web app
+# open http://localhost:8000
+```
+
+- **Web app** binds to `127.0.0.1:8000` only — the app has no auth by design, so it is
+  deliberately not reachable from the network.
+- **State** lives in `./data/db/` (gitignored): `conflicts.db` plus the HuggingFace
+  model cache. The first pipeline run downloads the ~570 MB zero-shot model there.
+- **Daily pipeline** is a one-shot service, not started by `up`:
+
+  ```bash
+  docker compose run --rm pipeline              # default lookback (config/gdelt.yaml)
+  docker compose run --rm pipeline --days 7     # backfill
+  ```
+
+  Schedule it with host cron (`0 6 * * * /absolute/path/to/scripts/docker-daily.sh`),
+  or keep using the host `scripts/daily.sh` — either works.
+- **Config** is bind-mounted read-only from `config/gdelt.yaml`; edit it and
+  `docker compose restart web` to apply.
+- **Existing host database?** The container starts with a fresh empty database. To
+  carry over your current data, copy it once before first run:
+
+  ```bash
+  mkdir -p data/db && cp conflicts.db data/db/conflicts.db
+  ```
+
 ## Fetch raw data or backfill history
 
 `scripts/fetch_gdelt.py` downloads raw `.export.CSV.zip` files without touching the DB.

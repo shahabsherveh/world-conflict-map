@@ -1,0 +1,28 @@
+services:
+  web:
+    build: .
+    command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    ports:
+      # Bind to loopback only: this app has no auth by design and must not be
+      # reachable from the network. 0.0.0.0 inside the container is fine — the
+      # host binding is what matters.
+      - "127.0.0.1:8000:8000"
+    environment:
+      GCM_DATABASE_URL: sqlite:////data/conflicts.db
+    volumes:
+      - ./data/db:/data
+      - ./config/gdelt.yaml:/app/config/gdelt.yaml:ro
+    restart: unless-stopped
+
+  # One-shot daily pipeline. Not started by `docker compose up` (profiles);
+  # run it with `docker compose run --rm pipeline`, or via host cron using
+  # scripts/docker-daily.sh.
+  pipeline:
+    build: .
+    profiles: ["tools"]
+    entrypoint: ["/app/docker/pipeline-entrypoint.sh"]
+    environment:
+      GCM_DATABASE_URL: sqlite:////data/conflicts.db
+    volumes:
+      - ./data/db:/data
+      - ./config/gdelt.yaml:/app/config/gdelt.yaml:ro
