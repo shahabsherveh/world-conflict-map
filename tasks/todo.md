@@ -252,7 +252,7 @@ listed below under "Remaining work".
 ## Verification baseline (re-run these first)
 ```bash
 source .venv/bin/activate
-./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (83), alembic
+./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (88), alembic
 ```
 
 The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
@@ -343,8 +343,71 @@ without registering anything.
   integrity + row-count verification, `.bak` instead of overwrite, container-mount guard,
   optional `hf-cache` copy. Rehearsed against a synthetic DB (including an uncheckpointed
   WAL writer); the real cutover is a one-command human step (`docs/ci-cd.md`).
+- Code-review pass over the data path: 14 failure modes identified, 5 fixed (four
+  directly, one as a side effect; each reproduced by a test that failed first). Grouping
+  now upgrades a conflict's cached anchor
+  anchor as soon as a linked event brings coordinates — the `None` cached for a conflict
+  whose oldest event was ungeocoded was never replaced, so every later event in that
+  theatre had to match the city name exactly. The detail view now lists every linked
+  event instead of re-scoping to the conflict's own span (it showed fewer events than the
+  list counted, and hid anything dated after `today` when `end_date` was null), keeping
+  the in-span headline preference plus a stable `(event_date, id)` tie-break. A full run
+  now drains pending `raw_event` rows for days it is not fetching: a failure between the
+  raw commit and processing used to strand that day permanently, because the daily run
+  only targets recent days and pruning deletes only processed rows. Event coordinates
+  must now be both-or-neither, validated against the merged record on PATCH so
+  single-field edits still work — a half coordinate made the marker vanish from the map
+  with no error. 83 → 88 tests. The unfixed findings are below under
+  "Data integrity (from the code review)".
 
 ## Remaining work (not started)
+
+### Data integrity (from the code review)
+- [ ] **Retry GDELT downloads instead of aborting the run.** Why: `fetch_day` tolerates
+  only 404s, so one `ReadTimeout`/`ConnectError`/5xx in any of the 96 daily slots
+  propagates out of `run()` and the remaining days of a multi-day backfill never run; there
+  is no retry or backoff. `parse_export_zip` also raises `IndexError` on an empty archive
+  on the live path (`read_day_from_dir` catches it, `fetch_day` does not). How: bounded
+  retries with backoff around `download_export`, treat an empty/invalid zip like a 404,
+  and keep the `ingestion_run.status = failed` record for the day that really fails. Done
+  when a simulated timeout on one slot still stores the other 95.
+- [ ] **Enable WAL and a `busy_timeout` on the SQLite engine.** Why: `make_engine` sets only
+  `PRAGMA foreign_keys`; the API writes from the threadpool while the daily pipeline
+  writes through the same file, so a concurrent `PATCH` can raise `database is locked`
+  (500). `scripts/cutover-data.sh` is deliberately WAL-safe, which implies WAL was assumed
+  but never enabled. How: set `journal_mode=WAL` (and `busy_timeout`, e.g. 5000 ms) in the
+  connect listener; WAL is persistent per database file, so confirm it after the cutover.
+  Done when two writers can interleave without a lock error.
+- [ ] **Bound the grouping time window.** Why: grouping never sets `Conflict.end_date` and
+  `_time_overlaps` only checks the existing span, so two events in the same 100 km and
+  country merge even five years apart, resurrecting dormant theatres as active. How: cap
+  the gap since the conflict's last event (or set `end_date` when creating/joining) — this
+  changes the grouping rule, so get approval first. Done when a multi-year gap produces
+  two conflicts and an adjacent-day event still merges.
+- [ ] **Make grouping's candidate selection explicit.** Why: the candidate query filters
+  on `Conflict.country` with no `ORDER BY`, so the first match wins by rowid order, and
+  `country IS NULL` matches every null-country conflict, letting two events in different
+  countries merge if within 100 km. How: order candidates deterministically (e.g. earliest
+  anchor/`id`) and decide what an absent country code may match — grouping rule, so get
+  approval first. Done when the merge target for a null-country event is specified by a
+  test rather than by rowid.
+- [ ] **Residual anchorless case in grouping.** Why: fixing the never-upgraded anchor still
+  leaves one gap — when the *first* geolocated event in a theatre has a different city name
+  than the conflict's oldest (ungeocoded) event, it cannot be measured against a missing
+  anchor and opens a second conflict. How: match on the stored place strings for
+  anchorless conflicts, or defer anchoring to the first located event and merge the
+  unplaced remainder afterwards — grouping rule, so get approval first.
+- [ ] **Clear the minor review findings.** Why: each is small but silently loses
+  information. `load_config` returns the `lru_cache`d dict itself (a caller mutating it
+  poisons every later read) and never re-reads the YAML; the engine is built at import
+  time, so `GCM_DATABASE_URL` must be set before any `app.*` import; `_apply_patch` logs
+  `None` and `""` identically, so `edit_log` cannot distinguish cleared from empty;
+  `slug_to_text` returns `""` for a URL with no slug, so the zero-shot filter drops an
+  event it has no evidence against; `regroup_all` re-links manual events that have no
+  `conflict_id` and never logs the change. How: return a copy from `load_config` (or memoise
+  on the file mtime), build the engine lazily, log a sentinel for `None`, keep slug-less
+  URLs like drafts without a URL, and skip/report manual events in `regroup_all`. Done
+  when each has a regression test.
 
 ### UI / product
 - [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
@@ -485,5 +548,8 @@ change and how to know it worked.
 - [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
 ## Approval state
-No pending approvals. Article-title fetching is still declined; raw payload storage is
-implemented in `raw_event`.
+Pending approvals (both are grouping-rule changes): bound the conflict time window so a
+multi-year gap starts a new conflict, and make candidate selection deterministic instead
+of rowid-ordered with `country IS NULL` matching worldwide. Also awaiting a decision on
+the residual anchorless case above. Article-title fetching is still declined; raw payload
+storage is implemented in `raw_event`.
