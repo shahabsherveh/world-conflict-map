@@ -9,3 +9,6 @@ data/
 .env
 # UI smoke test deps (tests/ui)
 tests/ui/node_modules/
+# local agent/assistant config (pi skills + extensions) — personal, not project
+.agents/
+.pi/
