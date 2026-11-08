@@ -82,11 +82,33 @@ local pass means a pipeline pass.
 CI runs on the host that serves the app, because that is where the docker cache and
 the compose stack live. One-time setup:
 
-1. Install a self-hosted runner for this repo (Settings → Actions → Runners) with the
-   label `self-hosted` (add `gcm` if you want to scope jobs explicitly later).
-2. The runner user must be able to run `docker` without sudo (`usermod -aG docker
-   $USER`, then re-login — a runner started before the group change keeps the old
-   groups).
+1. Create the runner account and give it docker (a runner started before the group
+   change keeps the old groups, so re-login or restart the service):
+
+   ```bash
+   sudo useradd -m -s /bin/bash ghrunner
+   sudo usermod -aG docker ghrunner
+   ```
+
+2. Mint a registration token: **Settings → Actions → Runners → New self-hosted
+   runner** (valid ~1 hour). Then install, as `ghrunner`:
+
+   ```bash
+   sudo -iu ghrunner
+   cd /path/to/global-conflict-map
+   RUNNER_TOKEN=<from the UI> ./scripts/install-runner.sh \
+     --url https://github.com/OWNER/REPO
+   ```
+
+   The script downloads a pinned runner release (v2.338.2) into `~/actions-runner`,
+   verifies the tarball's sha256 for x86_64/arm64, configures it, and installs and
+   starts the systemd service when systemd is present. `--dry-run` downloads and
+   verifies without registering (no token needed); `--version`/`--sha256` bump the
+   pin; `--force` re-registers over an existing `~/actions-runner/.runner`.
+
+   Manual alternative: download from the UI and run `./config.sh --url … --token …`.
+   The default `self-hosted` label is what the workflows use; `--labels gcm` scopes
+   them to this runner if you ever add more.
 3. The runner's *working directory* must be writable and needs ~4 GB for images and
    the pip cache. **Do not point the runner at a directory you edit by hand:**
    `actions/checkout` runs `git clean -ffdx`, which deletes untracked files such as

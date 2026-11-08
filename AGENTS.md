@@ -37,6 +37,7 @@ python -m app.extract.run                # daily pipeline: fetch → filter → 
 uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 
 python scripts/seed.py                   # demo data (no network)
+./scripts/install-runner.sh --url …       # register the CI runner (RUNNER_TOKEN=…)
 ./scripts/cutover-data.sh                # dry-run: move existing DB into GCM_DATA_DIR
 ./scripts/cutover-data.sh --apply        # ...and copy (WAL-safe, verified, keeps a .bak)
 python scripts/evaluate.py               # filter precision/recall (needs model)

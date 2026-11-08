@@ -327,6 +327,10 @@ The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
 - `scripts/seed.py` offsets demo event coordinates (Leaflet spiderfies exactly coincident
   points, which jsdom cannot render) and gives the no-location demo a single unplaced
   event so the "Set location" flow is exercisable.
+- Added `scripts/install-runner.sh`: pinned runner v2.338.2 with per-arch sha256,
+  `--dry-run` (no token needed), root/already-registered guards, docker-group warning,
+  systemd service install with a `./run.sh` fallback. Registration itself still needs a
+  token minted from the repo settings.
 - Added shellcheck to the gates for `scripts/*.sh` and
   `docker/pipeline-entrypoint.sh`: CI downloads v0.11.0 into `$RUNNER_TEMP` and verifies a
   pinned per-arch sha256 (actionlint only shellchecks the workflow `run:` blocks);
@@ -412,7 +416,8 @@ change and how to know it worked.
   `workflow_run` firing for the commit that adds `deploy.yml`, the
   `workflow_run.head_sha || github.sha` expression, the `$RUNNER_TEMP` venv +
   `$GITHUB_PATH` handoff, `setup-python` caching on self-hosted, and
-  `docker compose config --images web` on the installed Compose. How: push a branch, open
+  `docker compose config --images web` on the installed Compose. How: register the
+  runner with `RUNNER_TOKEN=… ./scripts/install-runner.sh --url …`, push a branch, open
   a PR, confirm `gates`/`compat`/`image`; merge; then `workflow_dispatch` Deploy. Done
   when one green CI run and one successful deploy are recorded.
 - [ ] **Make the UI smoke data-density-independent, then gate it.** Why: with the
