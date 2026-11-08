@@ -252,12 +252,16 @@ listed below under "Remaining work".
 ## Verification baseline (re-run these first)
 ```bash
 source .venv/bin/activate
-./scripts/ci-check.sh   # ruff check + format --check, ty, pytest (83), alembic upgrade+check
+./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (83), alembic
 ```
 
 The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
-`./scripts/ci-check.sh` is the closest local proxy. `pytest`, `ruff`, `ty`, and
-`alembic` all run normally in this environment.
+`./scripts/ci-check.sh` is the closest local proxy. `pytest`, `ruff`, `ty`,
+`shellcheck`, and `alembic` all run normally in this environment.
+
+Host-only verification (not part of ci-check): `./scripts/install-runner.sh --dry-run
+--url https://github.com/OWNER/REPO` downloads and hash-checks the runner archive
+without registering anything.
 
 ## Changes since the original plan
 - Grouping: keyword overlap → proximity (100 km + time window), anchor cached per conflict.
@@ -454,6 +458,11 @@ change and how to know it worked.
 - [ ] Record whether the zero-shot filter was available/used in run audit metadata.
 
 ### Tooling
+- [x] Add `scripts/install-runner.sh` for the self-hosted runner: pinned v2.338.2 with
+  per-arch sha256, `--dry-run` without a token, root and already-registered guards,
+  docker-group warning, systemd install with a `./run.sh` fallback. Registering still
+  needs a token from the repo settings; the first hosted run is tracked under
+  "CI/CD follow-ups".
 - [x] Migrate formatting from black to `ruff format` (one tool for lint + format, drops
   a dependency). Only one file differed — ruff joins an implicit f-string concat that
   black kept split. Verified the Alembic exclusion still protects the three

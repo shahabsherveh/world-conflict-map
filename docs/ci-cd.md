@@ -8,12 +8,13 @@ Files:
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | Lint, format, types, tests, migrations, artifact guard, image build + container smoke |
+| `.github/workflows/ci.yml` | Lint, format, shellcheck, types, tests, migrations, artifact guard, image build + container smoke |
 | `.github/workflows/deploy.yml` | Deploy the CI-verified commit to this host; roll back on an unhealthy start |
 | `.github/dependabot.yml` | Weekly PRs for GitHub Actions and the UI-test npm deps |
 | `requirements-ci.txt` | Exact ruff/ty versions the gates run (one source of truth) |
 | `scripts/ci-check.sh` | The same gates, locally. `--docker` adds the image build |
 | `scripts/deploy.sh` | Build → replace → readiness check → roll back (what the deploy job runs) |
+| `scripts/install-runner.sh` | Register this repo's self-hosted runner (pinned release, verified hash) |
 | `scripts/cutover-data.sh` | One-time, WAL-safe move of an existing DB into `GCM_DATA_DIR` |
 | `scripts/_data-dir.sh` | The one definition of the deployed stack's data path |
 
@@ -109,12 +110,14 @@ the compose stack live. One-time setup:
    Manual alternative: download from the UI and run `./config.sh --url … --token …`.
    The default `self-hosted` label is what the workflows use; `--labels gcm` scopes
    them to this runner if you ever add more.
+
 3. The runner's *working directory* must be writable and needs ~4 GB for images and
    the pip cache. **Do not point the runner at a directory you edit by hand:**
    `actions/checkout` runs `git clean -ffdx`, which deletes untracked files such as
    `data/`, `conflicts.db`, and `.venv/`. The compose file pins
    `name: global-conflict-map`, so whichever checkout the runner uses, it drives the
    same stack.
+
 4. Create the deploy data directory, owned by the runner user:
 
    ```bash
@@ -250,6 +253,10 @@ Copy the failing step's output and fix the cause, then re-run the same gate loca
 
 ## Follow-ups (not done here)
 
+- **First hosted run.** The workflows are validated so far only by actionlint and by
+  running each command locally; the first PR exercises `workflow_run`,
+  `$GITHUB_PATH`, the pip cache and the deploy rollback on the real runner. Keep the
+  `production` environment ungated until that passes.
 - **Pin dependencies.** `requirements.txt` is unpinned, so two CI runs can install
   different code. Compile a lock (`uv pip compile requirements.txt -o
   requirements.lock`), install from it in CI and in the Dockerfile, and add the `pip`

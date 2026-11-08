@@ -256,5 +256,7 @@ Run the same gates locally before pushing:
 ./scripts/ci-check.sh --docker   # …plus the image build and import check
 ```
 
-See `docs/ci-cd.md` for the pipeline design, runner setup, branch protection, and the
+First-time setup on the host: `scripts/install-runner.sh --url https://github.com/OWNER/REPO`
+(pinned runner release, verified hash) and `scripts/cutover-data.sh --apply` for existing
+data. See `docs/ci-cd.md` for the pipeline design, runner setup, branch protection, and the
 rollback procedure (`GCM_IMAGE_TAG=rollback docker compose up -d --no-deps --force-recreate web`).

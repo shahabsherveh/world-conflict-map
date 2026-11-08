@@ -37,7 +37,7 @@ python -m app.extract.run                # daily pipeline: fetch → filter → 
 uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 
 python scripts/seed.py                   # demo data (no network)
-./scripts/install-runner.sh --url …       # register the CI runner (RUNNER_TOKEN=…)
+./scripts/install-runner.sh --url …     # register the CI runner (RUNNER_TOKEN=…)
 ./scripts/cutover-data.sh                # dry-run: move existing DB into GCM_DATA_DIR
 ./scripts/cutover-data.sh --apply        # ...and copy (WAL-safe, verified, keeps a .bak)
 python scripts/evaluate.py               # filter precision/recall (needs model)
@@ -94,8 +94,8 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 ## Boundaries
 
 **Always**
-- Run `pytest`, `ruff check .`, `ruff format app tests scripts`, `ty check` before calling
-  work done — that is exactly what CI runs (`./scripts/ci-check.sh`).
+- Run `./scripts/ci-check.sh` before calling work done: tool pins, ruff check + format,
+  shellcheck, `ty check`, pytest, and migration apply/drift — the same gates as CI.
 - Use Alembic for schema changes, and keep `alembic check` clean: it runs in CI.
 - Keep markers per-event; never re-position a marker from aggregated conflict data.
 - Assert on measured behaviour (query counts, HTTP status) rather than assuming.
