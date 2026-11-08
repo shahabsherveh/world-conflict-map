@@ -16,22 +16,24 @@ Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 - Python 3.11+, FastAPI (backend + serves UI)
 - SQLite via SQLAlchemy 2.0, migrations via Alembic
 - GDELT 2.0 raw event files (`.export.CSV.zip`) via `httpx` (structured conflict events — already geolocated + classified)
+- `transformers` + `torch` (zero-shot armed-conflict filter, CPU)
 - Leaflet + OpenStreetMap tiles (frontend, no API key)
 
 ### Commands
 - Setup: `python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
 - Migrate: `alembic upgrade head`
-- Extract (fetch + filter + persist): `python -m app.extract.run`
+- Model (once): `python scripts/download_model.py`
+- Extract (fetch + filter + persist + group): `python -m app.extract.run`
 - Serve: `uvicorn app.main:app --reload --port 8000`
 - Test: `pytest`
 - Lint/format/types: `ruff check . && ruff format --check . && ty check`
-- All CI gates: `./scripts/ci-check.sh` (see `docs/ci-cd.md`)
+- All CI gates: `./scripts/ci-check.sh` (see `ci-cd.md`)
 
 ### Project structure
 - `app/` — backend package
 - `app/static/` — UI (index.html, app.js, style.css)
 - `tests/` — pytest
-- `tests/fixtures/` — sample GDELT responses
+- `tests/fixtures/` — zero-shot evaluation samples
 - `config/` — data-source config
 - `docs/` — intent and specs
 
@@ -42,5 +44,5 @@ Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 ### Testing strategy
 - pytest for all backend modules.
 - `storage`/`api`: unit + integration tests.
-- `ingestion`/`extraction`: fixture-based tests (sample GDELT JSON records).
-- `ui`: manual smoke test; automated browser tests optional later.
+- `ingestion`/`extraction`: fixture-based tests (inline GDELT TSV records).
+- `ui`: jsdom smoke test (`tests/ui/map-smoke.mjs`) plus manual/browser checks.

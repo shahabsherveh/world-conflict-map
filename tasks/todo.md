@@ -380,7 +380,7 @@ without registering anything.
   sidebar detail render, "Pick on map" fills lat/lon, OSM tiles return 200, and no
   console messages. The earlier grey tile gaps were transient fetches, not an app bug.
 
-- [x] No-location panel (`SPEC-ui.md` § Feature spec: surfacing no-location conflicts):
+- [x] No-location panel (`docs/SPEC-ui.md` § Feature spec: surfacing no-location conflicts):
   sidebar section listing the 493 conflicts per 30-day window that have no geocoded event,
   capped at 200 rows, leading with the headline because every one of them is named
   "Unnamed conflict", with a "Set location →" action that arms the existing Pick-on-map

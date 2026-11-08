@@ -209,7 +209,7 @@ python scripts/seed.py
 
 ## Architecture
 
-`storage → ingestion → extraction → api → ui` — see `CAPABILITY-MAP.md` and `SPEC-*.md`.
+`storage → ingestion → extraction → api → ui` — see `docs/CAPABILITY-MAP.md` and `docs/SPEC-*.md`.
 
 Contributing with an AI agent? Read **`AGENTS.md`** first — it carries the commands,
 conventions, boundaries, and the gotchas that cost real debugging time.

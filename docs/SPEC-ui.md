@@ -54,7 +54,7 @@ Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
   marker/cluster counts checked against `/api/events`, bounded DOM, cluster clicks, scrub.
   Run it when touching `app.js`; it is not part of pytest (needs npm + a server).
 - Real-browser checks through the `chrome-devtools` MCP (headless Chrome on `:9222`):
-  hit-testing, popups, "Pick on map", basemap. Setup: `tests/ui/README.md`.
+  hit-testing, popups, "Pick on map", basemap. Setup: `../tests/ui/README.md`.
 - A human visual pass (colour/contrast, cluster aesthetics) remains the last word.
 
 ## Boundaries
@@ -89,7 +89,7 @@ coordinates.
   corrupted records before (Gotcha #3). A marker must never claim a place the source did
   not state.
 - **Edge “bucket” markers** — invent a position and add permanent noise to the basemap.
-- **Automatic re-geocoding** — forbidden (AGENTS.md: *never* rewrite coordinates).
+- **Automatic re-geocoding** — forbidden (`../AGENTS.md`: *never* rewrite coordinates).
 
 So these conflicts get a home in the sidebar, not on the basemap.
 

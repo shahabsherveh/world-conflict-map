@@ -51,7 +51,7 @@ python scripts/backfill_audit.py         # reconstruct ingestion_run rows
 ## Architecture
 
 Dependency direction is one-way: `storage → ingestion → extraction → api → ui`.
-`CAPABILITY-MAP.md` is the index; each module has a `SPEC-<module>.md`.
+`docs/CAPABILITY-MAP.md` is the index; each module has a `docs/SPEC-<module>.md`.
 
 | Area | Path | Notes |
 |---|---|---|

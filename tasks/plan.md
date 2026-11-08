@@ -4,7 +4,7 @@
 A personal web app that, on a daily batch, fetches structured armed-conflict events from
 GDELT (free, already geolocated + classified), filters and maps them into a local store,
 and serves an interactive Leaflet map with time scrub and manual edits.
-Build order follows CAPABILITY-MAP.md: `storage` → `ingestion` → `extraction` → `api` → `ui`.
+Build order follows docs/CAPABILITY-MAP.md: `storage` → `ingestion` → `extraction` → `api` → `ui`.
 
 ## Architecture Decisions
 - **Lean on GDELT, don't reinvent extraction.** GDELT already codes news into geolocated
