@@ -6,7 +6,11 @@ normalize them into our raw-event shape, dedupe by `GLOBALEVENTID`, and record e
 in `ingestion_run`.
 
 ## Tech stack
-`httpx` + `pyyaml` + stdlib `zipfile`/`csv`. (Conventions: CAPABILITY-MAP.md)
+`httpx` + `pyyaml` + stdlib `zipfile`. (Conventions: CAPABILITY-MAP.md)
+
+Parsing is a plain `line.split("\t")` against the 61-column list, not the `csv` module:
+the export is tab-separated with no quoting or embedded newlines, and `csv` would only
+add a parser we then have to configure back to that shape.
 
 ## Data source
 GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
@@ -23,7 +27,10 @@ GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
 - Dedupe by `global_event_id` (`GLOBALEVENTID`).
 - Persist parsed rows into `raw_event` **before** extraction/filtering, then mark each row
   with its outcome once processing completes.
-- Tolerate missing 15-min files (404 → skip) and per-file failures without crashing the run.
+- Tolerate a missing 15-min file (HTTP 404 → skip that slot); any other HTTP failure
+  propagates and fails the run loudly, because a 5xx or a timeout means the day is
+  incomplete rather than absent. Cached local files that are missing or corrupt
+  (`read_day_from_dir`) are skipped so a partial download can be retried next run.
 - Prune processed raw rows after `raw_retention_days` (default 30); unprocessed rows are kept.
 - This module is a library only; the runnable entrypoint is `app.extract.run`, which calls it.
 
@@ -42,15 +49,19 @@ GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
 Conventions: CAPABILITY-MAP.md
 
 ## Testing strategy
-- Fixture TSV/zip (`tests/fixtures/gdelt/`) → assert positional column mapping and dedupe.
+- Inline TSV rows built from `COLUMNS` (`make_row` in `tests/test_ingestion.py`) → assert
+  positional column mapping and malformed-row skipping. There are no GDELT fixtures on
+  disk; the eval sample under `tests/fixtures/` belongs to extraction.
 - Test 15-min stamp enumeration (96 stamps, correct boundaries).
-- Test 404/missing-file tolerance via a mocked transport.
+- Test 404 skipping via a mocked transport, and missing/corrupt local files via `tmp_path`.
 - Test raw-row dedupe, pending selection, outcome marking, and retention pruning.
 
 ## Boundaries
 - Always: dedupe by `GLOBALEVENTID`; log per-run outcomes.
 - Ask first: switching source (e.g. GDELT Cloud API), changing lookback policy.
-- Never: store the raw full TSV rows in the DB (keep only normalized fields).
+- Never: write source columns into `conflict_event`. Raw rows belong in `raw_event`, and
+  there only as the JSON of non-empty columns (`payload`) so a row can be replayed through
+  a changed adapter; `conflict_event` carries the mapped, typed fields alone.
 
 ## Success criteria
 - One command downloads and normalizes the target day's GDELT events without duplicates.

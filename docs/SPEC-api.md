@@ -13,7 +13,9 @@ FastAPI + Pydantic. (Conventions: CAPABILITY-MAP.md)
 - `GET /api/events?start=&end=&conflict_id=` → events in range
 - `GET /api/events/{id}` → single event detail incl. source_url
 - `PATCH /api/events/{id}`, `PATCH /api/conflicts/{id}` → manual edits (logged to edit_log)
-- `POST /api/events`, `POST /api/conflicts` → manual creation (`provenance='manual'`)
+- `POST /api/events` → manual creation (`provenance='manual'`)
+- `POST /api/conflicts` → manual creation (no provenance column on `conflict`; an event
+  created under it carries `provenance='manual'`)
 - `GET /api/ingestion-runs?limit=` → recent pipeline runs, newest first (limit 1–100)
 - `GET /api/sources` → data-source list (transparency)
 - Static: `/` → `app/static/index.html`
@@ -37,9 +39,11 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
 
 ## Boundaries
 - Always: validate inputs (Pydantic), with text bounds matching the stored columns
-  (`place_name`/actors 255, `country` 120, `event_type` 80, `source_url` 1024,
-  `summary` 5000) — SQLite ignores declared lengths, so an unbounded field would store a
-  multi-kilobyte string and then render it in a list row.
+  (`place_name`/actors 255, `country` 120, `event_type` 80, `source_url` 1024) — SQLite
+  ignores declared lengths, so an unbounded field would store a multi-kilobyte string and
+  then render it in a list row. `summary` is the exception: the column is `Text` (a
+  summarised article has no natural limit), so its 5000-character cap is a Pydantic-only
+  guard on what the UI has to render, not a database constraint.
 - Always: return typed response models.
 - Ask first: adding endpoints, changing response schema.
 - Never: return raw DB rows; leak secrets in responses.
