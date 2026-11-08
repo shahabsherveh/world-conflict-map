@@ -14,6 +14,7 @@ Files:
 | `requirements-ci.txt` | Exact ruff/ty versions the gates run (one source of truth) |
 | `scripts/ci-check.sh` | The same gates, locally. `--docker` adds the image build |
 | `scripts/deploy.sh` | Build → replace → readiness check → roll back (what the deploy job runs) |
+| `scripts/cutover-data.sh` | One-time, WAL-safe move of an existing DB into `GCM_DATA_DIR` |
 | `scripts/_data-dir.sh` | The one definition of the deployed stack's data path |
 
 ## The gates
@@ -105,6 +106,38 @@ the compose stack live. One-time setup:
 Keep the repository **private**, and set Settings → Actions → General → "Require
 approval for all outside collaborators" (or fork-PR workflows off). The deploy job is
 not exposed: it triggers from `workflow_run` on `main` only, never from a PR.
+
+### First deploy: bring the existing database across
+
+The deployed stack reads `GCM_DATA_DIR` (default `/var/lib/global-conflict-map/db`),
+not `./data/db`, and the project name is pinned to `global-conflict-map`. Without a
+cutover, an old `workspace` stack keeps port 8000 and the new app starts on an empty DB
+that looks like data loss. `scripts/cutover-data.sh` moves the data; dry-run first:
+
+```bash
+docker compose ls -a                     # find the old project, if any
+docker compose -p workspace down         # only if it exists
+
+./scripts/cutover-data.sh                # prints source, row counts and target
+./scripts/cutover-data.sh --apply --owner "$USER"
+```
+
+What it guarantees, each rehearsed against a synthetic DB:
+
+- **WAL-safe.** It uses SQLite's backup API, not `cp`; a writer holding committed pages
+  in a `-wal` file is included. (Rehearsed with the writer still connected: the row
+  copied, and `cp` of the main file alone would have missed it.)
+- **Verified.** Runs `pragma integrity_check` and compares `conflict`/`conflict_event`
+  counts on the copy; unequal counts fail the run.
+- **Non-destructive.** An existing target is renamed `conflicts.db.bak-<timestamp>`
+  (`--force` required); the old database is never deleted.
+- **Cache-aware.** Copies `<source dir>/hf-cache` when present, avoiding a ~570 MB
+  re-download on the first pipeline run.
+- **Refuses unsafe runs.** Wrong-schema file, missing source, or a running container
+  that mounts the target directory all abort before writing.
+
+Then `docker compose up -d --build` (or let the first CI deploy do it) and confirm
+`/api/conflicts` returns the counts the script printed.
 
 ### Branch protection (recommended)
 

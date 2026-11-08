@@ -103,11 +103,17 @@ docker compose up -d --build   # build the image, start the web app
 - **Config** is bind-mounted read-only from `config/gdelt.yaml`; edit it and
   `docker compose restart web` to apply.
 - **Existing host database?** The container starts with a fresh empty database. To
-  carry over your current data, copy it once before first run:
+  carry over your current data, run the cutover script once; it copies with SQLite's
+  backup API (WAL-safe), verifies integrity and row counts, and never deletes the
+  original:
 
   ```bash
-  mkdir -p data/db && cp conflicts.db data/db/conflicts.db
+  ./scripts/cutover-data.sh                # dry run: source, counts, target
+  ./scripts/cutover-data.sh --apply --owner "$USER"
   ```
+
+  It targets `GCM_DATA_DIR` (the same path `deploy.sh` and `docker-daily.sh` use), not
+  `./data/db`. Details in `docs/ci-cd.md`.
 
 ## Fetch raw data or backfill history
 
