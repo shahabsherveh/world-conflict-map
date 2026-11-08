@@ -4,14 +4,28 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timedelta
+from typing import cast
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import Executable
 
 from app.models import RawEvent, utcnow
 
 CHUNK_SIZE = 1000
+
+
+def _execute_dml(session: Session, stmt: Executable) -> int:
+    """Run an INSERT/UPDATE/DELETE and return its affected row count.
+
+    `Session.execute` is typed as returning `Result`, which has no `rowcount`;
+    for DML it actually returns a `CursorResult`. The cast is a lie only to the
+    type checker — the runtime object genuinely is a CursorResult.
+    """
+    result = cast(CursorResult, session.execute(stmt))
+    return max(0, result.rowcount or 0)
 
 
 def _parse_event_date(value: str | None) -> date | None:
@@ -63,8 +77,8 @@ def store_raw_events(session: Session, raw_events: list[dict[str, str]], source_
             .values(chunk)
             .on_conflict_do_nothing(index_elements=["source_event_id"])
         )
-        result = session.execute(stmt)
-        inserted += max(0, result.rowcount or 0)
+        result = _execute_dml(session, stmt)
+        inserted += result
     return inserted
 
 
@@ -106,12 +120,12 @@ def mark_raw_events(
     updated = 0
     for start in range(0, len(ids), CHUNK_SIZE):
         chunk = ids[start : start + CHUNK_SIZE]
-        result = session.execute(
+        updated += _execute_dml(
+            session,
             update(RawEvent)
             .where(RawEvent.source_event_id.in_(chunk))
-            .values(outcome=outcome, processed_at=processed_at)
+            .values(outcome=outcome, processed_at=processed_at),
         )
-        updated += max(0, result.rowcount or 0)
     return updated
 
 
@@ -123,10 +137,10 @@ def prune_raw_events(session: Session, retention_days: int) -> int:
     if retention_days <= 0:
         return 0
     cutoff = utcnow() - timedelta(days=retention_days)
-    result = session.execute(
+    return _execute_dml(
+        session,
         delete(RawEvent).where(
             RawEvent.processed_at.is_not(None),
             RawEvent.ingested_at < cutoff,
-        )
+        ),
     )
-    return max(0, result.rowcount or 0)
