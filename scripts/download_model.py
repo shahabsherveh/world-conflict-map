@@ -25,10 +25,9 @@ def main() -> None:
 
     clf = pipeline("zero-shot-classification", model=MODEL)
     result = clf("missile strike kills 20 civilians", LABELS)
-    scores = dict(zip(result["labels"], result["scores"]))
-    print(
-        f"sanity check: 'missile strike kills 20 civilians' -> armed conflict={scores['armed conflict']:.3f}"
-    )
+    scores = dict(zip(result["labels"], result["scores"], strict=False))
+    score = scores["armed conflict"]
+    print(f"sanity check: 'missile strike kills 20 civilians' -> armed conflict={score:.3f}")
     print("Model ready.")
 
 

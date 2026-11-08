@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from app.extract.base import EventDraft
-from app.extract.classifier import DEFAULT_THRESHOLD, ZeroShotConflictClassifier, slug_to_text
+from app.extract.classifier import (
+    DEFAULT_THRESHOLD,
+    BinaryClassifier,
+    Classifier,
+    slug_to_text,
+)
 
 
 def filter_by_zero_shot(
     drafts: list[EventDraft],
-    classifier: ZeroShotConflictClassifier,
+    classifier: Classifier,
     threshold: float = DEFAULT_THRESHOLD,
 ) -> list[EventDraft]:
     """Drop drafts whose source URL slug doesn't classify as armed conflict.
@@ -24,13 +29,13 @@ def filter_by_zero_shot(
     ]
     unique_texts = list(dict.fromkeys(text for _, text in indexed))
 
-    if hasattr(classifier, "classify_many"):
+    if isinstance(classifier, BinaryClassifier):
         results = classifier.classify_many(unique_texts, threshold)
     else:
         results = [classifier.classify(text, threshold) for text in unique_texts]
-    by_text = dict(zip(unique_texts, results))
+    by_text = dict(zip(unique_texts, results, strict=True))
 
     keep = [not draft.source_url for draft in drafts]
     for index, text in indexed:
         keep[index] = by_text[text][0]
-    return [draft for draft, accepted in zip(drafts, keep) if accepted]
+    return [draft for draft, accepted in zip(drafts, keep, strict=True) if accepted]

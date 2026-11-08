@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
 CONFLICT_LABEL = "armed conflict"
@@ -24,11 +25,32 @@ def slug_to_text(url: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+@runtime_checkable
+class BinaryClassifier(Protocol):
+    """Batched classifier: the fast path `filter_by_zero_shot` prefers."""
+
+    def classify_many(
+        self, texts: list[str], threshold: float = DEFAULT_THRESHOLD
+    ) -> list[tuple[bool, float]]: ...
+
+
+@runtime_checkable
+class SingleTextClassifier(Protocol):
+    """One-at-a-time classifier; the filter falls back to this when needed."""
+
+    def classify(self, text: str, threshold: float = DEFAULT_THRESHOLD) -> tuple[bool, float]: ...
+
+
+Classifier = BinaryClassifier | SingleTextClassifier
+
+
 class ZeroShotConflictClassifier:
     def __init__(self, model: str = "cross-encoder/nli-deberta-v3-small") -> None:
         from transformers import pipeline
 
-        self._pipeline = pipeline("zero-shot-classification", model=model)
+        # Any object with the pipeline's __call__ shape counts; annotating only
+        # the concrete type would make the test fakes type errors.
+        self._pipeline: Any = pipeline("zero-shot-classification", model=model)
         self._labels = [CONFLICT_LABEL, NOT_CONFLICT_LABEL]
 
     def classify(self, text: str, threshold: float = DEFAULT_THRESHOLD) -> tuple[bool, float]:
@@ -37,7 +59,7 @@ class ZeroShotConflictClassifier:
         if not text:
             return False, 0.0
         result = self._pipeline(text, self._labels)
-        scores = dict(zip(result["labels"], result["scores"]))
+        scores = dict(zip(result["labels"], result["scores"], strict=False))
         score = scores[CONFLICT_LABEL]
         return score >= threshold, score
 
@@ -62,7 +84,7 @@ class ZeroShotConflictClassifier:
                 out.append((False, 0.0))
                 continue
             result = next(result_iter)
-            scores = dict(zip(result["labels"], result["scores"]))
+            scores = dict(zip(result["labels"], result["scores"], strict=False))
             score = scores[CONFLICT_LABEL]
             out.append((score >= threshold, score))
         return out

@@ -11,10 +11,21 @@ from __future__ import annotations
 
 import math
 import time
+from typing import Protocol
 
 import httpx
 
 DEFAULT_DISTANCE_KM = 100.0
+
+
+class Geocoder(Protocol):
+    """What `resolve_coordinates` needs, so tests can pass a stub.
+
+    Typing against the concrete `NominatimGeocoder` made every stub in the
+    suite a type error; the seam is the one method actually called.
+    """
+
+    def lookup(self, query: str) -> tuple[float, float, str] | None: ...
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -95,7 +106,7 @@ def resolve_coordinates(
     place_name: str | None,
     lat: float | None,
     lon: float | None,
-    geocoder: NominatimGeocoder,
+    geocoder: Geocoder,
     threshold_km: float = DEFAULT_DISTANCE_KM,
 ) -> tuple[float | None, float | None, bool]:
     """Return (lat, lon, was_corrected).

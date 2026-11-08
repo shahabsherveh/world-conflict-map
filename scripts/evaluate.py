@@ -25,9 +25,9 @@ def load_articles() -> list[dict]:
 
 
 def metrics(preds: list[int], truths: list[int]) -> tuple[float, float, float, int, int, int]:
-    tp = sum(1 for p, t in zip(preds, truths) if p == 1 and t == 1)
-    fp = sum(1 for p, t in zip(preds, truths) if p == 1 and t == 0)
-    fn = sum(1 for p, t in zip(preds, truths) if p == 0 and t == 1)
+    tp = sum(1 for p, t in zip(preds, truths, strict=True) if p == 1 and t == 1)
+    fp = sum(1 for p, t in zip(preds, truths, strict=True) if p == 1 and t == 0)
+    fn = sum(1 for p, t in zip(preds, truths, strict=True) if p == 0 and t == 1)
     prec = tp / max(1, tp + fp)
     rec = tp / max(1, tp + fn)
     f1 = 2 * prec * rec / max(1e-9, prec + rec)
@@ -52,7 +52,7 @@ def main() -> None:
     print("ZERO-SHOT (slug):", metrics(preds, truths))
 
     print("\ndisagreements:")
-    for a, p, t in zip(articles, preds, truths):
+    for a, p, t in zip(articles, preds, truths, strict=True):
         if p != t:
             tag = "FP" if p == 1 else "FN"
             print(

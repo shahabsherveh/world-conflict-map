@@ -110,6 +110,7 @@ def test_prune_raw_events_keeps_pending_and_recent_rows() -> None:
     session.commit()
     mark_raw_events(session, ["old", "new"], "persisted", datetime(2024, 1, 16, 12, 0))
     old = session.scalar(select(RawEvent).where(RawEvent.source_event_id == "old"))
+    assert old is not None
     old.ingested_at = datetime(2020, 1, 1)
     session.commit()
 

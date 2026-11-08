@@ -120,13 +120,19 @@ def test_adapter_is_a_base_source_adapter() -> None:
 def test_confidence_treats_a_missing_count_as_no_corroboration() -> None:
     """One absence, one value: an unparsable count means the same as no count."""
     adapter = GDELTAdapter()
-    assert adapter.to_event_draft(make_raw(num_articles="7")).confidence == 0.7
-    assert adapter.to_event_draft(make_raw(num_articles="50")).confidence == 1.0
-    assert adapter.to_event_draft(make_raw(num_articles="")).confidence == 0.0
-    assert adapter.to_event_draft(make_raw(num_articles="n/a")).confidence == 0.0
+
+    def confidence(raw: dict[str, str]) -> float | None:
+        draft = adapter.to_event_draft(raw)
+        assert isinstance(draft, EventDraft)
+        return draft.confidence
+
+    assert confidence(make_raw(num_articles="7")) == 0.7
+    assert confidence(make_raw(num_articles="50")) == 1.0
+    assert confidence(make_raw(num_articles="")) == 0.0
+    assert confidence(make_raw(num_articles="n/a")) == 0.0
     raw = make_raw()
     del raw["num_articles"]
-    assert adapter.to_event_draft(raw).confidence == 0.0
+    assert confidence(raw) == 0.0
 
 
 def test_persist_drafts_creates_auto_events() -> None:
@@ -347,7 +353,9 @@ def test_group_events_respects_time_window() -> None:
 
 
 class StubClassifier:
-    def classify(self, text: str, threshold: float = 0.7):
+    """Single-text only: the filter must fall back when classify_many is absent."""
+
+    def classify(self, text: str, threshold: float = 0.7) -> tuple[bool, float]:
         return ("missile" in text), 1.0
 
 
@@ -374,7 +382,10 @@ class BatchStubClassifier:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    def classify_many(self, texts: list[str], threshold: float = 0.7):
+    def classify(self, text: str, threshold: float = 0.7) -> tuple[bool, float]:
+        raise AssertionError("classify_many should be preferred when available")
+
+    def classify_many(self, texts: list[str], threshold: float = 0.7) -> list[tuple[bool, float]]:
         self.calls.append(list(texts))
         return [("missile" in text, 1.0) for text in texts]
 

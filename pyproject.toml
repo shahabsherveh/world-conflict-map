@@ -2,9 +2,22 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 
+[tool.ty.environment]
+# The runtime we ship (Dockerfile). Checking against the newest interpreter
+# here would accept syntax and stdlib behaviour the production image lacks.
+python-version = "3.11"
+
+[tool.ty.src]
+exclude = ["app/migrations/versions/**"]
+
 [tool.ruff]
 line-length = 100
 extend-exclude = ["app/migrations/versions"]
+
+[tool.ruff.lint]
+# Match the default set plus import sorting and bugbear: catches the drift the
+# suite can't (unused imports, mutable defaults, silent zip truncation).
+select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.format]
 # ruff format replaces black; these match the settings black was using.

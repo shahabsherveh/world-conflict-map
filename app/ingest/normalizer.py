@@ -78,7 +78,7 @@ def parse_export_tsv(text: str) -> list[dict[str, str]]:
         fields = line.split("\t")
         if len(fields) != len(COLUMNS):
             continue
-        events.append(dict(zip(COLUMNS, fields)))
+        events.append(dict(zip(COLUMNS, fields, strict=False)))
     return events
 
 
