@@ -44,6 +44,18 @@ ruff check .
 step "ruff format --check"
 ruff format --check app tests scripts
 
+# CI installs a pinned shellcheck binary; locally use whatever is on PATH, or the
+# official image as a fallback (that image tracks :stable, CI is the pinned one).
+step "shellcheck"
+if command -v shellcheck >/dev/null 2>&1; then
+  shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh
+elif command -v docker >/dev/null 2>&1; then
+  docker run --rm -v "$PWD:/repo" -w /repo koalaman/shellcheck:stable \
+    -x scripts/*.sh docker/pipeline-entrypoint.sh
+else
+  echo "shellcheck not installed; skipping (CI runs v0.11.0)" >&2
+fi
+
 step "ty check"
 ty check
 

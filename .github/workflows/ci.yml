@@ -67,11 +67,42 @@ jobs:
           # turn an already green commit red on its own.
           pip install -r requirements-ci.txt
 
+      # Shell scripts are load-bearing (deploy/rollback, cutover, cron) and
+      # actionlint only checks the `run:` blocks inside workflows. Version and
+      # tarball hashes are pinned so a new release cannot redden a green commit.
+      - name: Install shellcheck
+        env:
+          SHELLCHECK_VERSION: v0.11.0
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64)
+              arch=x86_64
+              sha=b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+              ;;
+            aarch64 | arm64)
+              arch=aarch64
+              sha=68a8133197a50beb8803f8d42f9908d1af1c5540d4bb05fdfca8c1fa47decefc
+              ;;
+            *)
+              echo "::error::unsupported arch $(uname -m); add its release hash"
+              exit 1
+              ;;
+          esac
+          url="https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.${arch}.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/shellcheck.tar.gz" "$url"
+          echo "${sha}  $RUNNER_TEMP/shellcheck.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/shellcheck.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}" >> "$GITHUB_PATH"
+
       - name: Lint
         run: ruff check .
 
       - name: Format check
         run: ruff format --check app tests scripts
+
+      - name: Shellcheck
+        run: shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh
 
       - name: Type check
         run: ty check

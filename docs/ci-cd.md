@@ -25,6 +25,7 @@ push / PR
    ├─ gates (py3.11, the runtime we ship)
    │    ruff check                     unused imports, dead code, zip truncation
    │    ruff format --check            formatting is not a review topic
+   │    shellcheck -x scripts/*.sh     deploy/rollback/cutover scripts
    │    ty check                       type errors, against 3.11
    │    pytest                         the full suite
    │    alembic upgrade head + check   revisions apply in order; models match migrations
@@ -56,6 +57,13 @@ it. `scripts/ci-check.sh` fails if the local versions drift from that file, so a
 local pass means a pipeline pass.
 
 ### Why these and not more
+
+- **Shellcheck is pinned by version and per-arch tarball hash.** The deploy, rollback and
+  cutover scripts are the highest-consequence code in the repo and nothing else parses
+  them: actionlint checks only the `run:` blocks embedded in workflows. CI downloads
+  v0.11.0 into `$RUNNER_TEMP` and verifies the sha256 before running it;
+  `scripts/ci-check.sh` uses a local binary or the official image so the gate also runs
+  outside CI.
 
 - **No zero-shot model in CI.** The suite stubs the classifier; downloading ~570 MB
   would add minutes to every run and test nothing the adapter tests do not already

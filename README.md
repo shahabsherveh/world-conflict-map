@@ -241,7 +241,8 @@ see `tests/ui/README.md` for the Chrome and MCP setup.
 ## CI/CD
 
 Every push and pull request runs the same gates on a self-hosted runner on this host:
-`ruff check`, `ruff format --check`, `ty check`, `pytest` (on 3.11 and 3.12), a fresh
+`ruff check`, `ruff format --check`, `shellcheck` on the shell scripts, `ty check`,
+`pytest` (on 3.11 and 3.12), a fresh
 `alembic upgrade head` plus drift check, an app-import check, an artifact guard, and a
 docker build whose container must serve `/health` and answer a real API query. On
 `main`, a green CI run deploys automatically: the image is rebuilt, the `web`
@@ -251,7 +252,7 @@ restored if the new one never becomes ready.
 Run the same gates locally before pushing:
 
 ```bash
-./scripts/ci-check.sh            # lint, format, types, tests, migrations
+./scripts/ci-check.sh            # lint, format, shellcheck, types, tests, migrations
 ./scripts/ci-check.sh --docker   # …plus the image build and import check
 ```
 

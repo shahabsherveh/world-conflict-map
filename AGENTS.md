@@ -9,7 +9,7 @@ daily from news data. Read this file before working in the repo.
 - `httpx` (GDELT downloads), `pyyaml` (config)
 - `transformers` + `torch` (zero-shot filter, CPU)
 - Vanilla ES modules + Leaflet + OpenStreetMap tiles — **no frontend build step**
-- Tests: pytest · Lint: ruff check · Format: ruff format (line length 100)
+- Tests: pytest · Lint: ruff check · Format: ruff format (line length 100) · Shell: shellcheck
 
 ## Commands
 
@@ -20,6 +20,7 @@ pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 ruff format app tests scripts            # format
+shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh   # shell scripts
 ty check                                 # types (targets 3.11)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
@@ -81,7 +82,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - `tests/ui/map-smoke.mjs` covers the map JavaScript (clustering, counts, time scrub) in
   jsdom against a running server. It is **not** part of pytest or the CI gates and has
   its own npm dependency; run it when touching `app/static/app.js`.
-- CI (`.github/workflows/ci.yml`) runs lint, format, `ty check`, `pytest`, a fresh
+- CI (`.github/workflows/ci.yml`) runs lint, format, shellcheck, `ty check`, `pytest`, a fresh
   `alembic upgrade head` + `alembic check`, an app-import check, an artifact guard, and a
   docker build that serves `/health`. `docs/ci-cd.md` explains each gate and the deploy
   rollback. Run `./scripts/ci-check.sh` before pushing so the pipeline has nothing to find.
