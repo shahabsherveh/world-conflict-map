@@ -1,0 +1,8 @@
+# Tool versions the CI gates run, pinned so a new release cannot turn an already
+# green branch red without a commit. `requirements.txt` stays unpinned because the
+# runtime is the deploy image's business (the Dockerfile installs it); these two
+# decide pass/fail, so they are exact.
+#
+# Bump together with the local venv (and `uv.lock`'s `ty` pin) in the same change.
+ruff==0.17.4
+ty==0.0.99

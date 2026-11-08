@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: npm
+    directory: /tests/ui
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ui-test"
+
+  # Python dependencies are not listed here on purpose: requirements.txt is
+  # unpinned, so Dependabot has no version to bump. Pinning them is a separate
+  # decision (see docs/ci-cd.md, "Follow-ups"); add this ecosystem back once
+  # there is a lock/constraints file to update.

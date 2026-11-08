@@ -24,7 +24,8 @@ Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 - Extract (fetch + filter + persist): `python -m app.extract.run`
 - Serve: `uvicorn app.main:app --reload --port 8000`
 - Test: `pytest`
-- Lint: `ruff check . && ruff format --check .`
+- Lint/format/types: `ruff check . && ruff format --check . && ty check`
+- All CI gates: `./scripts/ci-check.sh` (see `docs/ci-cd.md`)
 
 ### Project structure
 - `app/` — backend package

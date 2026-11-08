@@ -1,0 +1,77 @@
+name: Deploy
+
+# Deploy only what CI proved: this workflow is triggered by CI finishing on
+# `main`, and checks out the exact commit that CI ran against (not main's tip,
+# which may have moved on). Manual runs are for re-deploying or recovering.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Deployments are never cancelled midway: a half-applied container replacement
+# is worse than a queued one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+# GCM_DATA_DIR is *not* set here: scripts/_data-dir.sh owns the deployed data
+# path, and deploy.sh + docker-daily.sh both source it. Setting it in the
+# workflow too is how the web app and the cron pipeline drifted onto different
+# databases. The script default keeps state at /var/lib/global-conflict-map/db,
+# outside the checkout that `git clean -ffdx` wipes.
+
+jobs:
+  deploy:
+    name: deploy to this host
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: self-hosted
+    # Gives the repo a place to require approval / record deployments. No
+    # secrets live here: the runner already has local docker access.
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # History is irrelevant for a deploy; the full clone costs seconds.
+          fetch-depth: 1
+
+      - name: Show what is being deployed
+        run: |
+          echo "commit  $(git rev-parse HEAD)"
+          git log -1 --format='subject %s'
+
+      - name: Build, replace, verify, roll back on failure
+        run: scripts/deploy.sh
+
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail=100 web || true
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          container=$(docker compose ps -q web || true)
+          image=$(docker inspect --format '{{.Config.Image}}' "$container" 2>/dev/null || echo unknown)
+          ready=no
+          if curl -fsS --max-time 3 http://127.0.0.1:8000/health >/dev/null 2>&1; then
+            body=$(curl -fsS --max-time 5 \
+              'http://127.0.0.1:8000/api/conflicts?start=1970-01-01&end=2100-01-01' \
+              2>/dev/null || true)
+            [[ "$body" == \[* ]] && ready=yes
+          fi
+          {
+            echo "### Deploy ${{ job.status }}"
+            echo
+            echo "- commit: \`$(git rev-parse --short HEAD)\`"
+            echo "- image: \`${image}\`"
+            echo "- readiness (health + API): ${ready}"
+          } >> "$GITHUB_STEP_SUMMARY"

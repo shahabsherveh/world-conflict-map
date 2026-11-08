@@ -78,5 +78,10 @@ re-renders exactly 4,275, cluster clicks zoom, event clicks open popup + detail,
 map" fills lat/lon, OSM tiles 200, and no console messages.
 
 A true visual pass (colours, contrast, cluster aesthetics) still belongs to a human eye.
-This harness is deliberately not wired into `pytest`/CI: it needs npm and a running
-server, and `AGENTS.md` treats new dependencies as a decision, not a default.
+This harness is deliberately not wired into `pytest` or the CI gates (`docs/ci-cd.md`):
+it needs npm and a running server, and at world zoom its cluster-click check spiderfies,
+which jsdom cannot render without an SVG/canvas layer — it would fail for harness
+reasons, not app reasons. `scripts/seed.py` seeds one conflict with a single unplaced
+event, so the "No location" panel and its set-location flow are exercisable from demo
+data. The viewport-narrowing checks still assume a populated database (with five demo
+conflicts, the cluster click has already zoomed the list down to one row).

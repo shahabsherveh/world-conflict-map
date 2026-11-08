@@ -1,6 +1,14 @@
+# Pinned explicitly: the deploy job runs from a GitHub Actions workspace whose
+# directory name is not this repo's, and an implicit project name would start a
+# second stack that fights over port 8000.
+name: global-conflict-map
+
 services:
   web:
     build: .
+    # Named (not the default <project>-<service>) so the deploy script can tag
+    # the running image as :rollback and re-create the container from it.
+    image: gcm-web:${GCM_IMAGE_TAG:-local}
     command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     ports:
       # Bind to loopback only: this app has no auth by design and must not be
@@ -10,7 +18,10 @@ services:
     environment:
       GCM_DATABASE_URL: sqlite:////data/conflicts.db
     volumes:
-      - ./data/db:/data
+      # GCM_DATA_DIR lets the deploy job keep state outside the CI checkout:
+      # actions/checkout runs `git clean -ffdx`, which would delete an in-tree
+      # data/ directory along with the database. Local use keeps ./data/db.
+      - ${GCM_DATA_DIR:-./data/db}:/data
       - ./config/gdelt.yaml:/app/config/gdelt.yaml:ro
     restart: unless-stopped
 
@@ -19,10 +30,11 @@ services:
   # scripts/docker-daily.sh.
   pipeline:
     build: .
+    image: gcm-pipeline:${GCM_IMAGE_TAG:-local}
     profiles: ["tools"]
     entrypoint: ["/app/docker/pipeline-entrypoint.sh"]
     environment:
       GCM_DATABASE_URL: sqlite:////data/conflicts.db
     volumes:
-      - ./data/db:/data
+      - ${GCM_DATA_DIR:-./data/db}:/data
       - ./config/gdelt.yaml:/app/config/gdelt.yaml:ro

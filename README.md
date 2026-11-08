@@ -82,11 +82,20 @@ docker compose up -d --build   # build the image, start the web app
   deliberately not reachable from the network.
 - **State** lives in `./data/db/` (gitignored): `conflicts.db` plus the HuggingFace
   model cache. The first pipeline run downloads the ~570 MB zero-shot model there.
+  The CI deploy puts it at `GCM_DATA_DIR=/var/lib/global-conflict-map/db` so the
+  database survives checkouts (`docs/ci-cd.md`). `scripts/_data-dir.sh` is the single
+  definition of that path: both `scripts/deploy.sh` and `scripts/docker-daily.sh`
+  source it, so the served app and the daily pipeline always share one database.
+  A bare `docker compose up` still uses `./data/db`.
 - **Daily pipeline** is a one-shot service, not started by `up`:
 
   ```bash
-  docker compose run --rm pipeline              # default lookback (config/gdelt.yaml)
-  docker compose run --rm pipeline --days 7     # backfill
+  ./scripts/docker-daily.sh              # default lookback (config/gdelt.yaml)
+  ./scripts/docker-daily.sh --days 7     # backfill
+
+  Bare `docker compose run --rm pipeline` uses `./data/db`; the script shares
+  `GCM_DATA_DIR` with the deployed web app, so use it whenever the stack is the
+  deployed one.
   ```
 
   Schedule it with host cron (`0 6 * * * /absolute/path/to/scripts/docker-daily.sh`),
@@ -222,3 +231,23 @@ cd tests/ui && npm install && node map-smoke.mjs
 
 Visual/CSS checks use the `chrome-devtools` MCP against a headless Chrome on `:9222` —
 see `tests/ui/README.md` for the Chrome and MCP setup.
+
+## CI/CD
+
+Every push and pull request runs the same gates on a self-hosted runner on this host:
+`ruff check`, `ruff format --check`, `ty check`, `pytest` (on 3.11 and 3.12), a fresh
+`alembic upgrade head` plus drift check, an app-import check, an artifact guard, and a
+docker build whose container must serve `/health` and answer a real API query. On
+`main`, a green CI run deploys automatically: the image is rebuilt, the `web`
+container replaced, `/health` plus `/api/conflicts` polled, and the previous image
+restored if the new one never becomes ready.
+
+Run the same gates locally before pushing:
+
+```bash
+./scripts/ci-check.sh            # lint, format, types, tests, migrations
+./scripts/ci-check.sh --docker   # …plus the image build and import check
+```
+
+See `docs/ci-cd.md` for the pipeline design, runner setup, branch protection, and the
+rollback procedure (`GCM_IMAGE_TAG=rollback docker compose up -d --no-deps --force-recreate web`).

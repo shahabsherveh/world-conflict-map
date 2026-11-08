@@ -17,6 +17,10 @@ DEMOS = [
     ("Yemen Civil War", "YE", 15.3, 44.2, 5),
     ("Sudan Conflict", "SD", 15.5, 32.5, 4),
     ("Sahel Insurgency", "ML", 16.0, -1.0, 3),
+    # GDELT often cannot pin a city, and the real feed leaves ~500 such conflicts
+    # per 30-day window. Seeding one keeps that path (the "No location" panel and
+    # its set-location flow) exercisable without a network fetch.
+    ("Unplaced Border Clashes", "XX", None, None, 4),
 ]
 
 
@@ -34,14 +38,23 @@ def main() -> None:
         )
         session.add(conflict)
         session.flush()
-        for i in range(3):
+        # The no-location demo gets exactly one unplaced event: with several,
+        # the UI correctly stops at the conflict ("open the one to place it")
+        # instead of arming the picker.
+        event_total = 1 if lat is None else 3
+        for i in range(event_total):
+            # Offset each event slightly instead of stacking them on one point:
+            # identical coordinates never separate when zooming, so Leaflet
+            # spiderfies them — which jsdom cannot render in the UI smoke test.
+            event_lat = None if lat is None else lat + (i - 1) * 0.04
+            event_lon = None if lon is None else lon + (i - 1) * 0.04
             session.add(
                 ConflictEvent(
                     conflict_id=conflict.id,
                     place_name=name,
                     country=country,
-                    lat=lat,
-                    lon=lon,
+                    lat=event_lat,
+                    lon=event_lon,
                     event_date=today - timedelta(days=i * 10),
                     event_type="battle",
                     intensity=intensity,

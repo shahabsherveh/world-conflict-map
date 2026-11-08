@@ -20,9 +20,12 @@ pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 ruff format app tests scripts            # format
+ty check                                 # types (targets 3.11)
+./scripts/ci-check.sh                    # every non-docker CI gate, in order
+./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 
-# Chrome for the chrome-devtools MCP (see Gotchas #9); CDP on :9222
+# Chrome for the chrome-devtools MCP (see Gotchas #10); CDP on :9222
 /tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
   --disable-dev-shm-usage --remote-debugging-port=9222 \
   --user-data-dir=/tmp/chrome-profile about:blank &
@@ -74,8 +77,12 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - Regression tests for every bug fix (see `test_group_events_does_not_merge_distant_cities_in_one_country`).
 - Guard performance invariants explicitly (see `test_conflict_list_query_count_is_bounded`).
 - `tests/ui/map-smoke.mjs` covers the map JavaScript (clustering, counts, time scrub) in
-  jsdom against a running server. It is **not** part of pytest and has its own npm
-  dependency; run it when touching `app/static/app.js`.
+  jsdom against a running server. It is **not** part of pytest or the CI gates and has
+  its own npm dependency; run it when touching `app/static/app.js`.
+- CI (`.github/workflows/ci.yml`) runs lint, format, `ty check`, `pytest`, a fresh
+  `alembic upgrade head` + `alembic check`, an app-import check, an artifact guard, and a
+  docker build that serves `/health`. `docs/ci-cd.md` explains each gate and the deploy
+  rollback. Run `./scripts/ci-check.sh` before pushing so the pipeline has nothing to find.
 - Visual/CSS checks need a real browser. Use the `chrome-devtools` MCP (codemode tools
   `mcp__chrome_devtools__*`), which attaches to the headless Chrome on `:9222`; see
   `tests/ui/README.md` for the workflow and what each layer covers.
@@ -83,8 +90,9 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 ## Boundaries
 
 **Always**
-- Run `pytest`, `ruff check .`, `ruff format app tests scripts` before calling work done.
-- Use Alembic for schema changes.
+- Run `pytest`, `ruff check .`, `ruff format app tests scripts`, `ty check` before calling
+  work done — that is exactly what CI runs (`./scripts/ci-check.sh`).
+- Use Alembic for schema changes, and keep `alembic check` clean: it runs in CI.
 - Keep markers per-event; never re-position a marker from aggregated conflict data.
 - Assert on measured behaviour (query counts, HTTP status) rather than assuming.
 
@@ -115,7 +123,17 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 7. **The zero-shot model downloads once** via `python scripts/download_model.py`; the pipeline
    degrades gracefully (skips the filter) if unavailable.
 8. **Auto-generated Alembic revisions are excluded** from ruff lint/format — don't reformat them.
-9. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
+   `ty check` excludes them too.
+9. **The containerized stack's data path is `GCM_DATA_DIR`, defined only in
+   `scripts/_data-dir.sh`** (default `/var/lib/global-conflict-map/db`; bare
+   `docker compose up` uses `./data/db`). Both `deploy.sh` and `docker-daily.sh`
+   source it. Setting it in one place only is how the web app and the daily pipeline
+   ended up on different databases — the map simply stopped updating. Use
+   `scripts/docker-daily.sh` for backfills: it forwards args (a bare
+   `docker compose run --rm pipeline --days 7` uses `./data/db`). Deliberate duplicate
+   coordinates in seed data also break the UI smoke test: Leaflet spiderfies them and
+   jsdom cannot render that.
+10. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
    and Chrome refuses to run as root). Run Chrome yourself with
    `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with
    `--browserUrl http://127.0.0.1:9222` so it attaches instead of launching. Two rough
