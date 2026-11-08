@@ -327,6 +327,10 @@ The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
 - `scripts/seed.py` offsets demo event coordinates (Leaflet spiderfies exactly coincident
   points, which jsdom cannot render) and gives the no-location demo a single unplaced
   event so the "Set location" flow is exercisable.
+- Added shellcheck to the gates for `scripts/*.sh` and
+  `docker/pipeline-entrypoint.sh`: CI downloads v0.11.0 into `$RUNNER_TEMP` and verifies a
+  pinned per-arch sha256 (actionlint only shellchecks the workflow `run:` blocks);
+  `scripts/ci-check.sh` uses a local binary or the official image. All scripts clean.
 - Added `scripts/cutover-data.sh` for the first deploy: SQLite backup API (WAL-safe),
   integrity + row-count verification, `.bak` instead of overwrite, container-mount guard,
   optional `hf-cache` copy. Rehearsed against a synthetic DB (including an uncheckpointed
@@ -452,6 +456,10 @@ change and how to know it worked.
   removed from `requirements.txt` and confirmed absent from the rebuilt image. Historical
   entries earlier in this file still reference black — accurate for when they were run,
   left untouched on purpose.
+
+- [x] Add shellcheck for the shell scripts (deploy, rollback, cutover, cron). Pinned
+  v0.11.0 with per-arch tarball hashes in `ci.yml`; local fallback in
+  `scripts/ci-check.sh`. Clean on all six `scripts/*.sh` files plus the container entrypoint.
 
 ### Optional
 - [ ] Use `num_sources` from `raw_event` for corroboration or confidence.
