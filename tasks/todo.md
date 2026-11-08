@@ -244,21 +244,20 @@ Updated after the code-review pass and context setup.
 
 ## Status
 All original plan tasks complete. Raw GDELT storage, two-phase processing, audit
-backfill, batched zero-shot filtering, and API hardening are applied. The working tree
-is clean on `main`; `conflicts.db`, `data/`, and `.venv/` are untracked via `.gitignore`.
+backfill, batched zero-shot filtering, API hardening, containerization, and the
+CI/CD pipeline are applied. The working tree is clean on `main`; `conflicts.db`,
+`data/`, and `.venv/` are untracked via `.gitignore`. Open CI/CD follow-ups are
+listed below under "Remaining work".
 
 ## Verification baseline (re-run these first)
 ```bash
 source .venv/bin/activate
-pytest            # 75 passed
-ruff check .      # clean
-black --check .   # clean
-alembic current   # b7da7a666155 (head)
-curl-free smoke: python -c "from fastapi.testclient import TestClient; ..."
+./scripts/ci-check.sh   # ruff check + format --check, ty, pytest (83), alembic upgrade+check
 ```
 
-The earlier broken-venv caveat no longer applies; `pytest`, `black`, and `alembic` run
-normally in this environment.
+The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
+`./scripts/ci-check.sh` is the closest local proxy. `pytest`, `ruff`, `ty`, and
+`alembic` all run normally in this environment.
 
 ## Changes since the original plan
 - Grouping: keyword overlap → proximity (100 km + time window), anchor cached per conflict.
@@ -308,6 +307,26 @@ normally in this environment.
 - Added a `ty` dev dependency group with `uv.lock`, pinned to `requires-python >=3.11`
   to match the Dockerfile. `ty check app` surfaced three DML `.rowcount` type errors,
   fixed by routing the calls through one `CursorResult`-casting helper.
+- Added CI (`.github/workflows/ci.yml`): lint, format, `ty check`, pytest on 3.11 and
+  3.12, fresh `alembic upgrade head` + `alembic check`, app-import check, tracked-artifact
+  guard, compose-file validation, and a docker image that must serve `/health` **and**
+  answer a real `/api/conflicts` query. Gate tools pinned in `requirements-ci.txt`;
+  `ruff` gained the `I`/`B` rule sets. 16 pre-existing `ty` diagnostics fixed at the
+  source rather than suppressed (protocols for the classifier/geocoder seams, explicit
+  `zip(strict=…)`).
+- Added CD (`.github/workflows/deploy.yml` + `scripts/deploy.sh`): on a green `main` run,
+  builds `web` **and** `pipeline`, force-recreates the web container, requires `/health`
+  plus a DB query to pass, and on failure restores the previous image (tagged
+  `:rollback` *before* the build — the build otherwise prunes it) while still failing the
+  job. Compose now pins `name: global-conflict-map` and `image: gcm-web:…`, and the data
+  path is defined once in `scripts/_data-dir.sh` (shared by deploy and the daily
+  pipeline; they previously drifted onto different databases).
+- `scripts/docker-daily.sh` now forwards arguments (it silently dropped `--days 7`),
+  creates the data dir as the invoking user, and the README's backfill commands use it
+  instead of a bare `docker compose run` that bypasses the deployed database.
+- `scripts/seed.py` offsets demo event coordinates (Leaflet spiderfies exactly coincident
+  points, which jsdom cannot render) and gives the no-location demo a single unplaced
+  event so the "Set location" flow is exercisable.
 
 ## Remaining work (not started)
 
@@ -352,6 +371,63 @@ normally in this environment.
   flow. No API or schema change. Verified end-to-end in the browser: placing one event took
   493 → 492 unplaced, 13,064 → 13,066 markers, 1,177 → 1,178 in view, then reverted.
 
+### CI/CD follow-ups
+The pipeline is in place; these are the gaps deliberately left open. Each says what to
+change and how to know it worked.
+
+- [ ] **Gate deploys of schema changes behind review.** Why: `web` runs
+  `alembic upgrade head` on every deploy, and rollback restores the image only — an old
+  app on a new schema cannot be undone automatically. How: Settings → Environments →
+  `production` → Required reviewers (the workflow already targets that environment);
+  and/or `paths-ignore` for docs-only pushes in `deploy.yml` so a README commit does not
+  redeploy. Done when a schema-changing push waits for approval and a docs-only push
+  does not deploy.
+- [ ] **Give the config a single source, like the data dir.** Why: the deployed stack
+  mounts `config/gdelt.yaml` from the deploy checkout, so the README's "edit config and
+  restart web" only holds for a bare local stack. How: add `GCM_CONFIG_DIR` next to
+  `GCM_DATA_DIR` in `scripts/_data-dir.sh` (default `./config`), reference it in
+  `docker-compose.yml` for both services, and state that deployed config edits go
+  through git. Done when `deploy.sh` and `docker-daily.sh` mount the same file.
+- [ ] **Write and rehearse the first-deploy cutover.** Why: `docker-compose.yml` now
+  pins `name: global-conflict-map`, so an existing `workspace` stack keeps port 8000 and
+  the app starts on an empty DB, looking like data loss. How: `docker compose -p
+  workspace down`; copy `data/db/conflicts.db` (and `hf-cache/`, or accept a ~570 MB
+  re-download) into `/var/lib/global-conflict-map/db`; `docker compose ps` to confirm no
+  old containers; deploy. Done when the first deploy serves the existing 1,437 conflicts
+  with no port conflict.
+- [ ] **Run the CI/CD pipeline on the runner once.** Why: the orchestration has
+  never executed on GitHub Actions — only actionlint plus local replication. Unverified:
+  `workflow_run` firing for the commit that adds `deploy.yml`, the
+  `workflow_run.head_sha || github.sha` expression, the `$RUNNER_TEMP` venv +
+  `$GITHUB_PATH` handoff, `setup-python` caching on self-hosted, and
+  `docker compose config --images web` on the installed Compose. How: push a branch, open
+  a PR, confirm `gates`/`compat`/`image`; merge; then `workflow_dispatch` Deploy. Done
+  when one green CI run and one successful deploy are recorded.
+- [ ] **Make the UI smoke data-density-independent, then gate it.** Why: with the
+  five-conflict demo seed it passes except "conflict list follows the map viewport" —
+  the preceding cluster click has already zoomed the list to one row, so narrowing is
+  unobservable. How: reset the map to world view before the viewport check (or seed a
+  fixture DB dense enough), then add a `ui` job to `ci.yml` that starts `uvicorn` on a
+  temp DB, seeds it, and runs `tests/ui/map-smoke.mjs`. Keep the seed coordinate offsets:
+  jsdom cannot render Leaflet's spiderfy for coincident points. Done when the harness is
+  green from demo data in CI.
+- [ ] **Pin `requirements.txt`, then add `pip-audit` and Dependabot for pip.** Why: CI
+  installs whatever the resolver picks, so an audit reports guesses, and
+  `.github/dependabot.yml` has no pip ecosystem for the same reason. How: `uv pip compile
+  requirements.txt -o requirements.lock` (keep torch on the CPU index), install the lock
+  in CI and the Dockerfile, add `pip-audit -r requirements.lock` to the `gates` job, and
+  re-enable the pip ecosystem weekly. Done when two consecutive CI runs install identical
+  versions and the audit runs.
+- [ ] **Notice post-deploy failure.** Why: the deploy job checks readiness once; nothing
+  watches a container that starts crash-looping an hour later. How: a systemd timer or
+  host cron that curls `/health` and a `/api/conflicts` query and logs/notifies on
+  failure (same readiness definition as `scripts/deploy.sh`). Done when a stopped
+  container is visible without inspecting `docker ps`.
+- [ ] **Housekeeping.** Why: image layers and buildkit cache accumulate and nothing prunes
+  them. How: monthly `docker image prune -f --filter until=168h` and `docker builder
+  prune -f --filter until=168h`; delete local validation artefacts (`gcm-web:ci`,
+  `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys.
+
 ### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
@@ -373,7 +449,9 @@ normally in this environment.
 - [ ] Use `num_sources` from `raw_event` for corroboration or confidence.
 - [ ] Backfill more history beyond 2026-10-29..2026-11-04.
 - [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
-- [ ] Pin dependencies and add CI.
+- [x] Add CI/CD — see `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, and
+  `docs/ci-cd.md`. Remaining dependency work is tracked under "CI/CD follow-ups".
+- [ ] Pin dependencies (see "CI/CD follow-ups").
 - [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
 ## Approval state
