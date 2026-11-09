@@ -150,8 +150,20 @@ async function waitForListMessage(doc, pattern, timeoutMs = 30_000) {
   return false;
 }
 
-// chunkedLoading adds events progressively, so wait until the rendered total
-// stops growing instead of guessing a fixed delay.
+// Wait for a bit of text the list is expected to gain after a re-fetch.
+async function waitForText(doc, selector, pattern, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = "";
+  while (Date.now() < deadline) {
+    last = doc.querySelector(selector)?.textContent ?? "";
+    if (pattern.test(last)) return last;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return last;
+}
+
+// Markers are added in chunks (renderEventMarkers), so wait until the rendered
+// total stops growing instead of guessing a fixed delay.
 async function waitForStable(window, { timeoutMs = 30_000, quietPolls = 6 } = {}) {
   const deadline = Date.now() + timeoutMs;
   let last = -1;
@@ -411,7 +423,14 @@ async function main() {
     return state;
   };
 
-  const before = await stableList();
+  let before = await stableList();
+  // The cluster clicked above is whichever one happens to be first in the DOM, so
+  // it can land on a view holding a single conflict — nothing left to narrow. Go
+  // back to the world view first, which always lists many conflicts.
+  if (before.items <= 1) {
+    doc.querySelector(".leaflet-control.reset-view")?.click();
+    before = await stableList();
+  }
   const firstItem = doc.querySelector("#conflict-list .conflict-item");
   const clickedId = firstItem.dataset.id;
   firstItem.click();
@@ -446,9 +465,19 @@ async function main() {
     `id ${clickedId}`,
   );
 
-  // Time scrub: a 3-day window must re-query and re-render from scratch.
-  setDateInput(window, "start-date", isoDate(daysAgo(3)));
-  const expectedNarrow = await expectedMarkers(isoDate(daysAgo(3)), isoDate(new Date()));
+  // Time scrub: a populated 3-day window must re-query and re-render from scratch.
+  // Anchor the window to the newest event, not wall-clock days: a stale or freshly
+  // seeded DB can have nothing in the last three calendar days, which silently turns
+  // the scrub assertions into 0-vs-0 tautologies.
+  const lastEventDay = rangeData.events.reduce(
+    (max, e) => (e.event_date > max ? e.event_date : max),
+    "",
+  );
+  const scrubStart = isoDate(
+    new Date(new Date(`${lastEventDay}T00:00:00Z`).getTime() - 2 * 86_400_000),
+  );
+  setDateInput(window, "start-date", scrubStart);
+  const expectedNarrow = await expectedMarkers(scrubStart, isoDate(new Date()));
   await waitForData(doc);
   const second = await waitForStable(window);
   check(
@@ -459,7 +488,7 @@ async function main() {
   check(
     "scrubbed range draws exactly the events in that range",
     second.layers === expectedNarrow,
-    `${second.layers} layers vs ${expectedNarrow} for ${isoDate(daysAgo(3))}..${isoDate(new Date())}`,
+    `${second.layers} layers vs ${expectedNarrow} for ${scrubStart}..${isoDate(new Date())}`,
   );
   check(
     "scrubbed range is smaller than the full window",
@@ -469,11 +498,19 @@ async function main() {
 
   // A conflict with no events at all is empty, not unplaceable: it must not be
   // offered for placement, and it counts in the note under its own label so the
-  // header numbers still add up.
-  const narrowConflicts = (await fetchRange(isoDate(daysAgo(3)), isoDate(new Date()))).conflicts;
+  // header numbers still add up. Run it on the full default window (already proven
+  // populated above): the note renders next to the in-view list, so an empty window
+  // would leave nothing to inspect.
+  const fullStart = isoDate(daysAgo(30));
+  const fullConflicts = rangeData.conflicts;
   injectEmptyConflict = true;
+  setDateInput(window, "start-date", fullStart);
   setDateInput(window, "end-date", isoDate(new Date()));
-  await waitForData(doc);
+  const noEventsNote = await waitForText(
+    doc,
+    "#conflict-list .list-note",
+    /\b1 with no events yet\b/,
+  );
   check(
     "a conflict with no events is not offered for placement",
     !doc.querySelector(`#nolocation-list .conflict-item[data-id="${EMPTY_CONFLICT_ID}"]`),
@@ -481,11 +518,11 @@ async function main() {
   );
   check(
     "a conflict with no events is counted as such in the note",
-    /\b1 with no events yet\b/.test(doc.querySelector("#conflict-list .list-note")?.textContent ?? "") &&
+    /\b1 with no events yet\b/.test(noEventsNote) &&
       doc
         .getElementById("conflict-count")
-        .textContent.includes(`of ${narrowConflicts.length + 1} `),
-    doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
+        .textContent.includes(`of ${fullConflicts.length + 1} `),
+    noEventsNote || "(no note)",
   );
   check(
     "the empty conflict is not on the map",
