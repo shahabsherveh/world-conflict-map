@@ -46,15 +46,19 @@ ruff format --check app tests scripts
 
 # CI installs a pinned shellcheck binary; locally use whatever is on PATH, or the
 # official image as a fallback (that image tracks :stable, CI is the pinned one).
+# Never skip silently: a gate that says "skipping" still looks green in a scrolled
+# terminal, which is how a missing tool once masqueraded as a passing step.
 step "shellcheck"
+shellcheck_cmd=""
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh
+  shellcheck_cmd="shellcheck"
 elif command -v docker >/dev/null 2>&1; then
-  docker run --rm -v "$PWD:/repo" -w /repo koalaman/shellcheck:stable \
-    -x scripts/*.sh docker/pipeline-entrypoint.sh
+  shellcheck_cmd="docker run --rm -v $PWD:/repo -w /repo koalaman/shellcheck:stable"
 else
-  echo "shellcheck not installed; skipping (CI runs v0.11.0)" >&2
+  printf 'shellcheck and docker are both unavailable; install one to run this gate\n' >&2
+  exit 1
 fi
+$shellcheck_cmd -x scripts/*.sh docker/pipeline-entrypoint.sh
 
 step "markdown lint"
 pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks

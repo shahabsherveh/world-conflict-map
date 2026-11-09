@@ -31,6 +31,12 @@ defaults:
   run:
     shell: bash
 
+# Note on $GITHUB_PATH: only the venv's bin directory is added there. Tool
+# directories ($RUNNER_TEMP/shellcheck-*) are NOT appended, because a persistent
+# PATH entry outlives the temp directory it points at — the next job then either
+# gets a dangling entry or, worse, resolves a same-named binary from somewhere
+# unexpected. Steps that need a downloaded tool call it by absolute path.
+
 jobs:
   gates:
     name: gates (py3.12, shipped runtime)
@@ -51,14 +57,14 @@ jobs:
           py="$RUNNER_TEMP/venv/bin/python"
           # CPU wheel first, exactly like the Dockerfile: the bare `torch` line in
           # requirements.txt would otherwise pull the multi-GB CUDA build.
-          uv pip install --python "$py" torch --index-url https://download.pytorch.org/whl/cpu
+          "$UV_BIN" pip install --python "$py" torch --index-url https://download.pytorch.org/whl/cpu
           # Filtered list goes to RUNNER_TEMP, not the checkout: on this runner the
           # checkout may be the live project, and a killed job must not litter it.
           grep -v '^torch' requirements.txt > "$RUNNER_TEMP/requirements-no-torch.txt"
-          uv pip install --python "$py" -r "$RUNNER_TEMP/requirements-no-torch.txt"
+          "$UV_BIN" pip install --python "$py" -r "$RUNNER_TEMP/requirements-no-torch.txt"
           # Gate tools are pinned separately: an unpinned ruff/ty upgrade must not
           # turn an already green commit red on its own.
-          uv pip install --python "$py" -r requirements-ci.txt
+          "$UV_BIN" pip install --python "$py" -r requirements-ci.txt
 
       # Shell scripts are load-bearing (deploy/rollback, cutover, cron) and
       # actionlint only checks the `run:` blocks inside workflows. Version and
@@ -86,7 +92,7 @@ jobs:
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/shellcheck.tar.gz" "$url"
           echo "${sha}  $RUNNER_TEMP/shellcheck.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/shellcheck.tar.gz" -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}" >> "$GITHUB_PATH"
+          echo "SHELLCHECK_BIN=$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}/shellcheck" >> "$GITHUB_ENV"
 
       - name: Lint
         run: ruff check .
@@ -95,7 +101,13 @@ jobs:
         run: ruff format --check app tests scripts
 
       - name: Shellcheck
-        run: shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh
+        run: |
+          # Assert we run the binary we just verified: a PATH entry from an
+          # earlier job pointing at a removed directory once made this step fail
+          # in 0.4s with no output, which sent a whole debugging session down the
+          # wrong path.
+          "$SHELLCHECK_BIN" --version
+          "$SHELLCHECK_BIN" -x scripts/*.sh docker/pipeline-entrypoint.sh
 
       - name: Markdown lint
         run: pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks

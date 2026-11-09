@@ -362,6 +362,12 @@ without registering anything.
   uv provisions CPython for any glibc distro and caches it across runs; gates install
   with `uv pip`. Rehearsed locally in the 3.12 venv: 102 tests, ruff,
   ty, pymarkdown, migrations and app imports all pass.
+- Fixed a runner-only CI failure: downloaded tools were added to `$GITHUB_PATH`,
+  which outlives `$RUNNER_TEMP`, so a later job resolved `shellcheck` to a removed
+  directory and the step failed in 0.4s with no output. Tools now go through
+  `$GITHUB_ENV` (`UV_BIN`, `SHELLCHECK_BIN`) and are called by absolute path; the
+  shellcheck step prints `--version` first. `scripts/ci-check.sh` no longer skips
+  shellcheck silently when the binary and docker are both missing.
 - Added shellcheck to the gates for `scripts/*.sh` and
   `docker/pipeline-entrypoint.sh`: CI downloads v0.11.0 into `$RUNNER_TEMP` and verifies a
   pinned per-arch sha256 (actionlint only shellchecks the workflow `run:` blocks);
