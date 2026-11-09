@@ -5,17 +5,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if [ -x .venv/bin/python ]; then
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
-fi
+# shellcheck source=scripts/_venv.sh
+source scripts/_venv.sh
+python_bin=$(gcm_venv_python)
 
 step() { printf '\n==> %s\n' "$*"; }
 
 # The gates must be deterministic: if the local ruff/ty differ from the pinned
 # versions CI installs, a green local run can still fail the pipeline.
 step "gate tool versions (requirements-ci.txt)"
-python - <<'PY'
+"$python_bin" - <<'PY'
 import importlib.metadata as md
 import re
 import sys
@@ -39,10 +38,10 @@ if bad:
 PY
 
 step "ruff check"
-ruff check .
+"$(gcm_venv_tool ruff)" check .
 
 step "ruff format --check"
-ruff format --check app tests scripts
+"$(gcm_venv_tool ruff)" format --check app tests scripts
 
 # CI installs a pinned shellcheck binary; locally use whatever is on PATH, or the
 # official image as a fallback (that image tracks :stable, CI is the pinned one).
@@ -65,17 +64,18 @@ step "markdown lint"
 pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks
 
 step "ty check"
-ty check
+"$(gcm_venv_tool ty)" check
 
 step "pytest"
-pytest -q
+"$(gcm_venv_tool pytest)" -q
 
 step "alembic: fresh upgrade + model drift"
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 export GCM_DATABASE_URL="sqlite:///$workdir/ci.db"
-alembic upgrade head
-alembic check
+# alembic lives in the project venv; a bare call depends on the caller's PATH.
+"$(gcm_venv_tool alembic)" upgrade head
+"$(gcm_venv_tool alembic)" check
 
 step "tracked artifacts"
 if git ls-files | grep -Eq '(^|/)\.env$|\.db$|(^|/)\.venv/'; then

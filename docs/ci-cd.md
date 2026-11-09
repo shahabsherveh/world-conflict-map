@@ -17,6 +17,7 @@ Files:
 | `scripts/install-runner.sh` | Register this repo's self-hosted runner (pinned release, verified hash) |
 | `scripts/cutover-data.sh` | One-time, WAL-safe move of an existing DB into `GCM_DATA_DIR` |
 | `scripts/_data-dir.sh` | The one definition of the deployed stack's data path |
+| `scripts/_venv.sh` | The one definition of where the local venv lives (`GCM_VENV`) |
 
 ## The gates
 
@@ -64,6 +65,13 @@ from that file, so a local pass means a pipeline pass.
   with "version ... was not found for debian 12". `.github/actions/uv-python`
   installs a pinned uv (per-arch sha256, like shellcheck) and creates the venv from a
   uv-managed CPython, cached in `~/.local/share/uv` across runs.
+- **Scripts resolve their interpreter and tools by absolute path.** No script
+  assumes it was started from the repo root or that `.venv` is already on PATH:
+  `scripts/_venv.sh` owns the venv location (`GCM_VENV` overrides it) and the
+  callers use `"$(gcm_venv_python)"` / `"$(gcm_venv_tool ruff)"`. CI does the same
+  with `$RUNNER_TEMP/venv/bin/...` and asserts the tools exist before the gates
+  run, because a `command not found` and a lint failure look identical in a
+  runner log.
 - **Downloaded tools are invoked by absolute path, never via `$GITHUB_PATH`.** A
   persistent PATH entry outlives `$RUNNER_TEMP`: after a job ends the directory is
   gone, and the next job either gets a dangling entry or resolves a same-named binary

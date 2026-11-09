@@ -362,6 +362,13 @@ without registering anything.
   uv provisions CPython for any glibc distro and caches it across runs; gates install
   with `uv pip`. Rehearsed locally in the 3.12 venv: 102 tests, ruff,
   ty, pymarkdown, migrations and app imports all pass.
+- CI and the local scripts now resolve every interpreter and tool by absolute path:
+  CI uses `$RUNNER_TEMP/venv/bin/{ruff,ty,pytest,...}` (UV_BIN/SHELLCHECK_BIN from
+  `$GITHUB_ENV`), the scripts source `scripts/_venv.sh` (`GCM_VENV`, default
+  `.venv`). A new "Verify tools resolve" step prints each tool's version first, so a
+  `command not found` can no longer be mistaken for a lint failure. Motivated by a
+  Shellcheck step that failed in 0.37s with no output on the runner while passing
+  locally.
 - Fixed a runner-only CI failure: downloaded tools were added to `$GITHUB_PATH`,
   which outlives `$RUNNER_TEMP`, so a later job resolved `shellcheck` to a removed
   directory and the step failed in 0.4s with no output. Tools now go through
@@ -546,6 +553,11 @@ change and how to know it worked.
   `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys.
 
 #### Operations / data
+- [ ] **Upgrade the host database past `b7da7a666155`.** The cutover copied the
+  pre-`phase` schema, so the web container migrates it on start but a *host* run of
+  `scripts/daily.sh` or the UI smoke against a hand-started server fails with
+  `table ingestion_run has no column named phase`. Fix: `GCM_DATABASE_URL=sqlite:///<path>
+  alembic upgrade head` (take a `.bak` first — it is the same 1.3 GB DB).
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
 - [ ] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or

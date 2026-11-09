@@ -51,6 +51,18 @@ jobs:
           python-version: "3.12"
           venv: ${{ runner.temp }}/venv
 
+      # `shell` overrides the workflow default: `bash -e {0}` without pipefail,
+      # so the test on the left of `||` succeeds and a non-zero exit is still a
+      # failure via the `{0}` fallback. Belt and braces alongside the absolute
+      # paths below — a missing venv must be loud, not a silent red X.
+      - name: Verify tools resolve
+        shell: bash -e {0}
+        run: |
+          test -x "$RUNNER_TEMP/venv/bin/ruff" || { echo "::error::no ruff in $RUNNER_TEMP/venv"; ls -la "$RUNNER_TEMP/venv/bin" || true; exit 1; }
+          "$RUNNER_TEMP/venv/bin/ruff" --version
+          "$RUNNER_TEMP/venv/bin/ty" --version
+          "$RUNNER_TEMP/venv/bin/pytest" --version
+
       - name: Install runtime dependencies
         run: |
           set -euo pipefail
@@ -94,31 +106,32 @@ jobs:
           tar -xzf "$RUNNER_TEMP/shellcheck.tar.gz" -C "$RUNNER_TEMP"
           echo "SHELLCHECK_BIN=$RUNNER_TEMP/shellcheck-${SHELLCHECK_VERSION}/shellcheck" >> "$GITHUB_ENV"
 
+      # Absolute path for the same reason as the tools: the bare name depends on
+      # PATH resolution, and a silent "command not found" is indistinguishable
+      # from a lint failure in the runner log.
       - name: Lint
-        run: ruff check .
+        run: '"$RUNNER_TEMP/venv/bin/ruff" check .'
 
       - name: Format check
-        run: ruff format --check app tests scripts
+        run: '"$RUNNER_TEMP/venv/bin/ruff" format --check app tests scripts'
 
       - name: Shellcheck
         run: |
-          # Assert we run the binary we just verified: a PATH entry from an
-          # earlier job pointing at a removed directory once made this step fail
-          # in 0.4s with no output, which sent a whole debugging session down the
-          # wrong path.
-          # No -x: .shellcheckrc sets external-sources, so a plain run here
-          # matches what a contributor gets locally.
+          # --version first: if the binary is not there, the log says so instead
+          # of the step failing in 0.4s with no output.
+          ls -l "$SHELLCHECK_BIN"
           "$SHELLCHECK_BIN" --version
+          # Plain invocation: .shellcheckrc sets external-sources.
           "$SHELLCHECK_BIN" scripts/*.sh docker/pipeline-entrypoint.sh
 
       - name: Markdown lint
-        run: pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks
+        run: '"$RUNNER_TEMP/venv/bin/pymarkdown" scan -r README.md AGENTS.md docs tests/ui/README.md tasks'
 
       - name: Type check
-        run: ty check
+        run: '"$RUNNER_TEMP/venv/bin/ty" check'
 
       - name: Tests
-        run: pytest -q
+        run: '"$RUNNER_TEMP/venv/bin/pytest" -q'
 
       # A fresh DB from migrations catches a revision that does not apply in
       # order; the drift check catches a model change with no migration.
@@ -127,13 +140,13 @@ jobs:
           GCM_DATABASE_URL: sqlite:///${{ runner.temp }}/schema.db
         run: |
           rm -f "$RUNNER_TEMP/schema.db"
-          alembic upgrade head
-          alembic check
+          "$RUNNER_TEMP/venv/bin/alembic" upgrade head
+          "$RUNNER_TEMP/venv/bin/alembic" check
 
       # The app must import with only the shipped dependencies installed; the
       # suite stubs the model, so this is the one step that proves the wiring.
       - name: App imports
-        run: python -c "import app.main, app.api.routes, app.extract.run, app.queries"
+        run: '"$RUNNER_TEMP/venv/bin/python" -c "import app.main, app.api.routes, app.extract.run, app.queries"'
 
       # Second line of defence behind .gitignore. These are the "never commit"
       # entries in AGENTS.md; a tracked one is a data/secret leak.

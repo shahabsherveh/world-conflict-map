@@ -29,7 +29,7 @@ ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 
-# Chrome for the chrome-devtools MCP (see Gotchas #10); CDP on :9222
+# Chrome for the chrome-devtools MCP (see Gotchas #11); CDP on :9222
 /tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
   --disable-dev-shm-usage --remote-debugging-port=9222 \
   --user-data-dir=/tmp/chrome-profile about:blank &
@@ -149,7 +149,14 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    country-centroid coordinates, Leaflet spiderfies them, and jsdom cannot render that
    layer, so the cluster-click/scrub checks fail. `scripts/seed.py` offsets its demo
    coordinates, so a fresh seed is safe.
-10. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
+10. **Scripts must not assume the venv is at `.venv` or that they run from the repo
+   root.** `scripts/_venv.sh` owns the location (`GCM_VENV` overrides it) and every
+   caller uses `"$(gcm_venv_python)"` / `"$(gcm_venv_tool ruff)"`; the cron entry
+   point (`scripts/daily.sh`) runs under whatever PATH cron provides. Related: the
+   tracked `conflicts.db` is at schema `b7da7a666155` while `alembic head` is ahead
+   of it, so anything reading it — the host run, the UI smoke against a hand-started
+   server — must `alembic upgrade head` first.
+11. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
    and Chrome refuses to run as root). Run Chrome yourself with
    `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with
    `--browserUrl http://127.0.0.1:9222` so it attaches instead of launching. Two rough
