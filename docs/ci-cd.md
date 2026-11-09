@@ -38,7 +38,7 @@ push / PR
    │    no tracked *.db/.env/.venv     second line of defence behind .gitignore
    │
    └─ image                            needs: gates
-        docker build                  Dockerfile + full runtime deps
+        docker build --network=host   Dockerfile + full runtime deps (see below)
         compose config --quiet        compose file parses and interpolates
         import torch, transformers    the CPU wheels actually import
         run migrations + /health      the image serves before it is deployed
@@ -61,6 +61,14 @@ from that file, so a local pass means a pipeline pass.
 
 ### Why these and not more
 
+- **The image build runs with `--network=host`.** Build steps execute in a container
+  on the default bridge, and Docker replaces that container's resolver with its own
+  defaults (`8.8.8.8`/`8.8.4.4` in this environment — "Used default nameservers").
+  Those are unreachable here, so pip stalls on `files.pythonhosted.org` with a
+  `ReadTimeoutError`, while the gates job — running on the runner's own resolver —
+  installs the same packages fine. Host networking borrows the resolver that works.
+  The durable fix is `"dns": [...]` in the Docker daemon config on the deploy host;
+  until that is set there, the flag is required, not cosmetic.
 - **Python comes from uv, not `actions/setup-python`.** setup-python only ships
   Ubuntu/macOS/Windows builds, and the self-hosted runner is Debian: every job failed
   with "version ... was not found for debian 12". `.github/actions/uv-python`

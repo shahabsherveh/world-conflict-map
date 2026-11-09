@@ -529,6 +529,14 @@ change and how to know it worked.
   the `uv-python` action (`requirements:` input, torch redirected to the CPU index),
   which then prints ruff/ty/pytest versions — so "the tools are missing" can only
   be reported after an honest attempt to install them.
+- [x] **Image build failed on DNS the runner does not use.** `docker build` ran on the
+  default bridge where Docker supplies its own nameservers (8.8.8.8/8.8.4.4, unreachable
+  here), so pip timed out on PyPI while the gates job installed the same wheels fine.
+  The Build step now uses `--network=host`; recorded in AGENTS gotcha #11 and
+  docs/ci-cd.md.
+- [ ] **Set `"dns"` in the deploy host's `daemon.json`.** The `--network=host` build flag
+  is a workaround for CI only: `docker compose run pipeline` (model download) and the
+  deploy container also get the broken resolver defaults.
 - [ ] **Get the Shellcheck step's actual output.** It has failed three times in
   0.37 s with nothing in the runner log, and three theories (setup-python, PATH,
   missing venv) were each disproven by local reproduction. Nothing in the repo

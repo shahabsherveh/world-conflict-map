@@ -147,8 +147,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # --network=host is load-bearing, not cosmetic. Build steps run in a
+      # container on the default bridge, whose resolver Docker replaces with its
+      # own defaults (8.8.8.8/8.8.4.4 here: "Based on host file: '/etc/resolv.conf'
+      # (legacy), Used default nameservers"), which are unreachable on this
+      # network. pip then hangs on files.pythonhosted.org and fails with
+      # ReadTimeoutError — while the gates job, which runs on the runner's own
+      # resolver, installs exactly the same packages fine. Building on the host
+      # network uses the resolver that is known to work; the real fix is a
+      # `"dns": [...]` entry in the Docker daemon config on the deploy host.
       - name: Build
-        run: docker build --tag gcm-web:ci .
+        run: docker build --network=host --tag gcm-web:ci .
 
       # Deploy depends on this file parsing and interpolating; a typo here would
       # only surface on the one machine that deploys.

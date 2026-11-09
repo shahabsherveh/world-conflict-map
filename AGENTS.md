@@ -29,7 +29,7 @@ ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 
-# Chrome for the chrome-devtools MCP (see Gotchas #11); CDP on :9222
+# Chrome for the chrome-devtools MCP (see Gotchas #12); CDP on :9222
 /tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
   --disable-dev-shm-usage --remote-debugging-port=9222 \
   --user-data-dir=/tmp/chrome-profile about:blank &
@@ -158,7 +158,13 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    tracked `conflicts.db` is at schema `b7da7a666155` while `alembic head` is ahead
    of it, so anything reading it — the host run, the UI smoke against a hand-started
    server — must `alembic upgrade head` first.
-11. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
+11. **Docker builds use a different resolver than the runner, and it is broken here.**
+   `docker build` steps run on the default bridge, where Docker substitutes its own
+   nameservers (`8.8.8.8`/`8.8.4.4`) instead of the host's; pip then times out on PyPI
+   while every non-container step works. Build with `--network=host` (CI does), or set
+   `"dns": [...]` in the daemon config. Symptom to recognise: `ReadTimeoutError` on
+   `files.pythonhosted.org`, only inside image builds.
+12. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
    and Chrome refuses to run as root). Run Chrome yourself with
    `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with
    `--browserUrl http://127.0.0.1:9222` so it attaches instead of launching. Two rough
