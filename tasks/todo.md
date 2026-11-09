@@ -245,9 +245,11 @@ Updated after the code-review pass and context setup.
 ### Status
 All original plan tasks complete. Raw GDELT storage, two-phase processing, audit
 backfill, batched zero-shot filtering, API hardening, containerization, and the
-CI/CD pipeline are applied. The working tree is clean on `main`; `conflicts.db`,
-`data/`, and `.venv/` are untracked via `.gitignore`. Open CI/CD follow-ups are
-listed below under "Remaining work".
+CI/CD pipeline are applied — the pipeline has deployed to this host successfully and
+serves the real dataset. The working tree is clean on `main`; `conflicts.db`,
+`data/`, and `.venv/` are untracked via `.gitignore`. Open follow-ups are listed
+below under "Remaining work"; the first two to pick up are the daemon `dns` setting
+(runtime model download) and deploy gating for schema changes.
 
 ### Verification baseline (re-run these first)
 
@@ -495,8 +497,9 @@ without registering anything.
   493 → 492 unplaced, 13,064 → 13,066 markers, 1,177 → 1,178 in view, then reverted.
 
 #### CI/CD follow-ups
-The pipeline is in place; these are the gaps deliberately left open. Each says what to
-change and how to know it worked.
+The pipeline is in place and has run green end to end (see "Run the CI/CD pipeline on
+the runner once"). These are the gaps deliberately left open. Each says what to change
+and how to know it worked.
 
 - [ ] **Gate deploys of schema changes behind review.** Why: `web` runs
   `alembic upgrade head` on every deploy, and rollback restores the image only — an old
@@ -544,21 +547,21 @@ change and how to know it worked.
 - [ ] **Set `"dns"` in the deploy host's `daemon.json`.** The `--network=host` build flag
   is a workaround for CI only: `docker compose run pipeline` (model download) and the
   deploy container also get the broken resolver defaults.
-- [ ] **Get the Shellcheck step's actual output.** It has failed three times in
-  0.37 s with nothing in the runner log, and three theories (setup-python, PATH,
-  missing venv) were each disproven by local reproduction. Nothing in the repo
-  sources `../.venv/bin/activate`; shellcheck exits 0 on CI's file list with an
-  empty PATH. Enable step debug logging (repo secret `ACTIONS_STEP_DEBUG=true`) or
-  copy the job to a branch, so the next failure is diagnosable instead of guessed at.
-- [ ] **Run the CI/CD pipeline on the runner once.** Why: the orchestration has
-  never executed on GitHub Actions — only actionlint plus local replication. Unverified:
-  `workflow_run` firing for the commit that adds `deploy.yml`, the
-  `workflow_run.head_sha || github.sha` expression, the `$RUNNER_TEMP` venv +
-  `$GITHUB_PATH` handoff, uv's interpreter cache on self-hosted, and
-  `docker compose config --images web` on the installed Compose. How: register the
-  runner with `RUNNER_TOKEN=… ./scripts/install-runner.sh --url …`, push a branch, open
-  a PR, confirm `gates`/`image`; merge; then `workflow_dispatch` Deploy. Done
-  when one green CI run and one successful deploy are recorded.
+- [x] **Get the Shellcheck step's actual output.** No longer needed: the step passes
+  now that the tools are installed by the venv action before any gate runs, and the
+  shellcheck download publishes `SHELLCHECK_BIN` by absolute path. The earlier
+  no-output failures were the skip-after-failure pattern, not shellcheck itself.
+  Keep `ACTIONS_STEP_DEBUG` in mind for the next silent step rather than re-guessing.
+- [x] **Run the CI/CD pipeline on the runner once.** Green end to end
+  2026-11-09: `gates` 97s, `image` 25s, `deploy to this host` 23s (all Succeeded on
+  commit `224750b`), and the deployed stack serves the real data —
+  `/api/conflicts` 1443 conflicts / 13,713 events, matching the DB. `workflow_run`
+  firing, the `head_sha` checkout, uv's cache, `docker compose config --images web`
+  and the readiness probe all behaved as designed. Four defects surfaced and were
+  fixed getting here: setup-python has no Debian build (→ uv action), a `$GITHUB_PATH`
+  entry outliving `$RUNNER_TEMP`, tools installed in a later step that a failure skips
+  (→ install inside the venv step), and the daemon's fallback resolvers on build
+  containers (→ `network: host` on every build path).
 - [ ] **Make the UI smoke data-density-independent, then gate it.** Why: with the
   five-conflict demo seed it passes except "conflict list follows the map viewport" —
   the preceding cluster click has already zoomed the list to one row, so narrowing is
@@ -585,11 +588,10 @@ change and how to know it worked.
   `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys.
 
 #### Operations / data
-- [ ] **Upgrade the host database past `b7da7a666155`.** The cutover copied the
-  pre-`phase` schema, so the web container migrates it on start but a *host* run of
-  `scripts/daily.sh` or the UI smoke against a hand-started server fails with
-  `table ingestion_run has no column named phase`. Fix: `GCM_DATABASE_URL=sqlite:///<path>
-  alembic upgrade head` (take a `.bak` first — it is the same 1.3 GB DB).
+- [x] **Upgrade the host database past `b7da7a666155`.** Done by the container:
+  `docker compose exec web alembic current` reports `3eaf800e3086 (head)`. A *host*
+  run still has to migrate first if it is pointed at a database the container has not
+  touched yet (the `web` service migrates on start).
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
 - [ ] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
