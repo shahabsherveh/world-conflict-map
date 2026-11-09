@@ -4,15 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Global Conflict Map</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23c0392b'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-  <link rel="stylesheet" href="/style.css?v=12">
+  <link rel="stylesheet" href="/style.css?v=14">
 </head>
 <body>
-  <div id="map"></div>
-  <div id="legend">
-    <span class="legend-bar" aria-hidden="true"></span>
-    <span>fewer → more events</span>
+  <div id="map" role="region" aria-label="Conflict map">
+    <!-- Inside #map so it anchors to the map on every layout, including the
+         stacked mobile layout where the sidebar sits below it. -->
+    <div id="legend" role="img"
+         aria-label="Bubble colour and size show how many events are clustered: blue and small means few, red and large means many. Small dots are single events.">
+      <span class="legend-title" aria-hidden="true">Events per bubble</span>
+      <span class="legend-row" aria-hidden="true">
+        <span class="legend-tick">few</span>
+        <span class="legend-bar"></span>
+        <span class="legend-tick">many</span>
+      </span>
+      <span class="legend-key" aria-hidden="true">
+        <span class="legend-dot"></span>single event
+      </span>
+    </div>
   </div>
   <aside id="sidebar">
     <header>
@@ -21,6 +33,11 @@
         <label>From <input type="date" id="start-date"></label>
         <label>To <input type="date" id="end-date"></label>
       </div>
+      <label id="search-wrap">
+        <span class="visually-hidden">Filter conflicts</span>
+        <input type="search" id="conflict-search" placeholder="Filter by name, country or headline…"
+               autocomplete="off" spellcheck="false">
+      </label>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
     </header>
     <details id="conflicts-panel" open>
@@ -37,6 +54,6 @@
   </aside>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=17"></script>
 </body>
 </html>

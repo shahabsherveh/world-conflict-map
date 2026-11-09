@@ -1,4 +1,5 @@
-const map = L.map("map").setView([25, 15], 2);
+const HOME_VIEW = { center: [25, 15], zoom: 2 };
+const map = L.map("map").setView(HOME_VIEW.center, HOME_VIEW.zoom);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: "&copy; OpenStreetMap contributors",
   maxZoom: 18,
@@ -27,10 +28,9 @@ function clusterHeat(count) {
 }
 
 const markers = L.markerClusterGroup({
-  chunkedLoading: true,
-  // Default chunkSize=200 with a 200 ms interval means ~13k events take 15 s
-  // to appear; 1000 brings a full 30-day load down to a few seconds.
-  chunkSize: 1000,
+  // Chunking is done in renderEventMarkers(), not by chunkedLoading: the
+  // library's loader lives in a closure that clearLayers() cannot cancel, so a
+  // new range could be drawn while the previous one was still trickling in.
   maxClusterRadius: 55,
   disableClusteringAtZoom: 13,
   showCoverageOnHover: false,
@@ -48,16 +48,35 @@ const markers = L.markerClusterGroup({
 // addTo() after the assignment keeps `markers` usable from any option callback.
 markers.addTo(map);
 
+// A way back to the world view: after drilling into a cluster there was no
+// obvious route out short of dragging the map.
+const ResetViewControl = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const button = L.DomUtil.create("button", "reset-view");
+    button.type = "button";
+    button.textContent = "Reset view";
+    button.title = "Zoom back out to the world";
+    L.DomEvent.disableClickPropagation(button);
+    L.DomEvent.on(button, "click", () => map.setView(HOME_VIEW.center, HOME_VIEW.zoom));
+    return button;
+  },
+});
+new ResetViewControl().addTo(map);
+
 let currentStart = null;
 let currentEnd = null;
 let currentConflictId = null;
 let coordinateTarget = null;
 let noticeTimer = null;
 let conflictsRequestId = 0;
+let conflictQuery = "";
 let rangeConflicts = [];
 let rangeEvents = [];
 let conflictsLoaded = false;
 let listRepaintTimer = null;
+let revealTimer = null;
+let pendingReveal = false;
 let detailRequestId = 0;
 
 // Rendering 500 rows of a collapsed panel costs more than it is worth.
@@ -145,6 +164,24 @@ const api = {
     });
   },
 };
+
+// The detail pane lives below the (long) conflict list, so on a narrow layout a
+// click used to fill it off-screen — and the sticky header then clipped the
+// heading. Bring the pane into view, leaving room for the header.
+function revealDetail() {
+  const sidebar = document.getElementById("sidebar");
+  const detail = document.getElementById("detail");
+  if (!sidebar || !detail || typeof sidebar.scrollTo !== "function") return;
+  const header = sidebar.querySelector("header");
+  const sidebarBox = sidebar.getBoundingClientRect();
+  const detailBox = detail.getBoundingClientRect();
+  const headerBottom = header ? header.getBoundingClientRect().bottom : sidebarBox.top;
+  // Already fully visible below the header: do not fight the user's scroll.
+  if (detailBox.top >= headerBottom - 2 && detailBox.bottom <= sidebarBox.bottom) return;
+  // Instant, not smooth: the browser's own focus-scroll runs on the same frame
+  // and the two animations fought, leaving the pane parked under the header.
+  sidebar.scrollTop = Math.max(0, sidebar.scrollTop + detailBox.top - headerBottom - 8);
+}
 
 function showNotice(message, kind = "info") {
   const notice = document.getElementById("notice");
@@ -241,6 +278,15 @@ function renderConflictList(conflicts) {
 // conflicts in a 30-day window the full list was mostly off-map noise. The map's
 // own bounds decide, so pan and zoom re-filter the same fetched data (no extra
 // API calls).
+// Called after the list is re-rendered: a reveal requested by a list click only
+// lands correctly once the new (shorter) list has claimed its height.
+function settlePendingReveal() {
+  if (!pendingReveal) return;
+  pendingReveal = false;
+  clearTimeout(revealTimer);
+  revealDetail();
+}
+
 function paintConflictList() {
   if (!conflictsLoaded) return;
   const list = document.getElementById("conflict-list");
@@ -292,6 +338,23 @@ function paintConflictList() {
     list.innerHTML = `<li class="empty">${
       rangeConflicts.length ? "No conflicts in this view." : "No conflicts in this range."
     }</li>`;
+    settlePendingReveal();
+    return;
+  }
+
+  // The filter narrows the on-screen rows only; the header keeps describing the
+  // map view (that is what the numbers are about), and a separate note explains
+  // how many of those rows survived the filter.
+  const query = conflictQuery.trim().toLowerCase();
+  const matching = query
+    ? sorted.filter((c) =>
+        `${c.name} ${c.country ?? ""} ${c.headline ?? ""}`.toLowerCase().includes(query),
+      )
+    : sorted;
+
+  if (query && !matching.length) {
+    list.innerHTML = `<li class="empty">No conflicts match “${esc(conflictQuery.trim())}”.</li>`;
+    settlePendingReveal();
     return;
   }
 
@@ -305,8 +368,15 @@ function paintConflictList() {
   ]
     .filter(Boolean)
     .join(", ");
+  const filterNote = query
+    ? `<li class="list-note">${matching.length} of ${sorted.length} in view match “${esc(
+        conflictQuery.trim(),
+      )}”.</li>`
+    : "";
+
   list.innerHTML =
-    sorted.map(conflictItem).join("") +
+    filterNote +
+    matching.map(conflictItem).join("") +
     (rest ? `<li class="list-note">${restText} (not shown).</li>` : "");
 
   const byId = new Map(rangeConflicts.map((c) => [String(c.id), c]));
@@ -314,13 +384,25 @@ function paintConflictList() {
     button.onclick = () => {
       const conflict = byId.get(button.dataset.id);
       if (!conflict) return;
+      // Recentring re-filters the list (debounced in the moveend handler). A much
+      // shorter list collapses the sidebar and clamps its scroll position, so the
+      // detail pane we just revealed can land off-screen. Set this before the map
+      // moves so the repaint consumes it; the timer is only a fallback for when
+      // the view does not actually change (no moveend, no repaint).
+      pendingReveal = true;
+      clearTimeout(revealTimer);
+      revealTimer = setTimeout(settlePendingReveal, 1500);
+
       showConflict(conflict.id);
       // Centre on the incident that is on screen, not the conflict's summary
       // point, which may be somewhere else entirely.
       const anchor = focus.get(conflict.id);
       if (anchor) map.setView([anchor.lat, anchor.lon], 6);
+      else settlePendingReveal();
     };
   });
+
+  settlePendingReveal();
 }
 
 // Conflicts the geocoder could not place get a home in the sidebar: they can never be
@@ -447,17 +529,31 @@ function intensityClass(intensity) {
   return Math.max(1, Math.min(5, Math.round(intensity || 1)));
 }
 
+// Chunk size chosen so one slice stays well under a frame's budget at world
+// zoom; a full 30-day window (~13k events) lands in a handful of ticks.
+const MARKER_CHUNK_SIZE = 1000;
+// Bumped on every render; a chunk loop from an older render sees the mismatch
+// and stops instead of adding markers for a range the user already left.
+let markerGeneration = 0;
+
 // One marker per EVENT: a conflict can span several cities, so plotting one
 // point per conflict would misplace the others.
 function renderEventMarkers(events) {
+  const generation = ++markerGeneration;
   markers.clearLayers();
   const points = [];
   for (const e of events) {
     if (e.lat == null || e.lon == null) continue;
     points.push(eventMarker(e));
   }
-  // addLayers() (not addLayer() in a loop) is what enables chunkedLoading.
-  markers.addLayers(points);
+  let index = 0;
+  const addChunk = () => {
+    if (generation !== markerGeneration) return;
+    markers.addLayers(points.slice(index, index + MARKER_CHUNK_SIZE));
+    index += MARKER_CHUNK_SIZE;
+    if (index < points.length) setTimeout(addChunk, 0);
+  };
+  addChunk();
 }
 
 function eventMarker(e) {
@@ -516,6 +612,8 @@ function showEvent(e) {
   stopCoordinatePick();
   detailRequestId += 1;
   currentConflictId = e.conflict_id ?? null;
+  const detailPane = document.getElementById("detail");
+  detailPane.removeAttribute("aria-busy");
   document.getElementById("edit-panel").innerHTML = "";
   const actors = [e.actor_a, e.actor_b].filter(Boolean).join(" vs ");
   const raw = JSON.stringify(e, null, 2);
@@ -546,6 +644,8 @@ function showEvent(e) {
   if (form) form.onsubmit = (event) => saveEvent(event, e);
   const pick = document.getElementById("edit-ev-pick");
   if (pick) pick.onclick = () => startCoordinatePick("edit-ev-lat", "edit-ev-lon");
+  // After the forms are in the DOM, so the pane is measured in its final place.
+  revealDetail();
 }
 
 function renderEventEditForm(e) {
@@ -647,13 +747,25 @@ async function showConflict(id) {
   const requestId = ++detailRequestId;
   const detail = document.getElementById("detail");
   document.getElementById("edit-panel").innerHTML = "";
-  detail.innerHTML = `<p class="muted">Loading conflict…</p>`;
+  // A skeleton shaped like the content that is coming: the fetch replaces the
+  // previous detail anyway, so a spinner or a bare "Loading…" just flashes.
+  detail.setAttribute("aria-busy", "true");
+  detail.innerHTML = `
+    <div class="skeleton" role="status" aria-label="Loading conflict details">
+      <span class="sk-line sk-title"></span>
+      <span class="sk-line short"></span>
+      <span class="sk-line"></span>
+      <span class="sk-line"></span>
+      <span class="sk-line short"></span>
+    </div>`;
   try {
     const conflict = await api.get(`/api/conflicts/${id}`);
     if (requestId !== detailRequestId) return;
+    detail.removeAttribute("aria-busy");
     renderConflictDetail(conflict);
   } catch (err) {
     if (requestId !== detailRequestId) return;
+    detail.removeAttribute("aria-busy");
     detail.innerHTML = `<p class="empty error" role="alert">Could not load conflict: ${esc(
       err.message,
     )}</p>`;
@@ -706,6 +818,8 @@ function renderConflictDetail(c) {
   });
 
   renderEditPanel(c);
+  // Last, so the edit forms below the list do not change where it lands.
+  revealDetail();
 }
 
 function renderEditPanel(c) {
@@ -951,6 +1065,11 @@ document.addEventListener("keydown", (event) => {
     stopCoordinatePick();
     showNotice("Coordinate picking cancelled.", "info");
   }
+});
+
+document.getElementById("conflict-search").addEventListener("input", (event) => {
+  conflictQuery = event.target.value;
+  paintConflictList();
 });
 
 document.getElementById("start-date").onchange = (event) => {
