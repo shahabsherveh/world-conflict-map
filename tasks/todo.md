@@ -534,6 +534,13 @@ change and how to know it worked.
   here), so pip timed out on PyPI while the gates job installed the same wheels fine.
   The Build step now uses `--network=host`; recorded in AGENTS gotcha #11 and
   docs/ci-cd.md.
+- [x] **Deploy hit the same resolver.** The deploy step failed after exactly 2m00s on
+  `pip install` in the image build: `scripts/deploy.sh` called `docker compose build`,
+  which (unlike the CI job's `docker build --network=host`) got the daemon's fallback
+  resolvers. `docker-compose.yml` now sets `network: host` on both services' `build:`,
+  with an explicit `--network=host` fallback in deploy.sh. Verified: a fresh
+  `docker compose build web` succeeds, and a control compose build *without* the key
+  fails in ~12s on this host; a full `./scripts/deploy.sh` run reports ready.
 - [ ] **Set `"dns"` in the deploy host's `daemon.json`.** The `--network=host` build flag
   is a workaround for CI only: `docker compose run pipeline` (model download) and the
   deploy container also get the broken resolver defaults.

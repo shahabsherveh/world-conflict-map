@@ -27,6 +27,10 @@ rollback_image="${image%:*}:rollback"
 rollback_tag="${rollback_image##*:}"
 
 log() { printf '[deploy] %s\n' "$*"; }
+fail() {
+  printf '[deploy] error: %s\n' "$*" >&2
+  exit 1
+}
 
 ready() {
   local attempt body
@@ -56,11 +60,17 @@ if [ -n "$container" ]; then
   log "current image $previous_image (tagged $rollback_image)"
 fi
 
-log "building $image"
-# The pipeline image is built here too, not left for `docker compose run` to
-# build on demand from whatever checkout cron happens to sit in: it must be the
-# commit CI verified. Explicitly naming the profiled service builds it.
-docker compose build web pipeline
+log "building $image and the pipeline image"
+# Build-container DNS: on the default bridge Docker substitutes its own resolvers
+# (8.8.8.8/8.8.4.4 here), which are unreachable, so pip stalls on PyPI and the
+# deploy dies at the first layer. The compose file sets `network: host` on both
+# builds and `docker compose build` honours it, so this stays one code path; the
+# explicit --network=host is the fallback for older compose/buildkit versions that
+# ignore the key. The pipeline image is built here too: it must be the commit CI
+# verified, not whatever checkout cron happens to sit in.
+docker compose build --build-arg BUILDKIT_INLINE_CACHE=1 web pipeline \
+  || docker build --network=host --tag "$image" . \
+  || fail "build failed (if pip timed out on PyPI, set \"dns\" in the Docker daemon config)"
 
 # --force-recreate: the tag stays `gcm-web:local`, so compose cannot tell the
 # image changed and would otherwise leave the old container running.

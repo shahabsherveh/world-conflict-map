@@ -4,8 +4,15 @@
 name: global-conflict-map
 
 services:
+  # Build-container DNS: on the default bridge the daemon substitutes its own
+  # fallback resolvers (8.8.8.8/8.8.4.4 here), which are unreachable on this
+  # network, so any build that pip-installs stalls. `network: host` applies to the
+  # *build* only — the running container keeps normal networking. Every build path
+  # (CI image job, deploy.sh, cron) must use this or the deploy is the odd one out.
   web:
-    build: .
+    build:
+      context: .
+      network: host
     # Named (not the default <project>-<service>) so the deploy script can tag
     # the running image as :rollback and re-create the container from it.
     image: gcm-web:${GCM_IMAGE_TAG:-local}
@@ -29,7 +36,9 @@ services:
   # run it with `docker compose run --rm pipeline`, or via host cron using
   # scripts/docker-daily.sh.
   pipeline:
-    build: .
+    build:
+      context: .
+      network: host
     image: gcm-pipeline:${GCM_IMAGE_TAG:-local}
     profiles: ["tools"]
     entrypoint: ["/app/docker/pipeline-entrypoint.sh"]

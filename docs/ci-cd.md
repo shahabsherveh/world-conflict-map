@@ -61,6 +61,11 @@ from that file, so a local pass means a pipeline pass.
 
 ### Why these and not more
 
+- **Every build path builds on the host network.** Expressed once, as
+  `network: host` under each service's `build:` in `docker-compose.yml`, so the CI
+  image job (`docker build --network=host`), `scripts/deploy.sh` (compose build) and
+  cron all agree. Verify with a container that resolves PyPI badly and a control
+  build without the key — the control fails in ~12 s on this host.
 - **The image build runs with `--network=host`.** Build steps execute in a container
   on the default bridge, and Docker replaces that container's resolver with its own
   defaults (`8.8.8.8`/`8.8.4.4` in this environment — "Used default nameservers").
@@ -244,7 +249,10 @@ now. A manual `workflow_dispatch` re-deploys the current `main`.
 1. Tags the running image `gcm-web:rollback` **before** building. This must happen
    first: moving `gcm-web:local` prunes the old image ID, so tagging afterwards fails
    with `No such image`.
-2. `docker compose build web pipeline`, then `up -d --no-deps --force-recreate web`.
+2. `docker compose build web pipeline` — the compose file sets `network: host` on both
+   builds (build-container DNS, see below), with `docker build --network=host` as a
+   fallback for compose versions that ignore the key. Then
+   `up -d --no-deps --force-recreate web`.
    Forced because the tag does not change, so compose would otherwise leave the old
    container running. The pipeline image is built here as well: otherwise
    `docker compose run pipeline` builds it on demand from whichever checkout cron
