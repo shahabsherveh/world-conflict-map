@@ -1,0 +1,82 @@
+<mxfile host="app.diagrams.net" agent="Global Conflict Map" version="24.0.0">
+  <diagram id="request-flow" name="Request flow">
+    <mxGraphModel adaptiveColors="auto" dx="1400" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Request flow — what one page load, scrub, or edit actually does" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="20" width="1100" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="load" value="&lt;b&gt;[UI]&lt;/b&gt; open /&lt;br&gt;index.html + app.js, Leaflet + OSM tiles, no build step" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="80" width="480" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="http_get" value="&lt;b&gt;[HTTP]&lt;/b&gt; GET /api/conflicts?start&amp;end&lt;br&gt;GET /api/events?start&amp;end" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="180" width="480" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="validate" value="&lt;b&gt;[route]&lt;/b&gt; _validate_range&lt;br&gt;start &gt; end → 422, never a 500" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="300" width="480" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="queries" value="&lt;b&gt;[queries.py]&lt;/b&gt; conflicts_active_in_range,&lt;br&gt;events_in_range — one events query for all&lt;br&gt;conflicts, not one per conflict (N+1 guard: ≤5)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="410" width="480" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="sqlite" value="&lt;b&gt;SQLite&lt;/b&gt; — conflict, conflict_event, raw_event, edit_log, ingestion_run" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="540" width="480" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="summarize" value="&lt;b&gt;[route]&lt;/b&gt; _summarize per conflict&lt;br&gt;intensity = max(event) · coordinate = latest event in range&lt;br&gt;headline = slug_to_text(source_url), else summary" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="650" width="480" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="render" value="&lt;b&gt;[UI]&lt;/b&gt; renderEventMarkers()&lt;br&gt;cluster bubbles (count + heat ramp), “Conflicts in view”,&lt;br&gt;“No location (N)” — membership from events, never the summary point" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="780" width="480" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="d_scrub" value="changed the date range?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="230" y="910" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="d_marker" value="clicked a marker?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="230" y="1050" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="d_edit" value="edited an event or conflict?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="230" y="1190" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="notice" value="&lt;b&gt;[UI]&lt;/b&gt; error → live notice region&lt;br&gt;&lt;i&gt;every API failure surfaces here, never a silent empty map&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="925" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="event_detail" value="&lt;b&gt;[HTTP]&lt;/b&gt; GET /api/events/{id}&lt;br&gt;&lt;b&gt;[route]&lt;/b&gt; _event_out — headline, else summary" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1065" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="popup" value="&lt;b&gt;[UI]&lt;/b&gt; detail popup: place, date, type, actors,&lt;br&gt;intensity, provenance, source link, raw JSON" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1165" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="patch" value="&lt;b&gt;[HTTP]&lt;/b&gt; PATCH /api/events/{id}&lt;br&gt;PATCH/POST /api/conflicts, POST /api/events" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1255" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="apply" value="&lt;b&gt;[route]&lt;/b&gt; merged-record checks, then _apply_patch&lt;br&gt;lat/lon validated on the merged row (both or neither);&lt;br&gt;one edit_log row per field that actually changed" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1355" width="420" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="commit" value="&lt;b&gt;[route]&lt;/b&gt; commit → refresh → response&lt;br&gt;&lt;i&gt;provenance stays auto unless the user set it; edit_log is the audit&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=10;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="1485" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" value="&lt;b&gt;Colours&lt;/b&gt;&lt;br&gt;yellow = browser &amp;nbsp; purple = HTTP contract&lt;br&gt;blue = route/processing &amp;nbsp; green = data · red = error path" style="text;html=1;align=left;verticalAlign=top;spacing=8;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;rounded=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="30" y="925" width="160" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="load" target="http_get"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="http_get" target="validate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="validate" target="queries"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="queries" target="sqlite"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="sqlite" target="summarize"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="summarize" target="render"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="render" target="d_scrub"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f8" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;fontSize=10;" edge="1" parent="1" source="d_scrub" target="d_marker"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f9" value="re-query" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;dashed=1;fontSize=10;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="d_scrub" target="http_get"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f10" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;fontSize=10;" edge="1" parent="1" source="d_marker" target="d_edit"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f11" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;fontSize=10;" edge="1" parent="1" source="d_marker" target="event_detail"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="event_detail" target="popup"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f13" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;fontSize=10;" edge="1" parent="1" source="d_edit" target="patch"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="patch" target="apply"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f15" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;" edge="1" parent="1" source="apply" target="commit"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f16" value="reload" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;dashed=1;fontSize=10;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="commit" target="http_get"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f17" value="4xx / 5xx" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;dashed=1;fontSize=10;strokeColor=#b85450;fontColor=#b85450;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="validate" target="notice"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="f18" value="4xx / 5xx" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;dashed=1;fontSize=10;strokeColor=#b85450;fontColor=#b85450;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="apply" target="notice"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
