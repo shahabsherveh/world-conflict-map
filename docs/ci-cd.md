@@ -65,6 +65,11 @@ from that file, so a local pass means a pipeline pass.
   with "version ... was not found for debian 12". `.github/actions/uv-python`
   installs a pinned uv (per-arch sha256, like shellcheck) and creates the venv from a
   uv-managed CPython, cached in `~/.local/share/uv` across runs.
+- **One venv location, shared by design.** CI builds its venv at
+  `$GITHUB_WORKSPACE/.venv` — the same relative path `scripts/_venv.sh` defaults to
+  — so the CI environment and a developer's environment are the same *shape*. It is
+  gitignored and re-created every run; `git clean` happens before it exists and the
+  artifact guard only inspects tracked files.
 - **Scripts resolve their interpreter and tools by absolute path.** No script
   assumes it was started from the repo root or that `.venv` is already on PATH:
   `scripts/_venv.sh` owns the venv location (`GCM_VENV` overrides it) and the

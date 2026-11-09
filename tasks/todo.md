@@ -362,6 +362,10 @@ without registering anything.
   uv provisions CPython for any glibc distro and caches it across runs; gates install
   with `uv pip`. Rehearsed locally in the 3.12 venv: 102 tests, ruff,
   ty, pymarkdown, migrations and app imports all pass.
+- CI builds its venv at `$GITHUB_WORKSPACE/.venv` (was `$RUNNER_TEMP/venv`), the
+  same relative path `scripts/_venv.sh` defaults to, so CI and a developer no longer
+  look like different environments. Verified a build-local, untracked `.venv` does
+  not trip the tracked-artifact guard.
 - CI and the local scripts now resolve every interpreter and tool by absolute path:
   CI uses `$RUNNER_TEMP/venv/bin/{ruff,ty,pytest,...}` (UV_BIN/SHELLCHECK_BIN from
   `$GITHUB_ENV`), the scripts source `scripts/_venv.sh` (`GCM_VENV`, default
@@ -518,6 +522,12 @@ change and how to know it worked.
   host: `docker compose -p workspace down`, then
   `./scripts/cutover-data.sh --apply --owner "$USER"`, then confirm `/api/conflicts`
   returns the counted rows.
+- [ ] **Get the Shellcheck step's actual output.** It has failed three times in
+  0.37 s with nothing in the runner log, and three theories (setup-python, PATH,
+  missing venv) were each disproven by local reproduction. Nothing in the repo
+  sources `../.venv/bin/activate`; shellcheck exits 0 on CI's file list with an
+  empty PATH. Enable step debug logging (repo secret `ACTIONS_STEP_DEBUG=true`) or
+  copy the job to a branch, so the next failure is diagnosable instead of guessed at.
 - [ ] **Run the CI/CD pipeline on the runner once.** Why: the orchestration has
   never executed on GitHub Actions — only actionlint plus local replication. Unverified:
   `workflow_run` firing for the commit that adds `deploy.yml`, the

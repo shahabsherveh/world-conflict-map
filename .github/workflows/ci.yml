@@ -49,24 +49,28 @@ jobs:
       - uses: ./.github/actions/uv-python
         with:
           python-version: "3.12"
-          venv: ${{ runner.temp }}/venv
+          # Under the checkout, matching scripts/_venv.sh's default (.venv), so
+          # the two never look like different environments. Untracked (gitignored)
+          # and re-created from scratch on every run.
+          venv: ${{ github.workspace }}/.venv
 
-      # `shell` overrides the workflow default: `bash -e {0}` without pipefail,
-      # so the test on the left of `||` succeeds and a non-zero exit is still a
-      # failure via the `{0}` fallback. Belt and braces alongside the absolute
-      # paths below — a missing venv must be loud, not a silent red X.
+      # The venv lives inside the checkout now (it is gitignored and re-created
+      # each run), which needs two things to stay true: `git clean` runs before
+      # the venv exists, and the artifact guard below only looks at TRACKED files,
+      # so a build-local .venv cannot trip it. Print the versions first: a missing
+      # tool must name itself, not look like a lint failure.
       - name: Verify tools resolve
         shell: bash -e {0}
         run: |
-          test -x "$RUNNER_TEMP/venv/bin/ruff" || { echo "::error::no ruff in $RUNNER_TEMP/venv"; ls -la "$RUNNER_TEMP/venv/bin" || true; exit 1; }
-          "$RUNNER_TEMP/venv/bin/ruff" --version
-          "$RUNNER_TEMP/venv/bin/ty" --version
-          "$RUNNER_TEMP/venv/bin/pytest" --version
+          test -x "$GITHUB_WORKSPACE/.venv/bin/ruff" || { echo "::error::no ruff in $GITHUB_WORKSPACE/.venv"; ls -la "$GITHUB_WORKSPACE/.venv/bin" || true; exit 1; }
+          "$GITHUB_WORKSPACE/.venv/bin/ruff" --version
+          "$GITHUB_WORKSPACE/.venv/bin/ty" --version
+          "$GITHUB_WORKSPACE/.venv/bin/pytest" --version
 
       - name: Install runtime dependencies
         run: |
           set -euo pipefail
-          py="$RUNNER_TEMP/venv/bin/python"
+          py="$GITHUB_WORKSPACE/.venv/bin/python"
           # CPU wheel first, exactly like the Dockerfile: the bare `torch` line in
           # requirements.txt would otherwise pull the multi-GB CUDA build.
           "$UV_BIN" pip install --python "$py" torch --index-url https://download.pytorch.org/whl/cpu
@@ -110,10 +114,10 @@ jobs:
       # PATH resolution, and a silent "command not found" is indistinguishable
       # from a lint failure in the runner log.
       - name: Lint
-        run: '"$RUNNER_TEMP/venv/bin/ruff" check .'
+        run: '"$GITHUB_WORKSPACE/.venv/bin/ruff" check .'
 
       - name: Format check
-        run: '"$RUNNER_TEMP/venv/bin/ruff" format --check app tests scripts'
+        run: '"$GITHUB_WORKSPACE/.venv/bin/ruff" format --check app tests scripts'
 
       - name: Shellcheck
         run: |
@@ -125,13 +129,13 @@ jobs:
           "$SHELLCHECK_BIN" scripts/*.sh docker/pipeline-entrypoint.sh
 
       - name: Markdown lint
-        run: '"$RUNNER_TEMP/venv/bin/pymarkdown" scan -r README.md AGENTS.md docs tests/ui/README.md tasks'
+        run: '"$GITHUB_WORKSPACE/.venv/bin/pymarkdown" scan -r README.md AGENTS.md docs tests/ui/README.md tasks'
 
       - name: Type check
-        run: '"$RUNNER_TEMP/venv/bin/ty" check'
+        run: '"$GITHUB_WORKSPACE/.venv/bin/ty" check'
 
       - name: Tests
-        run: '"$RUNNER_TEMP/venv/bin/pytest" -q'
+        run: '"$GITHUB_WORKSPACE/.venv/bin/pytest" -q'
 
       # A fresh DB from migrations catches a revision that does not apply in
       # order; the drift check catches a model change with no migration.
@@ -140,13 +144,13 @@ jobs:
           GCM_DATABASE_URL: sqlite:///${{ runner.temp }}/schema.db
         run: |
           rm -f "$RUNNER_TEMP/schema.db"
-          "$RUNNER_TEMP/venv/bin/alembic" upgrade head
-          "$RUNNER_TEMP/venv/bin/alembic" check
+          "$GITHUB_WORKSPACE/.venv/bin/alembic" upgrade head
+          "$GITHUB_WORKSPACE/.venv/bin/alembic" check
 
       # The app must import with only the shipped dependencies installed; the
       # suite stubs the model, so this is the one step that proves the wiring.
       - name: App imports
-        run: '"$RUNNER_TEMP/venv/bin/python" -c "import app.main, app.api.routes, app.extract.run, app.queries"'
+        run: '"$GITHUB_WORKSPACE/.venv/bin/python" -c "import app.main, app.api.routes, app.extract.run, app.queries"'
 
       # Second line of defence behind .gitignore. These are the "never commit"
       # entries in AGENTS.md; a tracked one is a data/secret leak.

@@ -152,7 +152,9 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 10. **Scripts must not assume the venv is at `.venv` or that they run from the repo
    root.** `scripts/_venv.sh` owns the location (`GCM_VENV` overrides it) and every
    caller uses `"$(gcm_venv_python)"` / `"$(gcm_venv_tool ruff)"`; the cron entry
-   point (`scripts/daily.sh`) runs under whatever PATH cron provides. Related: the
+   point (`scripts/daily.sh`) runs under whatever PATH cron provides. CI builds
+   its venv at `$GITHUB_WORKSPACE/.venv` (same path, gitignored) so CI and a
+   developer see the same layout. Related: the
    tracked `conflicts.db` is at schema `b7da7a666155` while `alembic head` is ahead
    of it, so anything reading it — the host run, the UI smoke against a hand-started
    server — must `alembic upgrade head` first.
