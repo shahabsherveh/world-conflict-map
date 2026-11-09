@@ -104,6 +104,9 @@ jobs:
       - name: Shellcheck
         run: shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh
 
+      - name: Markdown lint
+        run: pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks
+
       - name: Type check
         run: ty check
 

@@ -234,22 +234,23 @@ daily cron instructions, `.gitignore` finalization.
 ## Checkpoint: Complete
 - [x] Fresh-clone setup documented and verified
 - [x] All acceptance criteria met (75 tests passing)
-- [ ] Visual browser smoke test by user (open http://localhost:8000)
+- [ ] Visual browser smoke test by user (open <http://localhost:8000>)
 
 ---
 
-# Session handoff state
+## Session handoff state
 
 Updated after the code-review pass and context setup.
 
-## Status
+### Status
 All original plan tasks complete. Raw GDELT storage, two-phase processing, audit
 backfill, batched zero-shot filtering, API hardening, containerization, and the
 CI/CD pipeline are applied. The working tree is clean on `main`; `conflicts.db`,
 `data/`, and `.venv/` are untracked via `.gitignore`. Open CI/CD follow-ups are
 listed below under "Remaining work".
 
-## Verification baseline (re-run these first)
+### Verification baseline (re-run these first)
+
 ```bash
 source .venv/bin/activate
 ./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (88), alembic
@@ -263,7 +264,7 @@ Host-only verification (not part of ci-check): `./scripts/install-runner.sh --dr
 --url https://github.com/OWNER/REPO` downloads and hash-checks the runner archive
 without registering anything.
 
-## Changes since the original plan
+### Changes since the original plan
 - Grouping: keyword overlap → proximity (100 km + time window), anchor cached per conflict.
 - Zero-shot filter added (`cross-encoder/nli-deberta-v3-small`, threshold 0.7);
   measured 80% precision / 100% recall vs 32% baseline on a 25-article labelled set
@@ -360,9 +361,9 @@ without registering anything.
   with no error. 83 → 88 tests. The unfixed findings are below under
   "Data integrity (from the code review)".
 
-## Remaining work (not started)
+### Remaining work (not started)
 
-### Data integrity (from the code review)
+#### Data integrity (from the code review)
 - [ ] **Retry GDELT downloads instead of aborting the run.** Why: `fetch_day` tolerates
   only 404s, so one `ReadTimeout`/`ConnectError`/5xx in any of the 96 daily slots
   propagates out of `run()` and the remaining days of a multi-day backfill never run; there
@@ -409,7 +410,7 @@ without registering anything.
   URLs like drafts without a URL, and skip/report manual events in `regroup_all`. Done
   when each has a regression test.
 
-### UI / product
+#### UI / product
 - [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
   A 30-day range (13,066 geolocated events) renders as ~37 clusters plus a couple of
   individual dots at world zoom; every event is still in the cluster tree.
@@ -450,7 +451,7 @@ without registering anything.
   flow. No API or schema change. Verified end-to-end in the browser: placing one event took
   493 → 492 unplaced, 13,064 → 13,066 markers, 1,177 → 1,178 in view, then reverted.
 
-### CI/CD follow-ups
+#### CI/CD follow-ups
 The pipeline is in place; these are the gaps deliberately left open. Each says what to
 change and how to know it worked.
 
@@ -512,7 +513,7 @@ change and how to know it worked.
   prune -f --filter until=168h`; delete local validation artefacts (`gcm-web:ci`,
   `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys.
 
-### Operations / data
+#### Operations / data
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
 - [ ] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
@@ -520,7 +521,7 @@ change and how to know it worked.
 - [ ] Mark stale `running` `ingestion_run` rows failed on startup.
 - [ ] Record whether the zero-shot filter was available/used in run audit metadata.
 
-### Tooling
+#### Tooling
 - [x] Add `scripts/install-runner.sh` for the self-hosted runner: pinned v2.338.2 with
   per-arch sha256, `--dry-run` without a token, root and already-registered guards,
   docker-group warning, systemd install with a `./run.sh` fallback. Registering still
@@ -538,7 +539,7 @@ change and how to know it worked.
   v0.11.0 with per-arch tarball hashes in `ci.yml`; local fallback in
   `scripts/ci-check.sh`. Clean on all six `scripts/*.sh` files plus the container entrypoint.
 
-### Optional
+#### Optional
 - [ ] Use `num_sources` from `raw_event` for corroboration or confidence.
 - [ ] Backfill more history beyond 2026-10-29..2026-11-04.
 - [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
@@ -547,7 +548,7 @@ change and how to know it worked.
 - [ ] Pin dependencies (see "CI/CD follow-ups").
 - [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
-## Approval state
+### Approval state
 Pending approvals (both are grouping-rule changes): bound the conflict time window so a
 multi-year gap starts a new conflict, and make candidate selection deterministic instead
 of rowid-ordered with `country IS NULL` matching worldwide. Also awaiting a decision on

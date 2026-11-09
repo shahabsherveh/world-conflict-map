@@ -18,6 +18,12 @@ node map-smoke.mjs          # or: BASE_URL=http://localhost:8000 node map-smoke.
 Requires Node 18+ (global `fetch`). The library files are downloaded from unpkg once and
 cached under `node_modules/.cache/ui-smoke/`.
 
+Use a freshly seeded DB (from the repo root: `python scripts/seed.py`, or
+`docker compose run --rm web python scripts/seed.py` for the Docker stack) or a
+model-filtered DB. Unfiltered GDELT events often share country-centroid coordinates;
+Leaflet spiderfies duplicate points, and jsdom cannot render that layer, so the
+cluster-click and scrub checks fail for harness reasons rather than app reasons.
+
 ## What it asserts
 
 - Leaflet and markercluster load; `app.js` throws no uncaught errors.

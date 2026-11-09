@@ -9,18 +9,21 @@ daily from news data. Read this file before working in the repo.
 - `httpx` (GDELT downloads), `pyyaml` (config)
 - `transformers` + `torch` (zero-shot filter, CPU)
 - Vanilla ES modules + Leaflet + OpenStreetMap tiles — **no frontend build step**
-- Tests: pytest · Lint: ruff check · Format: ruff format (line length 100) · Shell: shellcheck
+- Tests: pytest · Lint: ruff check · Format: ruff format (line length 100)
+  · Shell: shellcheck · Markdown: pymarkdown
 
 ## Commands
 
 ```bash
 source .venv/bin/activate
+pip install -r requirements-ci.txt       # pinned ruff, ty, pymarkdown the gates expect
 
 pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 ruff format app tests scripts            # format
 shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh   # shell scripts
+pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks  # markdown
 ty check                                 # types (targets 3.11)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
@@ -75,7 +78,8 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 
 ## Testing
 
-- `tests/` mirrors modules: `test_storage`, `test_ingestion`, `test_extraction`, `test_api`, `test_location`, `test_config`.
+- `tests/` mirrors modules: `test_storage`, `test_ingestion`, `test_extraction`,
+  `test_api`, `test_location`, `test_config`.
 - Test **behaviour**, and make fixtures complete enough that a mutation is actually caught —
   a test that passes for the wrong reason is worse than none.
 - Regression tests for every bug fix (see `test_group_events_does_not_merge_distant_cities_in_one_country`).
@@ -95,7 +99,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 
 **Always**
 - Run `./scripts/ci-check.sh` before calling work done: tool pins, ruff check + format,
-  shellcheck, `ty check`, pytest, and migration apply/drift — the same gates as CI.
+  shellcheck, pymarkdown, `ty check`, pytest, and migration apply/drift — the same gates as CI.
 - Use Alembic for schema changes, and keep `alembic check` clean: it runs in CI.
 - Keep markers per-event; never re-position a marker from aggregated conflict data.
 - Assert on measured behaviour (query counts, HTTP status) rather than assuming.
@@ -134,9 +138,11 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    source it. Setting it in one place only is how the web app and the daily pipeline
    ended up on different databases — the map simply stopped updating. Use
    `scripts/docker-daily.sh` for backfills: it forwards args (a bare
-   `docker compose run --rm pipeline --days 7` uses `./data/db`). Deliberate duplicate
-   coordinates in seed data also break the UI smoke test: Leaflet spiderfies them and
-   jsdom cannot render that.
+   `docker compose run --rm pipeline --days 7` uses `./data/db`). The UI smoke test
+   needs a freshly seeded or model-filtered DB: unfiltered GDELT events share
+   country-centroid coordinates, Leaflet spiderfies them, and jsdom cannot render that
+   layer, so the cluster-click/scrub checks fail. `scripts/seed.py` offsets its demo
+   coordinates, so a fresh seed is safe.
 10. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
    and Chrome refuses to run as root). Run Chrome yourself with
    `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with

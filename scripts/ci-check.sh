@@ -56,6 +56,9 @@ else
   echo "shellcheck not installed; skipping (CI runs v0.11.0)" >&2
 fi
 
+step "markdown lint"
+pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks
+
 step "ty check"
 ty check
 

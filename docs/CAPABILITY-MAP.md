@@ -15,18 +15,24 @@ Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 ### Tech stack
 - Python 3.11+, FastAPI (backend + serves UI)
 - SQLite via SQLAlchemy 2.0, migrations via Alembic
-- GDELT 2.0 raw event files (`.export.CSV.zip`) via `httpx` (structured conflict events — already geolocated + classified)
+- GDELT 2.0 raw event files (`.export.CSV.zip`) via `httpx` (structured conflict
+  events — already geolocated + classified)
 - `transformers` + `torch` (zero-shot armed-conflict filter, CPU)
 - Leaflet + OpenStreetMap tiles (frontend, no API key)
 
 ### Commands
-- Setup: `python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
+- Setup: `python -m venv .venv && . .venv/bin/activate`
+- Install (CPU torch first; a plain requirements install pulls the multi-GB CUDA build):
+  `pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt`
+- Gate tools (contributors): `pip install -r requirements-ci.txt` (pinned ruff, ty, pymarkdown)
 - Migrate: `alembic upgrade head`
-- Model (once): `python scripts/download_model.py`
+- Model (once): `python scripts/download_model.py` (~570 MB; the pipeline warns and
+  skips the filter if it is unavailable)
 - Extract (fetch + filter + persist + group): `python -m app.extract.run`
 - Serve: `uvicorn app.main:app --reload --port 8000`
 - Test: `pytest`
 - Lint/format/types: `ruff check . && ruff format --check . && ty check`
+- Markdown: `pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks`
 - All CI gates: `./scripts/ci-check.sh` (see `ci-cd.md`)
 
 ### Project structure

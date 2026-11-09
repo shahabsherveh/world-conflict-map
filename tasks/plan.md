@@ -51,6 +51,7 @@ Task-by-task acceptance criteria and verification evidence: `tasks/todo.md`.
 - **After 9:** a fresh clone can be set up and run the full daily flow from the README.
 
 ## Risks and Mitigations
+
 | Risk | Impact | Mitigation |
 |---|---|---|
 | GDELT event coding has false positives / duplicates | Med | Dedupe by `GLOBALEVENTID`; filter to armed-conflict codes; manual edits + provenance |

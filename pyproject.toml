@@ -36,3 +36,24 @@ requires-python = ">=3.11"
 dev = [
     "ty>=0.0.99",
 ]
+
+[tool.pymarkdown]
+# Markdown gate (pymarkdownlnt). GFM tables and task-list items must be enabled explicitly.
+extensions.markdown-tables.enabled = true
+extensions.markdown-task-list-items.enabled = true
+
+# 100 columns for prose; commands in code blocks and table rows are exempt.
+plugins.md013.line_length = 100
+plugins.md013.code_blocks = false
+plugins.md013.tables = false
+
+# Off because the docs deliberately use:
+# - no blank line between a heading/bold label and the list that follows (MD022/MD032)
+# - bold labels as sub-headings in AGENTS.md (MD036)
+# - compact `|---|` table delimiters (MD060)
+# Enabling those rules would reformat every doc without changing rendered output.
+plugins.md024.siblings_only = true
+plugins.md022.enabled = false
+plugins.md032.enabled = false
+plugins.md036.enabled = false
+plugins.md060.enabled = false

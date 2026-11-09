@@ -8,10 +8,10 @@ Files:
 
 | File | Purpose |
 |---|---|
-| `.github/workflows/ci.yml` | Lint, format, shellcheck, types, tests, migrations, artifact guard, image build + container smoke |
+| `.github/workflows/ci.yml` | Lint, format, shellcheck, markdown, types, tests, migrations, artifact guard, image build + container smoke |
 | `.github/workflows/deploy.yml` | Deploy the CI-verified commit to this host; roll back on an unhealthy start |
 | `.github/dependabot.yml` | Weekly PRs for GitHub Actions and the UI-test npm deps |
-| `requirements-ci.txt` | Exact ruff/ty versions the gates run (one source of truth) |
+| `requirements-ci.txt` | Exact ruff/ty/pymarkdown versions the gates run (one source of truth) |
 | `scripts/ci-check.sh` | The same gates, locally. `--docker` adds the image build |
 | `scripts/deploy.sh` | Build → replace → readiness check → roll back (what the deploy job runs) |
 | `scripts/install-runner.sh` | Register this repo's self-hosted runner (pinned release, verified hash) |
@@ -20,13 +20,14 @@ Files:
 
 ## The gates
 
-```
+```text
 push / PR
    │
    ├─ gates (py3.11, the runtime we ship)
    │    ruff check                     unused imports, dead code, zip truncation
    │    ruff format --check            formatting is not a review topic
    │    shellcheck -x scripts/*.sh     deploy/rollback/cutover scripts
+   │    pymarkdown scan                docs structure, bare URLs, broken fences
    │    ty check                       type errors, against 3.11
    │    pytest                         the full suite
    │    alembic upgrade head + check   revisions apply in order; models match migrations
@@ -52,10 +53,10 @@ push / PR
 No gate can be skipped. A red gate is fixed, not silenced: no `# noqa` without a
 reason in the comment, no `skip`ped test, no relaxed formatter.
 
-The tools that decide pass/fail (`ruff`, `ty`) are pinned in `requirements-ci.txt`,
-because an unpinned upgrade could turn a green branch red without a commit touching
-it. `scripts/ci-check.sh` fails if the local versions drift from that file, so a
-local pass means a pipeline pass.
+The tools that decide pass/fail (`ruff`, `ty`, `pymarkdown`) are pinned in
+`requirements-ci.txt`, because an unpinned upgrade could turn a green branch red
+without a commit touching it. `scripts/ci-check.sh` fails if the local versions drift
+from that file, so a local pass means a pipeline pass.
 
 ### Why these and not more
 
@@ -70,13 +71,19 @@ local pass means a pipeline pass.
   would add minutes to every run and test nothing the adapter tests do not already
   cover. The stage that *would* need it (the daily pipeline) is not in CI by design —
   it depends on live GDELT and writes to the real database.
+- **Markdown is gated with `pymarkdown`.** It catches broken fences, bare URLs,
+  duplicate headings, and overlong prose. MD022/MD032/MD036/MD060 are disabled in
+  `pyproject.toml`: the docs' valid GFM style (a heading or bold label immediately
+  followed by a list, compact `|---|` tables) would otherwise need a mass reformat
+  that changes no rendered output.
 - **No `pip-audit` yet.** `requirements.txt` is unpinned, so an audit reports the
   resolver's current guesses, not what the image ships. Pin first (see Follow-ups).
-- **The jsdom UI smoke test is not a gate.** It needs a running server and a seeded
-  DB, and at world zoom its cluster-click check spiderfies, which jsdom cannot
-  render without an SVG/canvas layer. It would be red for harness reasons, not app
-  reasons. Run it by hand (`tests/ui/README.md`); `scripts/seed.py` now includes a
-  no-location conflict so the panel is exercisable.
+- **The jsdom UI smoke test is not a gate.** It needs a running server and a freshly
+  seeded or model-filtered DB: unfiltered GDELT events share country-centroid
+  coordinates, and Leaflet's spiderfy layer cannot render in jsdom, so the
+  cluster-click/scrub checks fail for harness reasons, not app reasons. Run it by hand
+  (`tests/ui/README.md`); `scripts/seed.py` includes a no-location conflict so the
+  panel is exercisable and offsets coordinates to avoid spiderfy.
 
 ## Runner setup (self-hosted)
 
