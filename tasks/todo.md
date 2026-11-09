@@ -522,6 +522,13 @@ change and how to know it worked.
   host: `docker compose -p workspace down`, then
   `./scripts/cutover-data.sh --apply --owner "$USER"`, then confirm `/api/conflicts`
   returns the counted rows.
+- [x] **Venv was created but empty.** `Verify tools resolve` failed with "no ruff
+  in .../.venv" seconds after uv exited 0. Cause: tool installation lived in the
+  *next* step, and GitHub skips every later step once one has failed, so the check
+  ran against a venv that only had `python`. Fixed by making installation part of
+  the `uv-python` action (`requirements:` input, torch redirected to the CPU index),
+  which then prints ruff/ty/pytest versions — so "the tools are missing" can only
+  be reported after an honest attempt to install them.
 - [ ] **Get the Shellcheck step's actual output.** It has failed three times in
   0.37 s with nothing in the runner log, and three theories (setup-python, PATH,
   missing venv) were each disproven by local reproduction. Nothing in the repo

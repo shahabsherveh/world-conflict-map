@@ -53,34 +53,12 @@ jobs:
           # the two never look like different environments. Untracked (gitignored)
           # and re-created from scratch on every run.
           venv: ${{ github.workspace }}/.venv
-
-      # The venv lives inside the checkout now (it is gitignored and re-created
-      # each run), which needs two things to stay true: `git clean` runs before
-      # the venv exists, and the artifact guard below only looks at TRACKED files,
-      # so a build-local .venv cannot trip it. Print the versions first: a missing
-      # tool must name itself, not look like a lint failure.
-      - name: Verify tools resolve
-        shell: bash -e {0}
-        run: |
-          test -x "$GITHUB_WORKSPACE/.venv/bin/ruff" || { echo "::error::no ruff in $GITHUB_WORKSPACE/.venv"; ls -la "$GITHUB_WORKSPACE/.venv/bin" || true; exit 1; }
-          "$GITHUB_WORKSPACE/.venv/bin/ruff" --version
-          "$GITHUB_WORKSPACE/.venv/bin/ty" --version
-          "$GITHUB_WORKSPACE/.venv/bin/pytest" --version
-
-      - name: Install runtime dependencies
-        run: |
-          set -euo pipefail
-          py="$GITHUB_WORKSPACE/.venv/bin/python"
-          # CPU wheel first, exactly like the Dockerfile: the bare `torch` line in
-          # requirements.txt would otherwise pull the multi-GB CUDA build.
-          "$UV_BIN" pip install --python "$py" torch --index-url https://download.pytorch.org/whl/cpu
-          # Filtered list goes to RUNNER_TEMP, not the checkout: on this runner the
-          # checkout may be the live project, and a killed job must not litter it.
-          grep -v '^torch' requirements.txt > "$RUNNER_TEMP/requirements-no-torch.txt"
-          "$UV_BIN" pip install --python "$py" -r "$RUNNER_TEMP/requirements-no-torch.txt"
-          # Gate tools are pinned separately: an unpinned ruff/ty upgrade must not
-          # turn an already green commit red on its own.
-          "$UV_BIN" pip install --python "$py" -r requirements-ci.txt
+          # Installed inside the same step that creates the venv: a separate
+          # "Install dependencies" step is skipped once an earlier one fails, so
+          # the tool check below would run against an empty venv (which is
+          # exactly how this failed: "no ruff in .../.venv", seconds after uv
+          # reported success).
+          requirements: torch requirements.txt requirements-ci.txt
 
       # Shell scripts are load-bearing (deploy/rollback, cutover, cron) and
       # actionlint only checks the `run:` blocks inside workflows. Version and

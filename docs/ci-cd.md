@@ -26,6 +26,7 @@ push / PR
    │
    ├─ gates (py3.12, the runtime we ship)
    │    uv provisions CPython 3.12     setup-python has no Debian builds
+   │    installs ruff/ty/pytest        inside the venv step, then prints versions
    │    ruff check                     unused imports, dead code, zip truncation
    │    ruff format --check            formatting is not a review topic
    │    shellcheck scripts/*.sh        deploy/rollback/cutover scripts

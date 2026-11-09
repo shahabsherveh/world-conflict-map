@@ -16,6 +16,15 @@ inputs:
   venv:
     description: Absolute path for the virtualenv
     required: true
+  requirements:
+    description: >-
+      Requirements files to install into the venv, space separated. The venv
+      step is the only thing guaranteed to have run before it is needed, so the
+      tools must be installed here — a later "Install dependencies" step never
+      runs once an earlier step fails.
+    required: false
+    default: ""
+
 outputs:
   uv-bin:
     description: Absolute path to the pinned uv binary
@@ -60,7 +69,42 @@ runs:
         VENV: ${{ inputs.venv }}
       run: |
         set -euo pipefail
-        # The venv lives outside the workspace: on this runner the checkout can
-        # be the live project, and a stray .venv-ci next to .venv is a trap.
+        # The venv lives inside the checkout by default (gitignored, rebuilt
+        # every run): the same relative path scripts/_venv.sh uses, so CI and a
+        # developer environment have the same shape.
         "$UV_BIN" venv --python "$PYTHON_VERSION" "$VENV"
         echo "$VENV/bin" >> "$GITHUB_PATH"
+        # Fail here, loudly, if uv produced something that is not a usable venv.
+        test -x "$VENV/bin/python" || { echo "::error::uv did not create $VENV/bin/python"; ls -la "$VENV" || true; exit 1; }
+
+    - name: Install tools
+      if: inputs.requirements != ''
+      shell: bash
+      env:
+        VENV: ${{ inputs.venv }}
+        REQUIREMENTS: ${{ inputs.requirements }}
+      run: |
+        set -euo pipefail
+        # The CPU index and the torch strip keep this identical to the
+        # Dockerfile: the bare `torch` requirement would otherwise pull the
+        # multi-GB CUDA wheel.
+        for spec in $REQUIREMENTS; do
+          case "$spec" in
+            torch)
+              "$UV_BIN" pip install --python "$VENV/bin/python" torch \
+                --index-url https://download.pytorch.org/whl/cpu
+              ;;
+            requirements.txt)
+              grep -v '^torch' requirements.txt > "$RUNNER_TEMP/requirements-no-torch.txt"
+              "$UV_BIN" pip install --python "$VENV/bin/python" \
+                -r "$RUNNER_TEMP/requirements-no-torch.txt"
+              ;;
+            *)
+              "$UV_BIN" pip install --python "$VENV/bin/python" -r "$spec"
+              ;;
+          esac
+        done
+        # Prove the tools landed in THIS venv before any gate runs.
+        "$VENV/bin/ruff" --version
+        "$VENV/bin/ty" --version
+        "$VENV/bin/pytest" --version
