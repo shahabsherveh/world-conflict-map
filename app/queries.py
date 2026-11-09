@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Conflict, ConflictEvent, IngestionRun
@@ -87,3 +87,33 @@ def recent_ingestion_runs(session: Session, limit: int = 20) -> list[IngestionRu
         .limit(limit)
     )
     return list(session.scalars(stmt))
+
+
+def latest_successful_ingestion_run(session: Session) -> IngestionRun | None:
+    """Most recent run that actually got events onto the map.
+
+    Ordered by `finished_at`, not `started_at`: a long backfill that started
+    before a short daily run still counts as the newest data, and a `running`
+    row (finished_at is null) never looks like success.
+
+    Day rows only (`source_day` set). A successful grouping/pruning row spans no
+    day, so it cannot answer "which day's data is current" — and a step row is
+    not proof on its own that any events were ingested.
+
+    `raw_only` runs are excluded on purpose. They store raw rows and stop, so a
+    cron misconfigured with `--raw-only` would keep "succeeding" while the map
+    froze — the exact failure this query exists to catch. NULL `mode` is kept:
+    those are rows from before the column existed, which still produced events.
+    """
+    stmt = (
+        select(IngestionRun)
+        .where(
+            IngestionRun.status == "success",
+            IngestionRun.finished_at.is_not(None),
+            IngestionRun.source_day.is_not(None),
+            or_(IngestionRun.mode.is_(None), IngestionRun.mode != "raw_only"),
+        )
+        .order_by(IngestionRun.finished_at.desc(), IngestionRun.id.desc())
+        .limit(1)
+    )
+    return session.scalars(stmt).first()

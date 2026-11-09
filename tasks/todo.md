@@ -253,7 +253,7 @@ listed below under "Remaining work".
 
 ```bash
 source .venv/bin/activate
-./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (88), alembic
+./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (102), alembic
 ```
 
 The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
@@ -298,6 +298,24 @@ without registering anything.
 - Full-week raw store: 717,672 rows / 672 files, then all rows processed. Outcomes:
   672,142 not-armed-conflict, 31,817 filtered out, 13,713 duplicate (the existing
   conflict events). `scripts/process_raw.py` and `scripts/backfill_audit.py` added.
+- Pipeline observability: `ingestion_run` now records `error` (`ExcType: message`,
+  truncated to 2000 chars), `degraded_reason` (zero-shot filter unavailable, or a
+  partly corrupt `--source-dir` cache), and `phase` for the whole-invocation steps
+  (`retry_stranded_raw_days`, `group_events`, `prune_raw_events`). Each step gets its
+  own row, created `running` and settled in place, so a healthy grouping keeps its
+  duration and a crash keeps the reason — previously a failure there left only day rows
+  that had already committed `success`, and a healthy grouping left no trace at all.
+  Verified against a real DB + `uvicorn`: forced fetch failure →
+  `error='RuntimeError: …'`; forced grouping failure → `phase='group_events',
+  status='failed'`; classifier unavailable → `degraded_reason` set while `status` stays
+  `success`; corrupt cached zip → `1 corrupt cached export file(s) skipped`.
+- `GET /api/pipeline-health` reports the last successful day row, its age in hours, and a
+  `stale` flag against `config/gdelt.yaml → pipeline_stale_hours` (default 48). Day rows
+  only: a `raw_only` run never reaches the map and a phase row spans no day, so neither
+  can say which day's data is current. `scripts/check-pipeline.sh` exits non-zero, so a
+  host-cron `MAILTO` catches a frozen map instead of it going unnoticed (gotcha #9).
+  Verified: empty DB → `stale=true`, exit 1; fresh success → exit 0; unreachable app →
+  exit 1.
 - Migrated formatting from black to `ruff format` (one tool for lint and format, no
   separate dependency). Output was nearly identical — exactly one file changed, where
   ruff joins an implicit f-string concat black left split. The Alembic exclusion was
@@ -517,9 +535,17 @@ change and how to know it worked.
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
 - [ ] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
-  document them as pre-metadata runs.
-- [ ] Mark stale `running` `ingestion_run` rows failed on startup.
-- [ ] Record whether the zero-shot filter was available/used in run audit metadata.
+  document them as pre-metadata runs. `source_day IS NULL` now also means "phase row",
+  but the two are distinguishable (`phase` is null for the legacy rows), and
+  `/api/pipeline-health` ignores both because it reads day rows only.
+- [ ] Mark stale `running` `ingestion_run` rows failed on startup. This matters slightly
+  more now that every invocation adds three `running` phase rows for the length of
+  `retry_stranded_raw_days`/`group_events`/`prune_raw_events`; a kill leaves them
+  `running` on purpose (it shows where the process died), but nothing ever settles them.
+- [x] Record whether the zero-shot filter was available/used in run audit metadata:
+  `ingestion_run.degraded_reason` carries `zero-shot filter unavailable (ExcType: msg);
+  ran unfiltered` while the run stays `status='success'` (unfiltered events are real,
+  just country-centroid-placed). Surfaced by `GET /api/ingestion-runs`.
 
 #### Tooling
 - [x] Add `scripts/install-runner.sh` for the self-hosted runner: pinned v2.338.2 with

@@ -37,6 +37,7 @@ alembic upgrade head                     # apply migrations
 alembic revision --autogenerate -m "…"   # new migration
 
 python -m app.extract.run                # daily pipeline: fetch → filter → persist → group
+./scripts/check-pipeline.sh              # non-zero when no run succeeded recently (cron alert)
 uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 
 python scripts/seed.py                   # demo data (no network)
@@ -138,7 +139,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    source it. Setting it in one place only is how the web app and the daily pipeline
    ended up on different databases — the map simply stopped updating. Use
    `scripts/docker-daily.sh` for backfills: it forwards args (a bare
-   `docker compose run --rm pipeline --days 7` uses `./data/db`). The UI smoke test
+   `docker compose run --rm pipeline --days 7` uses `./data/db`). `GET
+   /api/pipeline-health` (and `scripts/check-pipeline.sh` from cron) is the symptom
+   check for exactly this: it reports the last *successful* run's age, so a
+   pipeline that writes to the wrong DB shows up as stale instead of silent. The UI smoke test
    needs a freshly seeded or model-filtered DB: unfiltered GDELT events share
    country-centroid coordinates, Leaflet spiderfies them, and jsdom cannot render that
    layer, so the cluster-click/scrub checks fail. `scripts/seed.py` offsets its demo

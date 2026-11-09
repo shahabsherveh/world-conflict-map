@@ -33,7 +33,20 @@ when the model is unavailable). (Conventions: CAPABILITY-MAP.md)
 6. Zero-shot gate: `filter_by_zero_shot` drops drafts whose source URL slug doesn't
    classify as armed conflict (NLI model, threshold from config). Drafts without a
    source URL are kept — the adapter's root-code filter has already run. If the model
-   is unavailable the pipeline skips this gate rather than failing.
+   is unavailable the pipeline skips this gate rather than failing, and records
+   `ingestion_run.degraded_reason` so the skip is visible in the audit trail instead of
+   only on stderr. The run stays `status='success'`: unfiltered events are still real
+   events, they just keep GDELT's country-centroid coordinates.
+7. A failed day stores `ingestion_run.error` (`ExcType: message`, truncated) before the
+   exception propagates, so "why did yesterday fail?" is a query, not a lost log line.
+   Steps outside the per-day loop — the stranded-row retry, grouping, pruning — get
+   their own `ingestion_run` row (`source_day` null, `phase` set) created as `running`
+   and settled in place, so a healthy step keeps its duration and a crash keeps the
+   reason. The day rows have already committed `success` by then, so a failure there
+   would otherwise leave the run looking clean.
+8. `read_day_from_dir` (the `--source-dir` path) skips unreadable cached exports. Missing
+   15-minute slots are normal and unreported; corrupt files are counted onto the day's
+   `degraded_reason`, because a silently short day looks identical to a full one.
 
 ## Commands
 - `pytest tests/test_extraction.py`

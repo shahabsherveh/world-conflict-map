@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -157,17 +159,84 @@ def retry_stranded_raw_days(
     return new_events
 
 
-def load_classifier() -> ZeroShotConflictClassifier | None:
+def describe_exception(exc: BaseException, limit: int = 2000) -> str:
+    """`ExcType: message`, truncated so one huge response body can't own the row."""
+    return f"{type(exc).__name__}: {exc}".strip()[:limit]
+
+
+def merge_notes(*notes: str | None) -> str | None:
+    """Join the reasons a run produced less than it should into one cell."""
+    return "; ".join(note for note in notes if note) or None
+
+
+def cache_note(skipped: list[str]) -> str | None:
+    """Stderr is gone by morning; a short-loaded day has to say so on its row."""
+    if not skipped:
+        return None
+    return f"{len(skipped)} corrupt cached export file(s) skipped"
+
+
+@contextmanager
+def pipeline_phase(session: Session, mode: str, phase: str) -> Generator[None, None, None]:
+    """Time one whole-invocation step on its own `ingestion_run` row.
+
+    `retry_stranded_raw_days`, `group_events` and `prune_raw_events` run once per
+    invocation, outside the per-day rows, so a crash there used to leave nothing
+    behind but the day rows that had already committed.
+
+    The row is created up front as `running` (like a day row), so a long grouping
+    step is visible while it runs and a killed process leaves evidence of where it
+    died. It is then finished in place: a healthy step keeps its duration, a crash
+    keeps `failed` + the reason. `source_day` stays null and `phase` names the
+    step, so the two kinds of row are distinguishable without parsing `error`.
+    """
+    row = IngestionRun(status="running", source_day=None, mode=mode, phase=phase)
+    session.add(row)
+    session.commit()
     try:
-        return ZeroShotConflictClassifier()
+        yield
+    except Exception as exc:
+        try:
+            # Discard whatever half-done work the phase left in the session, then
+            # re-load the row and record the reason on it. The column default for
+            # `started_at` fires at INSERT, so the row already has both ends
+            # ordered correctly.
+            session.rollback()
+            row.status = "failed"
+            row.error = describe_exception(exc)
+            row.finished_at = utcnow()
+            session.commit()
+        except Exception as record_exc:  # noqa: BLE001 — never mask the real failure
+            print(
+                f"WARNING: could not record {phase} failure ({describe_exception(record_exc)})",
+                file=sys.stderr,
+                flush=True,
+            )
+        raise
+    row.status = "success"
+    row.finished_at = utcnow()
+    session.commit()
+
+
+def load_classifier() -> tuple[ZeroShotConflictClassifier | None, str | None]:
+    """Return `(classifier, degraded_reason)`.
+
+    A missing model is deliberate graceful degradation, not a failure: the map
+    still updates, just unfiltered (and therefore clustered on country
+    centroids). The reason is returned so the caller can persist it — a stderr
+    line from a cron run is gone by the time anyone asks "did the filter run?".
+    `degraded_reason` is None when the filter loaded normally.
+    """
+    try:
+        return ZeroShotConflictClassifier(), None
     except Exception as exc:  # noqa: BLE001 — degrade gracefully if the model isn't available
+        reason = describe_exception(exc)
         print(
-            "WARNING: zero-shot filter unavailable "
-            f"({type(exc).__name__}: {exc}); continuing without it.",
+            f"WARNING: zero-shot filter unavailable ({reason}); continuing without it.",
             file=sys.stderr,
             flush=True,
         )
-        return None
+        return None, f"zero-shot filter unavailable ({reason}); ran unfiltered"
 
 
 def resolve_target_days(
@@ -207,7 +276,12 @@ def run(
         days = int(cfg["lookback_days"])
 
     targets = resolve_target_days(days=days, start=start, end=end)
-    classifier = None if raw_only else load_classifier()
+    run_mode = "raw_only" if raw_only else "full"
+    degraded_reason: str | None = None
+    if raw_only:
+        classifier = None
+    else:
+        classifier, degraded_reason = load_classifier()
     threshold = float(cfg["zero_shot_threshold"])
     adapter = GDELTAdapter()
     client = None if source_dir is not None else GDELTClient(base_url=cfg["base_url"])
@@ -218,13 +292,17 @@ def run(
     created = 0
     try:
         if not raw_only:
-            total_new += retry_stranded_raw_days(session, adapter, classifier, threshold, targets)
+            with pipeline_phase(session, run_mode, "retry_stranded_raw_days"):
+                total_new += retry_stranded_raw_days(
+                    session, adapter, classifier, threshold, targets
+                )
 
         for target in targets:
             run_record = IngestionRun(
                 status="running",
                 source_day=target,
-                mode="raw_only" if raw_only else "full",
+                mode=run_mode,
+                degraded_reason=degraded_reason,
             )
             session.add(run_record)
             session.commit()
@@ -233,9 +311,10 @@ def run(
             raw_new = 0
             processed = 0
             new_count = 0
+            skipped_cache: list[str] = []
             try:
                 if source_dir is not None:
-                    raw_events = read_day_from_dir(source_dir, target)
+                    raw_events = read_day_from_dir(source_dir, target, skipped_cache)
                 else:
                     assert client is not None
                     raw_events = client.fetch_day(target)
@@ -251,9 +330,12 @@ def run(
                         session, adapter, classifier, threshold, target
                     )
                     total_new += new_count
-            except Exception:
+            except Exception as exc:
                 session.rollback()
                 run_record.status = "failed"
+                # Without this the only record of *why* was stdout of a cron
+                # job, which is usually gone by the time anyone notices.
+                run_record.error = describe_exception(exc)
                 run_record.finished_at = utcnow()
                 run_record.items_seen = raw_count
                 session.commit()
@@ -263,6 +345,9 @@ def run(
             run_record.finished_at = utcnow()
             run_record.items_seen = raw_count
             run_record.items_new = new_count
+            # The classifier note was set at creation; a partly corrupt cache is
+            # only known now, so merge rather than overwrite.
+            run_record.degraded_reason = merge_notes(degraded_reason, cache_note(skipped_cache))
             session.commit()
             print(
                 f"{target}: {raw_count} raw, {raw_new} new raw, "
@@ -271,11 +356,13 @@ def run(
             )
 
         if not raw_only:
-            created = group_events(session)
-            session.commit()
+            with pipeline_phase(session, run_mode, "group_events"):
+                created = group_events(session)
+                session.commit()
 
-        pruned = prune_raw_events(session, int(cfg["raw_retention_days"]))
-        session.commit()
+        with pipeline_phase(session, run_mode, "prune_raw_events"):
+            pruned = prune_raw_events(session, int(cfg["raw_retention_days"]))
+            session.commit()
     finally:
         session.close()
 

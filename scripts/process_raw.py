@@ -78,7 +78,9 @@ def main() -> int:
             return 0
 
         cfg = load_config()
-        classifier = load_classifier()
+        # This script deliberately writes no `ingestion_run` row (see module
+        # docstring), so a degradation is only announced on stderr here.
+        classifier, _degraded_reason = load_classifier()
         adapter = GDELTAdapter()
         total_processed = 0
         total_new = 0

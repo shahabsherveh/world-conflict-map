@@ -93,8 +93,17 @@ class IngestionRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     source_day: Mapped[date | None] = mapped_column(Date, index=True)
     mode: Mapped[str | None] = mapped_column(String(16), index=True)
+    # Names the whole-invocation step (retry / grouping / pruning) when
+    # `source_day` is null. A per-day row leaves it null, so the two kinds of
+    # row are distinguishable without parsing `error`.
+    phase: Mapped[str | None] = mapped_column(String(32))
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(16), default="running")
     items_seen: Mapped[int] = mapped_column(Integer, default=0)
     items_new: Mapped[int] = mapped_column(Integer, default=0)
+    # Why the run failed, or why it succeeded in a reduced mode. Kept separate
+    # from `status` so "ran without the zero-shot filter" is still a success —
+    # but a visible one, not just a line on stderr nobody kept.
+    error: Mapped[str | None] = mapped_column(Text)
+    degraded_reason: Mapped[str | None] = mapped_column(Text)

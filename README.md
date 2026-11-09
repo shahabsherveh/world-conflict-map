@@ -88,6 +88,22 @@ crontab -e
 `scripts/daily.sh` runs the fetch→extract pipeline. `config/gdelt.yaml` controls the
 source URL, lookback window, and zero-shot threshold.
 
+A cron job that exits 0 while the map has stopped updating is the expensive failure
+mode here (two data paths, one frozen map). Add the freshness check and let cron mail
+you when no run has succeeded within `pipeline_stale_hours` (default 48):
+
+```bash
+crontab -e
+# MAILTO applies to the whole crontab, so set it once at the top
+MAILTO=you@example.com
+0 6 * * * /absolute/path/to/global-conflict-map/scripts/daily.sh
+0 8 * * * /absolute/path/to/global-conflict-map/scripts/check-pipeline.sh
+```
+
+`check-pipeline.sh` asks the running web app for `GET /api/pipeline-health` and exits
+non-zero when the last successful ingestion run is too old (override the URL with
+`GCM_HEALTH_URL`).
+
 ## Docker
 
 Serve the app and run the daily pipeline in containers (no host venv needed).
@@ -188,6 +204,27 @@ python scripts/process_raw.py
 
 For data processed before run auditing existed, `scripts/backfill_audit.py` reconstructs
 `ingestion_run` rows from the raw outcomes (idempotent per source day).
+
+Every run records *why* it did what it did, in columns rather than log lines, so the
+answer survives the cron job's stdout:
+
+```bash
+# what happened, including failure reasons and degraded runs
+curl -s 'http://localhost:8000/api/ingestion-runs?limit=5' | python3 -m json.tool
+# is the map still updating?
+curl -s http://localhost:8000/api/pipeline-health
+```
+
+- `status` is `running` | `success` | `failed`.
+- `error` holds `ExcType: message` for a failure (truncated to 2000 chars).
+- `phase` names a whole-invocation step — `retry_stranded_raw_days`, `group_events`,
+  `prune_raw_events` — with `source_day: null`. Those rows are created `running` and
+  settled in place, so a healthy step shows its duration and a crash shows `error`.
+- `degraded_reason` is set when a run succeeded **without** the zero-shot filter —
+  expected when the model is unavailable, but it means country-centroid coordinates were
+  kept, so the map is clustered rather than precise — or when a `--source-dir` day was
+  read from a partly corrupt cache. It is deliberately not `failed`: the events still
+  land.
 
 Without `--raw-only`, the same command does both phases in one pass. Raw rows live in
 `raw_event` and are marked `persisted`, `duplicate`, `filtered_out`, or

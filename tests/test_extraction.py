@@ -42,6 +42,25 @@ def make_session() -> Session:
     return make_session_factory(engine)()
 
 
+def day_runs(session: Session) -> list[IngestionRun]:
+    """Per-day fetch/extract rows, excluding the whole-invocation phase rows."""
+    return list(
+        session.scalars(
+            select(IngestionRun)
+            .where(IngestionRun.source_day.is_not(None))
+            .order_by(IngestionRun.id)
+        )
+    )
+
+
+def phase_runs(session: Session) -> list[IngestionRun]:
+    return list(
+        session.scalars(
+            select(IngestionRun).where(IngestionRun.phase.is_not(None)).order_by(IngestionRun.id)
+        )
+    )
+
+
 def make_raw(**overrides: str) -> dict[str, str]:
     raw = {
         "global_event_id": "1",
@@ -494,7 +513,7 @@ def test_run_reads_local_files(monkeypatch, tmp_path) -> None:
 
     session = make_session()
     monkeypatch.setattr(run_module, "get_session", lambda: session)
-    monkeypatch.setattr(run_module, "load_classifier", lambda: None)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
 
     assert run_module.run(start=day, end=day, source_dir=tmp_path) == 0
     events = session.scalars(select(ConflictEvent)).all()
@@ -503,7 +522,7 @@ def test_run_reads_local_files(monkeypatch, tmp_path) -> None:
     assert events[0].provenance == "auto"
     assert len(session.scalars(select(Conflict)).all()) == 1
 
-    runs = session.scalars(select(IngestionRun)).all()
+    runs = day_runs(session)
     assert len(runs) == 1
     assert runs[0].status == "success"
     assert runs[0].source_day == day
@@ -511,6 +530,14 @@ def test_run_reads_local_files(monkeypatch, tmp_path) -> None:
     assert runs[0].items_seen == 1
     assert runs[0].items_new == 1
     assert runs[0].finished_at is not None
+
+    # Every invocation step is timed too, so a healthy run is fully visible.
+    assert [row.phase for row in phase_runs(session)] == [
+        "retry_stranded_raw_days",
+        "group_events",
+        "prune_raw_events",
+    ]
+    assert all(row.status == "success" for row in phase_runs(session))
 
     raw_rows = session.scalars(select(RawEvent)).all()
     assert len(raw_rows) == 1
@@ -525,7 +552,7 @@ def test_run_raw_only_stores_without_processing(monkeypatch, tmp_path) -> None:
 
     session = make_session()
     monkeypatch.setattr(run_module, "get_session", lambda: session)
-    monkeypatch.setattr(run_module, "load_classifier", lambda: None)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
 
     assert run_module.run(start=day, end=day, source_dir=tmp_path, raw_only=True) == 0
     assert session.scalars(select(ConflictEvent)).all() == []
@@ -533,12 +560,14 @@ def test_run_raw_only_stores_without_processing(monkeypatch, tmp_path) -> None:
     assert raw_row is not None
     assert raw_row.processed_at is None
     assert raw_row.outcome is None
-    run = session.scalar(select(IngestionRun))
+    run = session.scalar(select(IngestionRun).where(IngestionRun.source_day == day))
     assert run is not None
     assert run.source_day == day
     assert run.mode == "raw_only"
     assert run.items_seen == 1
     assert run.items_new == 0
+    # Raw-only skips extraction, so grouping never runs; only pruning is timed.
+    assert [row.phase for row in phase_runs(session)] == ["prune_raw_events"]
 
     # A second pass processes the pending raw row without re-inserting it.
     assert run_module.run(start=day, end=day, source_dir=tmp_path) == 0
@@ -555,10 +584,10 @@ def test_run_records_one_ingestion_run_per_day(monkeypatch, tmp_path) -> None:
 
     session = make_session()
     monkeypatch.setattr(run_module, "get_session", lambda: session)
-    monkeypatch.setattr(run_module, "load_classifier", lambda: None)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
 
     assert run_module.run(start=days[0], end=days[1], source_dir=tmp_path) == 0
-    runs = session.scalars(select(IngestionRun).order_by(IngestionRun.id)).all()
+    runs = day_runs(session)
     assert [(run.status, run.items_seen, run.items_new) for run in runs] == [
         ("success", 1, 1),
         ("success", 1, 1),
@@ -569,7 +598,7 @@ def test_run_records_failed_ingestion_run(monkeypatch, tmp_path) -> None:
     day = date(2024, 1, 15)
     session = make_session()
     monkeypatch.setattr(run_module, "get_session", lambda: session)
-    monkeypatch.setattr(run_module, "load_classifier", lambda: None)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
 
     def boom(*_args, **_kwargs):
         raise RuntimeError("read failed")
@@ -578,13 +607,165 @@ def test_run_records_failed_ingestion_run(monkeypatch, tmp_path) -> None:
     with pytest.raises(RuntimeError, match="read failed"):
         run_module.run(start=day, end=day, source_dir=tmp_path)
 
-    runs = session.scalars(select(IngestionRun)).all()
+    runs = day_runs(session)
     assert len(runs) == 1
     assert runs[0].status == "failed"
     assert runs[0].source_day == day
     assert runs[0].mode == "full"
     assert runs[0].items_seen == 0
     assert runs[0].finished_at is not None
+    # The durable "why": stdout from a cron run is gone by the time anyone asks.
+    assert runs[0].error == "RuntimeError: read failed"
+    assert runs[0].degraded_reason is None
+    # The pre-loop retry committed before the day blew up, and says so.
+    assert [(row.phase, row.status) for row in phase_runs(session)] == [
+        ("retry_stranded_raw_days", "success")
+    ]
+
+
+def test_describe_exception_truncates_a_huge_message() -> None:
+    """httpx errors can embed a whole response body; the row must stay bounded."""
+    described = run_module.describe_exception(RuntimeError("x" * 10_000))
+    assert described.startswith("RuntimeError: xxx")
+    assert len(described) == 2000
+
+
+def test_run_records_why_the_zero_shot_filter_was_skipped(monkeypatch, tmp_path) -> None:
+    """A run without the filter still succeeds, but must say so durably.
+
+    Unfiltered GDELT keeps country-centroid coordinates, so the map fills with
+    clustered junk — yet the run used to look identical to a healthy one, and
+    the only warning was a stderr line nobody kept.
+    """
+    day = date(2024, 1, 15)
+    write_sample_event_zip(tmp_path, day, "9001")
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    reason = "zero-shot filter unavailable (OSError: model missing); ran unfiltered"
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, reason))
+
+    assert run_module.run(start=day, end=day, source_dir=tmp_path) == 0
+
+    run = day_runs(session)[0]
+    # Degradation is not a failure: the event still lands on the map.
+    assert run.status == "success"
+    assert run.error is None
+    assert run.degraded_reason == reason
+    assert len(session.scalars(select(ConflictEvent)).all()) == 1
+
+
+def test_run_marks_a_healthy_filtered_run_as_not_degraded(monkeypatch, tmp_path) -> None:
+    day = date(2024, 1, 15)
+    write_sample_event_zip(tmp_path, day, "9001")
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (StubClassifier(), None))
+
+    assert run_module.run(start=day, end=day, source_dir=tmp_path) == 0
+
+    run = day_runs(session)[0]
+    assert run.status == "success"
+    assert run.error is None
+    assert run.degraded_reason is None
+
+
+def test_run_records_a_stranded_retry_failure_outside_the_day_rows(monkeypatch, tmp_path) -> None:
+    """The pre-loop retry runs before any day row exists, so it needs its own."""
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("retry exploded")
+
+    monkeypatch.setattr(run_module, "retry_stranded_raw_days", boom)
+    with pytest.raises(RuntimeError, match="retry exploded"):
+        run_module.run(start=date(2024, 1, 15), end=date(2024, 1, 15), source_dir=tmp_path)
+
+    assert day_runs(session) == []
+    runs = phase_runs(session)
+    assert len(runs) == 1
+    run = runs[0]
+    assert run.phase == "retry_stranded_raw_days"
+    assert run.source_day is None
+    assert run.status == "failed"
+    assert run.mode == "full"
+    # The phase column names the step, so `error` stays a plain reason.
+    assert run.error == "RuntimeError: retry exploded"
+    assert run.finished_at is not None
+    assert run.finished_at >= run.started_at
+
+
+def test_run_records_a_grouping_failure_outside_the_day_rows(monkeypatch, tmp_path) -> None:
+    """Grouping runs once per invocation, after the day rows already committed.
+
+    Without a phase row the run looked clean — every day `success` — even though
+    no conflict had been created or updated.
+    """
+    day = date(2024, 1, 15)
+    write_sample_event_zip(tmp_path, day, "9001")
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
+
+    def boom(_session):
+        raise RuntimeError("grouping exploded")
+
+    monkeypatch.setattr(run_module, "group_events", boom)
+    with pytest.raises(RuntimeError, match="grouping exploded"):
+        run_module.run(start=day, end=day, source_dir=tmp_path)
+
+    runs = phase_runs(session)
+    assert [(run.phase, run.status) for run in runs] == [
+        ("retry_stranded_raw_days", "success"),
+        ("group_events", "failed"),
+    ]
+    assert runs[1].mode == "full"
+    assert runs[1].error == "RuntimeError: grouping exploded"
+    assert day_runs(session)[0].status == "success"
+
+
+def test_run_reports_a_partly_corrupt_cached_day(monkeypatch, tmp_path) -> None:
+    """`--source-dir` skips unreadable zips; the day must not look fully ingested."""
+    day = date(2024, 1, 15)
+    write_sample_event_zip(tmp_path, day, "9001")
+    stamp = run_module.GDELTClient().fifteen_minute_stamps(day)[1]
+    (tmp_path / f"{stamp}.export.CSV.zip").write_bytes(b"not a zip")
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
+
+    assert run_module.run(start=day, end=day, source_dir=tmp_path) == 0
+    run = day_runs(session)[0]
+    # The readable files still produced events, so the run succeeds — but it
+    # says the day's cache was short.
+    assert run.status == "success"
+    assert run.degraded_reason == "1 corrupt cached export file(s) skipped"
+
+
+def test_run_times_every_successful_phase(monkeypatch, tmp_path) -> None:
+    """A healthy invocation is as visible as a failing one: each step is timed."""
+    day = date(2024, 1, 15)
+    write_sample_event_zip(tmp_path, day, "9001")
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
+
+    assert run_module.run(start=day, end=day, source_dir=tmp_path) == 0
+
+    phases = {row.phase: row for row in phase_runs(session)}
+    assert set(phases) == {"retry_stranded_raw_days", "group_events", "prune_raw_events"}
+    for phase, row in phases.items():
+        assert row.status == "success", phase
+        assert row.source_day is None
+        assert row.error is None
+        assert row.finished_at is not None
+        assert row.finished_at >= row.started_at, phase
 
 
 def test_run_retries_raw_rows_stranded_by_a_failed_processing_pass(monkeypatch, tmp_path) -> None:
@@ -602,7 +783,7 @@ def test_run_retries_raw_rows_stranded_by_a_failed_processing_pass(monkeypatch, 
 
     session = make_session()
     monkeypatch.setattr(run_module, "get_session", lambda: session)
-    monkeypatch.setattr(run_module, "load_classifier", lambda: None)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
 
     real_process = run_module.process_pending_raw_events
     calls = {"n": 0}

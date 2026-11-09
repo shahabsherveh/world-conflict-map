@@ -87,6 +87,12 @@ def test_read_day_from_dir_skips_missing_and_corrupt_files(tmp_path) -> None:
     assert [event["global_event_id"] for event in events] == ["1"]
     assert events[0]["_source_file"] == f"{stamps[0]}.export.CSV.zip"
 
+    # Missing slots are normal and stay unreported; only the corrupt file is
+    # named, so a caller can tell a short cache from a complete one.
+    skipped: list[str] = []
+    read_day_from_dir(tmp_path, day, skipped)
+    assert skipped == [f"{stamps[1]}.export.CSV.zip"]
+
 
 def test_fetch_day_skips_missing_files(monkeypatch) -> None:
     client = GDELTClient()

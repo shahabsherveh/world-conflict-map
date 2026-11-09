@@ -16,7 +16,13 @@ FastAPI + Pydantic. (Conventions: CAPABILITY-MAP.md)
 - `POST /api/events` → manual creation (`provenance='manual'`)
 - `POST /api/conflicts` → manual creation (no provenance column on `conflict`; an event
   created under it carries `provenance='manual'`)
-- `GET /api/ingestion-runs?limit=` → recent pipeline runs, newest first (limit 1–100)
+- `GET /api/ingestion-runs?limit=` → recent pipeline runs, newest first (limit 1–100),
+  including `error`, `degraded_reason`, and `phase` (null for a per-day row)
+- `GET /api/pipeline-health` → last successful ingestion run, its age in hours, and a
+  `stale` flag against `config.gdelt.yaml → pipeline_stale_hours`. Day rows only: a
+  `raw_only` run never reaches the map, and a successful phase row spans no day so it
+  cannot say which day's data is current. Stays off `/health`, which is the container
+  liveness probe and must remain cheap and always-200.
 - `GET /api/sources` → data-source list (transparency)
 - Static: `/` → `app/static/index.html`
 
@@ -34,6 +40,8 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
 - FastAPI TestClient integration tests against a seeded in-memory/temp SQLite DB.
 - Test: time-frame filtering, conflict-detail shape, PATCH writes edit_log, POST sets
   `provenance='manual'`, and ingestion-run listing/ordering/limit bounds.
+- Test pipeline health: no runs → stale; failed/`running`/phase rows are not freshness;
+  a recent day success flips `stale` to false.
 - Test rejection paths: null updates, inverted date ranges, missing conflict references,
   non-http(s) source URLs, and text longer than its column.
 

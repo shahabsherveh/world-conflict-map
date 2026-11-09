@@ -18,16 +18,18 @@ from app.api.schemas import (
     EventCreate,
     EventUpdate,
     IngestionRunOut,
+    PipelineHealthOut,
     SourcesOut,
 )
 from app.config import load_config
 from app.db import get_session
 from app.extract.classifier import slug_to_text
-from app.models import Conflict, ConflictEvent, EditLog
+from app.models import Conflict, ConflictEvent, EditLog, utcnow
 from app.queries import (
     conflicts_active_in_range,
     events_for_conflict,
     events_in_range,
+    latest_successful_ingestion_run,
     recent_ingestion_runs,
 )
 
@@ -243,6 +245,34 @@ def list_ingestion_runs(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
     return recent_ingestion_runs(db, limit)
+
+
+@router.get("/pipeline-health", response_model=PipelineHealthOut)
+def pipeline_health(db: DbSession):
+    """Answer "is the map still updating?" without reading logs or the DB.
+
+    Kept off `/health` on purpose: that endpoint is the container's liveness
+    probe (CI and deploy both curl it), and it must stay cheap and 200 even when
+    the DB is missing or empty.
+    """
+    threshold = int(load_config()["pipeline_stale_hours"])
+    run = latest_successful_ingestion_run(db)
+    if run is None or run.finished_at is None:
+        return PipelineHealthOut(
+            last_success_at=None,
+            last_success_day=None,
+            age_hours=None,
+            stale=True,
+            threshold_hours=threshold,
+        )
+    age_hours = (utcnow() - run.finished_at).total_seconds() / 3600
+    return PipelineHealthOut(
+        last_success_at=run.finished_at,
+        last_success_day=run.source_day,
+        age_hours=round(age_hours, 1),
+        stale=age_hours > threshold,
+        threshold_hours=threshold,
+    )
 
 
 @router.get("/sources", response_model=SourcesOut)

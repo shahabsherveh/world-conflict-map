@@ -22,7 +22,17 @@ SQLite + SQLAlchemy 2.0 ORM + Alembic migrations. (Conventions: CAPABILITY-MAP.m
 - `edit_log`: id, target_type ('event' | 'conflict'), target_id, field, old_value,
   new_value, edited_at
 - `ingestion_run`: id, source_day (nullable), mode ('full' | 'raw_only' | 'backfill',
-  nullable), started_at, finished_at, status, items_seen, items_new
+  nullable), phase (nullable), started_at, finished_at, status ('running' | 'success' |
+  'failed'), items_seen, items_new, error (nullable), degraded_reason (nullable). `error`
+  is `ExcType: message` for a failure; `degraded_reason` records a run that succeeded
+  without the zero-shot filter, or with a partly corrupt cached day (still `success`,
+  but not fully filtered). Keeping them as free text rather than an enum means a new
+  failure mode needs no migration.
+- Each whole-invocation step (`retry_stranded_raw_days`, `group_events`,
+  `prune_raw_events`) gets its own row: `source_day` null, `phase` naming the step,
+  created as `running` and settled in place. Success keeps its duration, failure keeps
+  `error`. Without these a crash outside the per-day loop left only the day rows that
+  had already committed `success`, and a healthy grouping step left no trace at all.
 
 ## Commands
 - `alembic revision --autogenerate -m "<msg>"`

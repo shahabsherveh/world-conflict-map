@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.routes import get_db
 from app.db import make_session_factory
 from app.main import app
-from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun
+from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun, utcnow
 
 
 @pytest.fixture
@@ -423,6 +423,154 @@ def test_ingestion_runs_limit_bounds(client) -> None:
     c, _session = client
     assert c.get("/api/ingestion-runs", params={"limit": 0}).status_code == 422
     assert c.get("/api/ingestion-runs", params={"limit": 101}).status_code == 422
+
+
+def test_ingestion_runs_exposes_failure_and_degradation(client) -> None:
+    """The audit trail must say *why* a run failed or ran degraded."""
+    c, session = client
+    session.add_all(
+        [
+            IngestionRun(
+                source_day=date(2024, 1, 1),
+                mode="full",
+                status="failed",
+                items_seen=5,
+                started_at=datetime(2024, 1, 2),
+                finished_at=datetime(2024, 1, 2, 0, 1),
+                error="HTTPStatusError: 503 Service Unavailable",
+            ),
+            IngestionRun(
+                source_day=date(2024, 1, 2),
+                mode="full",
+                status="success",
+                items_seen=5,
+                items_new=4,
+                started_at=datetime(2024, 1, 3),
+                finished_at=datetime(2024, 1, 3, 0, 5),
+                degraded_reason="zero-shot filter unavailable (OSError: missing); ran unfiltered",
+            ),
+        ]
+    )
+    session.commit()
+
+    by_day = {run["source_day"]: run for run in c.get("/api/ingestion-runs").json()}
+    assert by_day["2024-01-01"]["error"] == "HTTPStatusError: 503 Service Unavailable"
+    assert by_day["2024-01-01"]["degraded_reason"] is None
+    assert by_day["2024-01-02"]["error"] is None
+    assert "ran unfiltered" in by_day["2024-01-02"]["degraded_reason"]
+
+
+def test_ingestion_runs_exposes_phase_rows(client) -> None:
+    """A whole-invocation step is a row with `source_day: null` and a `phase`."""
+    c, session = client
+    session.add(
+        IngestionRun(
+            status="success",
+            mode="full",
+            phase="group_events",
+            started_at=datetime(2024, 1, 1, 0, 0),
+            finished_at=datetime(2024, 1, 1, 0, 2),
+        )
+    )
+    session.commit()
+
+    row = c.get("/api/ingestion-runs").json()[0]
+    assert row["phase"] == "group_events"
+    assert row["source_day"] is None
+    assert row["status"] == "success"
+
+
+def test_pipeline_health_stale_when_nothing_has_ever_succeeded(client) -> None:
+    c, _session = client
+    body = c.get("/api/pipeline-health").json()
+    assert body["stale"] is True
+    assert body["last_success_at"] is None
+    assert body["age_hours"] is None
+    assert body["threshold_hours"] >= 1
+
+
+def test_pipeline_health_does_not_count_failed_or_running_runs_as_fresh(client) -> None:
+    """A failed run is not freshness, and neither is a row stuck in `running`."""
+    c, session = client
+    now = utcnow()
+    session.add_all(
+        [
+            IngestionRun(status="failed", finished_at=now, error="boom"),
+            IngestionRun(status="running"),
+            IngestionRun(
+                status="success",
+                source_day=date(2024, 1, 1),
+                finished_at=now - timedelta(days=10),
+            ),
+        ]
+    )
+    session.commit()
+
+    body = c.get("/api/pipeline-health").json()
+    assert body["last_success_day"] == "2024-01-01"
+    assert body["stale"] is True
+    assert body["age_hours"] > 200
+
+
+def test_pipeline_health_fresh_after_a_recent_success(client) -> None:
+    c, session = client
+    session.add(
+        IngestionRun(
+            status="success",
+            source_day=date(2024, 1, 1),
+            finished_at=utcnow() - timedelta(hours=1),
+        )
+    )
+    session.commit()
+
+    body = c.get("/api/pipeline-health").json()
+    assert body["stale"] is False
+    assert 0.5 < body["age_hours"] < 2
+    assert body["threshold_hours"] >= 2
+
+
+def test_pipeline_health_ignores_successful_phase_rows(client) -> None:
+    """A phase row spans no day, so it cannot say which day's data is current.
+
+    Grouping/pruning only run when the days succeeded, but treating them as the
+    last success would blank out `last_success_day` and mask a day-level gap.
+    """
+    c, session = client
+    session.add(
+        IngestionRun(
+            status="success",
+            mode="full",
+            phase="prune_raw_events",
+            finished_at=utcnow() - timedelta(minutes=5),
+        )
+    )
+    session.commit()
+
+    body = c.get("/api/pipeline-health").json()
+    assert body["last_success_at"] is None
+    assert body["stale"] is True
+
+
+def test_pipeline_health_ignores_raw_only_runs(client) -> None:
+    """`--raw-only` stores rows but never extracts, so it cannot prove freshness.
+
+    A cron misconfigured with `--raw-only` would otherwise report "success" every
+    day while the map froze — the exact blind spot this endpoint exists to close.
+    """
+    c, session = client
+    session.add(
+        IngestionRun(
+            status="success",
+            mode="raw_only",
+            source_day=date(2024, 1, 1),
+            finished_at=utcnow() - timedelta(minutes=5),
+        )
+    )
+    session.commit()
+
+    body = c.get("/api/pipeline-health").json()
+    assert body["last_success_at"] is None
+    assert body["stale"] is True
 
 
 def test_event_headline_derived_from_source_url(client) -> None:

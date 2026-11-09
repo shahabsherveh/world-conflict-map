@@ -16,6 +16,10 @@ DEFAULTS = {
     "zero_shot_threshold": 0.7,
     "repair_locations": False,
     "raw_retention_days": 30,
+    # Daily cron has 24h between runs; two days of slack keeps one transient
+    # failure (retried on the next run) from paging, while still catching a
+    # pipeline that has genuinely stopped updating the map.
+    "pipeline_stale_hours": 48,
 }
 
 

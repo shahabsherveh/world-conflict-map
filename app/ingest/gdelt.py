@@ -57,8 +57,16 @@ class GDELTClient:
         return events
 
 
-def read_day_from_dir(directory: Path, day: date) -> list[dict[str, str]]:
-    """Read locally cached export files for one day, skipping missing/corrupt ones."""
+def read_day_from_dir(
+    directory: Path, day: date, skipped: list[str] | None = None
+) -> list[dict[str, str]]:
+    """Read locally cached export files for one day, skipping missing/corrupt ones.
+
+    A missing file is normal — that 15-minute slot was simply never downloaded —
+    and is not reported. A corrupt one silently shortens the day's events, so a
+    caller that cares passes `skipped` and gets the offending file names
+    appended to it.
+    """
     events: list[dict[str, str]] = []
     for ts in GDELTClient().fifteen_minute_stamps(day):
         path = directory / f"{ts}.export.CSV.zip"
@@ -67,5 +75,7 @@ def read_day_from_dir(directory: Path, day: date) -> list[dict[str, str]]:
         try:
             events.extend(parse_export_zip(path.read_bytes(), source_name=path.name))
         except (OSError, zipfile.BadZipFile, IndexError):
+            if skipped is not None:
+                skipped.append(path.name)
             continue  # a partial/corrupt download can be retried on the next run
     return events

@@ -86,11 +86,24 @@ class IngestionRunOut(BaseModel):
     id: int
     source_day: date | None
     mode: str | None
+    phase: str | None
     started_at: datetime
     finished_at: datetime | None
     status: str
     items_seen: int
     items_new: int
+    error: str | None
+    degraded_reason: str | None
+
+
+class PipelineHealthOut(BaseModel):
+    """Freshness of the daily pipeline, for "the map stopped updating" checks."""
+
+    last_success_at: datetime | None
+    last_success_day: date | None
+    age_hours: float | None
+    stale: bool
+    threshold_hours: int
 
 
 class SourcesOut(BaseModel):
