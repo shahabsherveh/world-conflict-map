@@ -10,6 +10,9 @@
 
 Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 
+Diagrams of these boundaries, the daily pipeline, and the schema live in
+[`diagrams/`](diagrams/README.md) as `.drawio` files.
+
 ## Project conventions (shared by all module specs)
 
 ### Tech stack

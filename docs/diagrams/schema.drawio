@@ -1,0 +1,40 @@
+<mxfile host="app.diagrams.net" agent="Global Conflict Map" version="24.0.0">
+  <diagram id="schema" name="Schema">
+    <mxGraphModel adaptiveColors="auto" dx="1300" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="760" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Global Conflict Map — entity-relationship (SQLite · SQLAlchemy 2.0 · Alembic)" style="text;html=1;align=left;verticalAlign=middle;fontSize=20;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="900" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="conflict" value="&lt;b&gt;conflict&lt;/b&gt;&lt;br&gt;PK id&lt;br&gt;name (255)&lt;br&gt;country (120, idx)&lt;br&gt;start_date&lt;br&gt;end_date (nullable)&lt;br&gt;status (active|ended)&lt;br&gt;created_at · updated_at" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;rounded=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="20" y="100" width="260" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="conflict_event" value="&lt;b&gt;conflict_event&lt;/b&gt;&lt;br&gt;PK id&lt;br&gt;source_event_id (unique, nullable)&lt;br&gt;FK conflict_id (nullable)&lt;br&gt;place_name (255) · country (120, idx)&lt;br&gt;lat · lon (nullable)&lt;br&gt;event_date (idx)&lt;br&gt;event_type (80)&lt;br&gt;actor_a · actor_b (255)&lt;br&gt;fatalities (always null)&lt;br&gt;intensity (1–5)&lt;br&gt;summary (Text) · source_url (1024)&lt;br&gt;confidence (0–1)&lt;br&gt;provenance (auto|manual)&lt;br&gt;created_at · updated_at" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;rounded=0;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="400" y="100" width="300" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="raw_event" value="&lt;b&gt;raw_event&lt;/b&gt;&lt;br&gt;PK id&lt;br&gt;source_event_id (unique)&lt;br&gt;source_day (idx)&lt;br&gt;event_date (nullable, idx)&lt;br&gt;event_root_code (idx)&lt;br&gt;source_file (255)&lt;br&gt;payload (JSON of non-empty GDELT cols)&lt;br&gt;ingested_at (idx)&lt;br&gt;processed_at (nullable, idx)&lt;br&gt;outcome (persisted|duplicate|filtered_out|not_armed_conflict)" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;rounded=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="820" y="100" width="300" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="edit_log" value="&lt;b&gt;edit_log&lt;/b&gt;&lt;br&gt;PK id&lt;br&gt;target_type (event|conflict)&lt;br&gt;target_id (int)&lt;br&gt;field (80)&lt;br&gt;old_value · new_value (Text)&lt;br&gt;edited_at" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="20" y="380" width="260" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="ingestion_run" value="&lt;b&gt;ingestion_run&lt;/b&gt;&lt;br&gt;PK id&lt;br&gt;source_day (nullable, idx)&lt;br&gt;mode (full|raw_only|backfill)&lt;br&gt;phase (nullable — names whole-invocation step)&lt;br&gt;started_at · finished_at (nullable)&lt;br&gt;status (running|success|failed)&lt;br&gt;items_seen · items_new&lt;br&gt;error (ExcType: message)&lt;br&gt;degraded_reason (ran without zero-shot filter)" style="whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=8;rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="400" y="490" width="300" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="note" value="raw_event is written BEFORE extraction so a row can be replayed through a changed adapter.&lt;br&gt;fatalities is always null: the free GDELT export has no casualty columns, and intensity is derived from event type + Goldstein scale.&lt;br&gt;conflict has no provenance column — an event created under it carries provenance=manual.&lt;br&gt;edit_log.target_id is polymorphic (no FK); the audit row is the authority." style="text;html=1;align=left;verticalAlign=top;spacing=8;whiteSpace=wrap;fillColor=#f8cecc;strokeColor=#b85450;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="820" y="420" width="420" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" value="1 — 0..N" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;startArrow=classic;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="conflict" target="conflict_event">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="target_type + target_id (polymorphic)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="edit_log" target="conflict_event">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="target_type + target_id (polymorphic)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=classic;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="edit_log" target="conflict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
