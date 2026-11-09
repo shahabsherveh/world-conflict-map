@@ -2,7 +2,7 @@
 #
 # Note: no ENTRYPOINT/CMD here; both are set in docker-compose.yml so the
 # one-shot `pipeline` service can accept extra CLI args cleanly.
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

@@ -15,7 +15,7 @@ become a product without a rewrite.
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12+
 - Network access (for GDELT + the one-time model download)
 - Docker (optional, for the container path) and Node 18+ (optional, for the UI smoke test)
 
@@ -326,7 +326,7 @@ see `tests/ui/README.md` for the Chrome and MCP setup.
 
 Every push and pull request runs the same gates on a self-hosted runner on this host:
 `ruff check`, `ruff format --check`, `shellcheck` on the shell scripts, `pymarkdown` on
-the Markdown, `ty check`, `pytest` (on 3.11 and 3.12), a fresh
+the Markdown, `ty check`, `pytest`, a fresh
 `alembic upgrade head` plus drift check, an app-import check, an artifact guard, and a
 docker build whose container must serve `/health` and answer a real API query. On
 `main`, a green CI run deploys automatically: the image is rebuilt, the `web`

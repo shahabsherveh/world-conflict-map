@@ -22,7 +22,7 @@ if ! body=$(curl -fsS --max-time 10 "$url"); then
   exit 1
 fi
 
-# No jq: json is stdlib, and the repo already assumes Python 3.11 on the host.
+# No jq: json is stdlib, and the repo already assumes Python 3.12 on the host.
 # The body is passed as an argument rather than on stdin so a stray `-` in the
 # JSON can never be read as python's "read from stdin".
 python3 - "$body" <<'PY'

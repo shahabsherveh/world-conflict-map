@@ -4,7 +4,7 @@ name: CI
 # mirror `scripts/ci-check.sh`, so a local run predicts the pipeline.
 #
 # Runs on the self-hosted runner on the app's own host: no hosted-minute cost,
-# a warm pip/docker cache, and the docker build cache is shared with the stack
+# a warm uv/docker cache, and the docker build cache is shared with the stack
 # the deploy job updates.
 
 on:
@@ -33,7 +33,7 @@ defaults:
 
 jobs:
   gates:
-    name: gates (py3.11, shipped runtime)
+    name: gates (py3.12, shipped runtime)
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
       # Debian. See .github/actions/uv-python/action.yml.
       - uses: ./.github/actions/uv-python
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           venv: ${{ runner.temp }}/venv
 
       - name: Install runtime dependencies
@@ -130,28 +130,6 @@ jobs:
             git ls-files | grep -E '(^|/)\.env$|\.db$|(^|/)\.venv/'
             exit 1
           fi
-
-  compat:
-    name: compat (py3.12, suite only)
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/uv-python
-        with:
-          python-version: "3.12"
-          venv: ${{ runner.temp }}/venv312
-
-      # Deliberately not torch/transformers: the suite stubs the classifier, and
-      # the point here is the language version, not the ML wheels. The `image`
-      # job installs the full runtime for real.
-      - name: Install test dependencies
-        run: |
-          uv pip install --python "$RUNNER_TEMP/venv312/bin/python" \
-            fastapi sqlalchemy alembic httpx pyyaml pytest pydantic
-
-      - name: Tests
-        run: pytest -q
 
   image:
     name: image (Dockerfile + runtime imports + HTTP)

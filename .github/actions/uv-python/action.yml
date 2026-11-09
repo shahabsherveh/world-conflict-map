@@ -2,13 +2,13 @@ name: Python via uv
 description: >-
   Install a pinned uv and create a venv from a uv-managed Python. Used instead of
   actions/setup-python, which ships Ubuntu/macOS/Windows builds only — the
-  self-hosted runner is Debian, where setup-python fails with "version '3.11'
-  ... was not found for debian 12". uv downloads standalone CPython for any glibc
+  self-hosted runner is Debian, where setup-python has no matching build (it
+  publishes Ubuntu/macOS/Windows only). uv downloads standalone CPython for any glibc
   distribution and caches it under ~/.local/share/uv, so repeat runs are instant.
 
 inputs:
   python-version:
-    description: Interpreter to provision, e.g. "3.11" or "3.12"
+    description: Interpreter to provision, e.g. "3.12"
     required: true
   venv:
     description: Absolute path for the virtualenv

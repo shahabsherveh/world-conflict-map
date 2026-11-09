@@ -207,5 +207,5 @@ else
   log "  cd $install_dir && ./run.sh"
 fi
 
-log "registered. Push a branch and open a PR; the gates/compat/image jobs should appear."
+log "registered. Push a branch and open a PR; the gates/image jobs should appear."
 log "work dir: $install_dir/$workdir — keep it out of any directory you edit by hand."

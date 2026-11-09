@@ -5,7 +5,7 @@ pythonpath = ["."]
 [tool.ty.environment]
 # The runtime we ship (Dockerfile). Checking against the newest interpreter
 # here would accept syntax and stdlib behaviour the production image lacks.
-python-version = "3.11"
+python-version = "3.12"
 
 [tool.ty.src]
 exclude = ["app/migrations/versions/**"]
@@ -27,10 +27,10 @@ indent-style = "space"
 [project]
 name = "global-conflict-map"
 version = "0.1.0"
-# The app targets 3.11 (Dockerfile, AGENTS.md). Declared explicitly so uv
+# The app targets 3.12 (Dockerfile, AGENTS.md). Declared explicitly so uv
 # doesn't default the lockfile to the host's interpreter and silently exclude
 # the runtime we actually ship.
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 [dependency-groups]
 dev = [

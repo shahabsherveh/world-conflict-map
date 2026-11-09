@@ -23,19 +23,17 @@ Files:
 ```text
 push / PR
    │
-   ├─ gates (py3.11, the runtime we ship)
-   │    uv provisions CPython 3.11     setup-python has no Debian builds
+   ├─ gates (py3.12, the runtime we ship)
+   │    uv provisions CPython 3.12     setup-python has no Debian builds
    │    ruff check                     unused imports, dead code, zip truncation
    │    ruff format --check            formatting is not a review topic
    │    shellcheck -x scripts/*.sh     deploy/rollback/cutover scripts
    │    pymarkdown scan                docs structure, bare URLs, broken fences
-   │    ty check                       type errors, against 3.11
+   │    ty check                       type errors, against 3.12
    │    pytest                         the full suite
    │    alembic upgrade head + check   revisions apply in order; models match migrations
    │    import app.main, …             the app starts without the model downloaded
    │    no tracked *.db/.env/.venv     second line of defence behind .gitignore
-   │
-   ├─ compat (py3.12, suite only)      requires-python is >=3.11; prove it
    │
    └─ image                            needs: gates
         docker build                  Dockerfile + full runtime deps
@@ -63,7 +61,7 @@ from that file, so a local pass means a pipeline pass.
 
 - **Python comes from uv, not `actions/setup-python`.** setup-python only ships
   Ubuntu/macOS/Windows builds, and the self-hosted runner is Debian: every job failed
-  with "version '3.11' ... was not found for debian 12". `.github/actions/uv-python`
+  with "version ... was not found for debian 12". `.github/actions/uv-python`
   installs a pinned uv (per-arch sha256, like shellcheck) and creates the venv from a
   uv-managed CPython, cached in `~/.local/share/uv` across runs.
 - **Shellcheck is pinned by version and per-arch tarball hash.** The deploy, rollback and
@@ -196,7 +194,7 @@ Then `docker compose up -d --build` (or let the first CI deploy do it) and confi
 
 ### Branch protection (recommended)
 
-- Require the `gates`, `compat` and `image` checks before merge.
+- Require the `gates` and `image` checks before merge.
 - Require 1 approval, dismiss stale approvals, no force-pushes to `main`.
 - Enable the `production` environment rule (Settings → Environments) if you want a
   manual approval gate on deploys; the workflow already references it. Leave it

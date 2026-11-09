@@ -16,7 +16,7 @@ Diagrams of these boundaries, the daily pipeline, and the schema live in
 ## Project conventions (shared by all module specs)
 
 ### Tech stack
-- Python 3.11+, FastAPI (backend + serves UI)
+- Python 3.12+, FastAPI (backend + serves UI)
 - SQLite via SQLAlchemy 2.0, migrations via Alembic
 - GDELT 2.0 raw event files (`.export.CSV.zip`) via `httpx` (structured conflict
   events — already geolocated + classified)

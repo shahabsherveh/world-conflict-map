@@ -327,11 +327,12 @@ without registering anything.
   `docker/pipeline-entrypoint.sh`, `scripts/docker-daily.sh`). No apt layer: torch's
   CPU wheel bundles its own `libgomp.so.1`. Verified a clean build, migrations from an
   empty DB, and the same 1,437 conflicts served as on the host.
-- Added a `ty` dev dependency group with `uv.lock`, pinned to `requires-python >=3.11`
-  to match the Dockerfile. `ty check app` surfaced three DML `.rowcount` type errors,
+- Added a `ty` dev dependency group with `uv.lock`, pinned to the Dockerfile's Python
+  so uv does not lock for the host interpreter. `ty check app` surfaced three DML
+  `.rowcount` type errors,
   fixed by routing the calls through one `CursorResult`-casting helper.
-- Added CI (`.github/workflows/ci.yml`): lint, format, `ty check`, pytest on 3.11 and
-  3.12, fresh `alembic upgrade head` + `alembic check`, app-import check, tracked-artifact
+- Added CI (`.github/workflows/ci.yml`): lint, format, `ty check`, pytest, fresh
+  `alembic upgrade head` + `alembic check`, app-import check, tracked-artifact
   guard, compose-file validation, and a docker image that must serve `/health` **and**
   answer a real `/api/conflicts` query. Gate tools pinned in `requirements-ci.txt`;
   `ruff` gained the `I`/`B` rule sets. 16 pre-existing `ty` diagnostics fixed at the
@@ -357,9 +358,9 @@ without registering anything.
   itself still needs a token minted from the repo settings.
 - Replaced `actions/setup-python` with a pinned-uv composite action
   (`.github/actions/uv-python`): setup-python has no Debian builds and the runner is
-  Debian, so every job failed with "version '3.11' ... not found for debian 12". uv
-  provisions CPython 3.11/3.12 for any glibc distro and caches it across runs; gates
-  install with `uv pip`. Rehearsed locally: 3.11.18 + 3.12.16 venvs, 102 tests, ruff,
+  Debian, so every job failed with a "version ... was not found for debian 12" error.
+  uv provisions CPython for any glibc distro and caches it across runs; gates install
+  with `uv pip`. Rehearsed locally in the 3.12 venv: 102 tests, ruff,
   ty, pymarkdown, migrations and app imports all pass.
 - Added shellcheck to the gates for `scripts/*.sh` and
   `docker/pipeline-entrypoint.sh`: CI downloads v0.11.0 into `$RUNNER_TEMP` and verifies a
@@ -511,7 +512,7 @@ change and how to know it worked.
   `$GITHUB_PATH` handoff, uv's interpreter cache on self-hosted, and
   `docker compose config --images web` on the installed Compose. How: register the
   runner with `RUNNER_TOKEN=… ./scripts/install-runner.sh --url …`, push a branch, open
-  a PR, confirm `gates`/`compat`/`image`; merge; then `workflow_dispatch` Deploy. Done
+  a PR, confirm `gates`/`image`; merge; then `workflow_dispatch` Deploy. Done
   when one green CI run and one successful deploy are recorded.
 - [ ] **Make the UI smoke data-density-independent, then gate it.** Why: with the
   five-conflict demo seed it passes except "conflict list follows the map viewport" —
@@ -555,6 +556,9 @@ change and how to know it worked.
   just country-centroid-placed). Surfaced by `GET /api/ingestion-runs`.
 
 #### Tooling
+- [x] Raised the runtime to Python 3.12: Dockerfile base image, `pyproject.toml`
+  (`requires-python >=3.12` and the ty target), CI (one `gates` job; the separate
+  "compat" job is gone because it duplicated the shipped version), and the docs.
 - [x] Add `scripts/install-runner.sh` for the self-hosted runner: pinned v2.338.2 with
   per-arch sha256, `--dry-run` without a token, root and already-registered guards,
   docker-group warning, systemd install with a `./run.sh` fallback. Registering still

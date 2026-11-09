@@ -5,7 +5,7 @@ daily from news data. Read this file before working in the repo.
 
 ## Stack
 
-- Python 3.11, FastAPI, SQLAlchemy 2.0, Alembic, SQLite
+- Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic, SQLite
 - `httpx` (GDELT downloads), `pyyaml` (config)
 - `transformers` + `torch` (zero-shot filter, CPU)
 - Vanilla ES modules + Leaflet + OpenStreetMap tiles — **no frontend build step**
@@ -24,7 +24,7 @@ ruff check .                             # lint
 ruff format app tests scripts            # format
 shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh   # shell scripts
 pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks  # markdown
-ty check                                 # types (targets 3.11)
+ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
