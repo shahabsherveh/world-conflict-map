@@ -114,6 +114,15 @@ the compose stack live. One-time setup:
    verifies without registering (no token needed); `--version`/`--sha256` bump the
    pin; `--force` re-registers over an existing `~/actions-runner/.runner`.
 
+   Read the token with `read -rs RUNNER_TOKEN` rather than pasting it into a command:
+   it is reusable until it expires, so treat a token that appeared in a transcript as
+   burned and mint another.
+
+   `--allow-root` exists for hosts where root is the only account: without it the
+   script refuses, because the service and every job then run with root plus docker
+   access. The service install no longer assumes `sudo` exists, so `--allow-root`
+   works on a root-only host.
+
    Manual alternative: download from the UI and run `./config.sh --url … --token …`.
    The default `self-hosted` label is what the workflows use; `--labels gcm` scopes
    them to this runner if you ever add more.

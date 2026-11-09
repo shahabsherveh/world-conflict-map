@@ -352,8 +352,9 @@ without registering anything.
   event so the "Set location" flow is exercisable.
 - Added `scripts/install-runner.sh`: pinned runner v2.338.2 with per-arch sha256,
   `--dry-run` (no token needed), root/already-registered guards, docker-group warning,
-  systemd service install with a `./run.sh` fallback. Registration itself still needs a
-  token minted from the repo settings.
+  systemd service install with a `./run.sh` fallback. `--allow-root` works on hosts
+  where root is the only account (service install no longer assumes `sudo`). Registration
+  itself still needs a token minted from the repo settings.
 - Added shellcheck to the gates for `scripts/*.sh` and
   `docker/pipeline-entrypoint.sh`: CI downloads v0.11.0 into `$RUNNER_TEMP` and verifies a
   pinned per-arch sha256 (actionlint only shellchecks the workflow `run:` blocks);

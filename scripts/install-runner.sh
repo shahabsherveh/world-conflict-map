@@ -62,6 +62,13 @@ EOF
 }
 
 log() { printf '[runner] %s\n' "$*"; }
+as_root() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
 fail() {
   printf '[runner] error: %s\n' "$*" >&2
   exit 1
@@ -95,7 +102,24 @@ if [ "$dry_run" -eq 0 ] && [ -z "$token" ]; then
   fail "no registration token; set RUNNER_TOKEN or pass --token (Settings -> Actions -> Runners)"
 fi
 if [ "$dry_run" -eq 0 ] && [ "$(id -u)" -eq 0 ] && [ "$allow_root" -eq 0 ]; then
-  fail "refusing to register as root; run as the runner's user, or pass --allow-root"
+  cat >&2 <<EOF
+[runner] error: refusing to register as root: the service and every job would run
+[runner]        with root plus docker access. Prefer a dedicated user:
+
+  sudo useradd -m -s /bin/bash ghrunner
+  sudo usermod -aG docker ghrunner
+  sudo -iu ghrunner
+  cd $(pwd)
+  read -rs RUNNER_TOKEN && export RUNNER_TOKEN       # paste; no history
+  ./scripts/install-runner.sh --url $url
+
+[runner]        On a single-purpose host, --allow-root accepts the risk.
+EOF
+  exit 1
+fi
+if [ "$dry_run" -eq 0 ] && [ "$(id -u)" -eq 0 ]; then
+  log "warning: --allow-root accepted; the runner service and every CI job will"
+  log "warning: have root and docker access on this host"
 fi
 if [ -n "$token" ] && ! [ -t 0 ] && [ -z "${RUNNER_TOKEN:-}" ]; then
   log "note: --token is visible in shell history; prefer RUNNER_TOKEN=..."
@@ -126,7 +150,7 @@ case "$(uname -m)" in
 esac
 
 if command -v docker >/dev/null 2>&1; then
-  if ! id -nG | tr ' ' '\n' | grep -qx docker; then
+  if [ "$(id -u)" -ne 0 ] && ! id -nG | tr ' ' '\n' | grep -qx docker; then
     log "warning: $(id -un) is not in the docker group; the image and deploy jobs will fail"
     log "warning: fix with: sudo usermod -aG docker $(id -un)   (then re-login/restart the service)"
   fi
@@ -156,7 +180,9 @@ if [ "$dry_run" -eq 1 ]; then
   log "verified runner archive (sha256 ok)"
   log "dry run: would run in $dir:"
   log "  ./config.sh ${config_args[*]} --token <registration-token>"
-  log "  sudo ./svc.sh install $(id -un) && sudo ./svc.sh start"
+  svc_cmd=""
+  if [ "$(id -u)" -ne 0 ]; then svc_cmd="sudo "; fi
+  log "  ${svc_cmd}./svc.sh install $(id -un) && ${svc_cmd}./svc.sh start"
   exit 0
 fi
 
@@ -171,9 +197,9 @@ log "configuring runner '$name' for $url"
 if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
   (
     cd "$install_dir"
-    sudo ./svc.sh install "$(id -un)"
-    sudo ./svc.sh start
-    sudo ./svc.sh status || true
+    as_root ./svc.sh install "$(id -un)"
+    as_root ./svc.sh start
+    as_root ./svc.sh status || true
   )
   log "installed as a systemd service; it starts on boot"
 else
