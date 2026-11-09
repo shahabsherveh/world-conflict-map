@@ -17,3 +17,7 @@ chrome/
 
 # Editor atomic-save temp files (draw.io desktop writes .$<name>.drawio.dtmp)
 *.dtmp
+
+# CI runner state (a self-hosted runner must never live in the repo:
+# `actions/checkout` runs `git clean -ffdx` and would delete it)
+actions-runner/
