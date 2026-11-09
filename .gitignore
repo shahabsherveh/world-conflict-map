@@ -14,3 +14,6 @@ chrome/
 # local agent/assistant config (pi skills + extensions) — personal, not project
 .agents/
 .pi/
+
+# Editor atomic-save temp files (draw.io desktop writes .$<name>.drawio.dtmp)
+*.dtmp
