@@ -106,8 +106,10 @@ jobs:
           # earlier job pointing at a removed directory once made this step fail
           # in 0.4s with no output, which sent a whole debugging session down the
           # wrong path.
+          # No -x: .shellcheckrc sets external-sources, so a plain run here
+          # matches what a contributor gets locally.
           "$SHELLCHECK_BIN" --version
-          "$SHELLCHECK_BIN" -x scripts/*.sh docker/pipeline-entrypoint.sh
+          "$SHELLCHECK_BIN" scripts/*.sh docker/pipeline-entrypoint.sh
 
       - name: Markdown lint
         run: pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks

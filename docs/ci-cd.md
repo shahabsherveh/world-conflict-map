@@ -27,7 +27,7 @@ push / PR
    │    uv provisions CPython 3.12     setup-python has no Debian builds
    │    ruff check                     unused imports, dead code, zip truncation
    │    ruff format --check            formatting is not a review topic
-   │    shellcheck -x scripts/*.sh     deploy/rollback/cutover scripts
+   │    shellcheck scripts/*.sh        deploy/rollback/cutover scripts
    │    pymarkdown scan                docs structure, bare URLs, broken fences
    │    ty check                       type errors, against 3.12
    │    pytest                         the full suite
@@ -70,6 +70,11 @@ from that file, so a local pass means a pipeline pass.
   elsewhere. That happened — the shellcheck step failed in 0.4 s with no output —
   so `UV_BIN`/`SHELLCHECK_BIN` go through `$GITHUB_ENV`, and the shellcheck step
   prints `--version` first so the log names the binary it ran.
+- **Shellcheck policy lives in `.shellcheckrc`, not in flags.** `external-sources=true`
+  makes shellcheck follow `source .venv/bin/activate` and the shared
+  `scripts/_data-dir.sh`; without it, a plain `shellcheck scripts/daily.sh` reports
+  SC1091 and exits 1, which is exactly what someone running the tool by hand sees.
+  CI and `scripts/ci-check.sh` run the plain command so all three agree.
 - **Shellcheck is pinned by version and per-arch tarball hash.** The deploy, rollback and
   cutover scripts are the highest-consequence code in the repo and nothing else parses
   them: actionlint checks only the `run:` blocks embedded in workflows. CI downloads

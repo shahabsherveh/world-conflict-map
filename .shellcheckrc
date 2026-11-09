@@ -1,0 +1,7 @@
+# Shellcheck settings for every script here and in CI.
+#
+# external-sources: follow `source`/`.` of files that exist (activate scripts,
+# shared helpers) instead of skipping them, so SC1091 means "I really could not
+# read the sourced file" rather than "I did not try". This is shellcheck's `-x`
+# as a project default, so `shellcheck scripts/*.sh` behaves like CI.
+external-sources=true

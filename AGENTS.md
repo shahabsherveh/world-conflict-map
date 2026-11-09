@@ -22,7 +22,7 @@ pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 ruff format app tests scripts            # format
-shellcheck -x scripts/*.sh docker/pipeline-entrypoint.sh   # shell scripts
+shellcheck scripts/*.sh docker/pipeline-entrypoint.sh   # shell scripts (.shellcheckrc)
 pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks  # markdown
 ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
@@ -112,6 +112,8 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - Any schema migration on existing data.
 
 **Never**
+- Do not make shellcheck quiet by ignoring SC1091 in a script; fix the cause (a
+  `# shellcheck source=` pragma or `.shellcheckrc`), or the gate stops meaning anything.
 - Commit `conflicts.db`, `.venv/`, or secrets.
 - Automatically rewrite coordinates from re-geocoding — verified to corrupt correct records.
 - Enable `repair_locations` by default (see gotchas).

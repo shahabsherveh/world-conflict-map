@@ -58,7 +58,8 @@ else
   printf 'shellcheck and docker are both unavailable; install one to run this gate\n' >&2
   exit 1
 fi
-$shellcheck_cmd -x scripts/*.sh docker/pipeline-entrypoint.sh
+# .shellcheckrc provides external-sources; no -x needed.
+$shellcheck_cmd scripts/*.sh docker/pipeline-entrypoint.sh
 
 step "markdown lint"
 pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks
