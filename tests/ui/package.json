@@ -8,6 +8,6 @@
     "test": "node map-smoke.mjs"
   },
   "devDependencies": {
-    "jsdom": "^24.1.3"
+    "jsdom": "^31.0.0"
   }
 }
