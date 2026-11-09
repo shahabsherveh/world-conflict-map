@@ -1,0 +1,56 @@
+name: Python via uv
+description: >-
+  Install a pinned uv and create a venv from a uv-managed Python. Used instead of
+  actions/setup-python, which ships Ubuntu/macOS/Windows builds only — the
+  self-hosted runner is Debian, where setup-python fails with "version '3.11'
+  ... was not found for debian 12". uv downloads standalone CPython for any glibc
+  distribution and caches it under ~/.local/share/uv, so repeat runs are instant.
+
+inputs:
+  python-version:
+    description: Interpreter to provision, e.g. "3.11" or "3.12"
+    required: true
+  venv:
+    description: Absolute path for the virtualenv
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      shell: bash
+      env:
+        UV_VERSION: 0.13.7
+      run: |
+        set -euo pipefail
+        case "$(uname -m)" in
+          x86_64)
+            arch=x86_64
+            sha=c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83
+            ;;
+          aarch64 | arm64)
+            arch=aarch64
+            sha=71279f8d3c67241e807b9d8db872d1bf541579fb9f08b7d1eb1682196d1e57dc
+            ;;
+          *)
+            echo "::error::unsupported arch $(uname -m); add its release hash"
+            exit 1
+            ;;
+        esac
+        url="https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${arch}-unknown-linux-gnu.tar.gz"
+        curl -fsSL --retry 3 -o "$RUNNER_TEMP/uv.tar.gz" "$url"
+        echo "${sha}  $RUNNER_TEMP/uv.tar.gz" | sha256sum -c -
+        tar -xzf "$RUNNER_TEMP/uv.tar.gz" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/uv-${arch}-unknown-linux-gnu" >> "$GITHUB_PATH"
+
+    - name: Create venv
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python-version }}
+        VENV: ${{ inputs.venv }}
+      run: |
+        set -euo pipefail
+        # The venv lives outside the workspace: on this runner the checkout can
+        # be the live project, and a stray .venv-ci next to .venv is a trap.
+        uv venv --python "$PYTHON_VERSION" "$VENV"
+        echo "$VENV/bin" >> "$GITHUB_PATH"

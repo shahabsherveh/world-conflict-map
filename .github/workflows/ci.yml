@@ -38,34 +38,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v7
+      # Not actions/setup-python: it has no Debian builds, and this runner is
+      # Debian. See .github/actions/uv-python/action.yml.
+      - uses: ./.github/actions/uv-python
         with:
           python-version: "3.11"
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-ci.txt
-
-      # The venv lives outside the workspace: on this runner the checkout can be
-      # the live project, and a stray .venv-ci next to .venv is a trap.
-      - name: Create venv
-        run: |
-          python -m venv "$RUNNER_TEMP/venv"
-          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+          venv: ${{ runner.temp }}/venv
 
       - name: Install runtime dependencies
         run: |
           set -euo pipefail
+          py="$RUNNER_TEMP/venv/bin/python"
           # CPU wheel first, exactly like the Dockerfile: the bare `torch` line in
           # requirements.txt would otherwise pull the multi-GB CUDA build.
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --python "$py" torch --index-url https://download.pytorch.org/whl/cpu
           # Filtered list goes to RUNNER_TEMP, not the checkout: on this runner the
           # checkout may be the live project, and a killed job must not litter it.
           grep -v '^torch' requirements.txt > "$RUNNER_TEMP/requirements-no-torch.txt"
-          pip install -r "$RUNNER_TEMP/requirements-no-torch.txt"
+          uv pip install --python "$py" -r "$RUNNER_TEMP/requirements-no-torch.txt"
           # Gate tools are pinned separately: an unpinned ruff/ty upgrade must not
           # turn an already green commit red on its own.
-          pip install -r requirements-ci.txt
+          uv pip install --python "$py" -r requirements-ci.txt
 
       # Shell scripts are load-bearing (deploy/rollback, cutover, cron) and
       # actionlint only checks the `run:` blocks inside workflows. Version and
@@ -144,22 +137,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v7
+      - uses: ./.github/actions/uv-python
         with:
           python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements.txt
-
-      - name: Create venv
-        run: |
-          python -m venv "$RUNNER_TEMP/venv312"
-          echo "$RUNNER_TEMP/venv312/bin" >> "$GITHUB_PATH"
+          venv: ${{ runner.temp }}/venv312
 
       # Deliberately not torch/transformers: the suite stubs the classifier, and
       # the point here is the language version, not the ML wheels. The `image`
       # job installs the full runtime for real.
       - name: Install test dependencies
-        run: pip install fastapi sqlalchemy alembic httpx pyyaml pytest pydantic
+        run: |
+          uv pip install --python "$RUNNER_TEMP/venv312/bin/python" \
+            fastapi sqlalchemy alembic httpx pyyaml pytest pydantic
 
       - name: Tests
         run: pytest -q

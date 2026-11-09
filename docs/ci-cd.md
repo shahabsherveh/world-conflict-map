@@ -24,6 +24,7 @@ Files:
 push / PR
    │
    ├─ gates (py3.11, the runtime we ship)
+   │    uv provisions CPython 3.11     setup-python has no Debian builds
    │    ruff check                     unused imports, dead code, zip truncation
    │    ruff format --check            formatting is not a review topic
    │    shellcheck -x scripts/*.sh     deploy/rollback/cutover scripts
@@ -60,6 +61,11 @@ from that file, so a local pass means a pipeline pass.
 
 ### Why these and not more
 
+- **Python comes from uv, not `actions/setup-python`.** setup-python only ships
+  Ubuntu/macOS/Windows builds, and the self-hosted runner is Debian: every job failed
+  with "version '3.11' ... was not found for debian 12". `.github/actions/uv-python`
+  installs a pinned uv (per-arch sha256, like shellcheck) and creates the venv from a
+  uv-managed CPython, cached in `~/.local/share/uv` across runs.
 - **Shellcheck is pinned by version and per-arch tarball hash.** The deploy, rollback and
   cutover scripts are the highest-consequence code in the repo and nothing else parses
   them: actionlint checks only the `run:` blocks embedded in workflows. CI downloads
@@ -271,8 +277,8 @@ Copy the failing step's output and fix the cause, then re-run the same gate loca
 
 - **First hosted run.** The workflows are validated so far only by actionlint and by
   running each command locally; the first PR exercises `workflow_run`,
-  `$GITHUB_PATH`, the pip cache and the deploy rollback on the real runner. Keep the
-  `production` environment ungated until that passes.
+  `$GITHUB_PATH`, uv's interpreter cache and the deploy rollback on the real runner.
+  Keep the `production` environment ungated until that passes.
 - **Pin dependencies.** `requirements.txt` is unpinned, so two CI runs can install
   different code. Compile a lock (`uv pip compile requirements.txt -o
   requirements.lock`), install from it in CI and in the Dockerfile, and add the `pip`

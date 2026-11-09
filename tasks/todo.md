@@ -355,6 +355,12 @@ without registering anything.
   systemd service install with a `./run.sh` fallback. `--allow-root` works on hosts
   where root is the only account (service install no longer assumes `sudo`). Registration
   itself still needs a token minted from the repo settings.
+- Replaced `actions/setup-python` with a pinned-uv composite action
+  (`.github/actions/uv-python`): setup-python has no Debian builds and the runner is
+  Debian, so every job failed with "version '3.11' ... not found for debian 12". uv
+  provisions CPython 3.11/3.12 for any glibc distro and caches it across runs; gates
+  install with `uv pip`. Rehearsed locally: 3.11.18 + 3.12.16 venvs, 102 tests, ruff,
+  ty, pymarkdown, migrations and app imports all pass.
 - Added shellcheck to the gates for `scripts/*.sh` and
   `docker/pipeline-entrypoint.sh`: CI downloads v0.11.0 into `$RUNNER_TEMP` and verifies a
   pinned per-arch sha256 (actionlint only shellchecks the workflow `run:` blocks);
@@ -502,7 +508,7 @@ change and how to know it worked.
   never executed on GitHub Actions — only actionlint plus local replication. Unverified:
   `workflow_run` firing for the commit that adds `deploy.yml`, the
   `workflow_run.head_sha || github.sha` expression, the `$RUNNER_TEMP` venv +
-  `$GITHUB_PATH` handoff, `setup-python` caching on self-hosted, and
+  `$GITHUB_PATH` handoff, uv's interpreter cache on self-hosted, and
   `docker compose config --images web` on the installed Compose. How: register the
   runner with `RUNNER_TOKEN=… ./scripts/install-runner.sh --url …`, push a branch, open
   a PR, confirm `gates`/`compat`/`image`; merge; then `workflow_dispatch` Deploy. Done
