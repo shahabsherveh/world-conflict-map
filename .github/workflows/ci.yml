@@ -42,7 +42,7 @@ jobs:
     name: gates (py3.12, shipped runtime)
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Not actions/setup-python: it has no Debian builds, and this runner is
       # Debian. See .github/actions/uv-python/action.yml.
@@ -145,7 +145,7 @@ jobs:
     runs-on: self-hosted
     needs: gates
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # --network=host is load-bearing, not cosmetic. Build steps run in a
       # container on the default bridge, whose resolver Docker replaces with its
