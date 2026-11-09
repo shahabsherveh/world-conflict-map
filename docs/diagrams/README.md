@@ -37,6 +37,16 @@ directly in the [draw.io editor](https://app.diagrams.net), the desktop app, or 
   `edit_log` row per field that actually changed, and lat/lon are validated on the merged
   record (both or neither), never on the partial payload alone.
 
+## Opening them
+
+GitHub shows a `.drawio` file as an opaque blob, so these are only readable in an editor:
+drag the file onto [app.diagrams.net](https://app.diagrams.net), open it in the draw.io
+desktop app, or use the Draw.io Integration extension for VS Code. The `drawio` MCP opens
+one too, via `open_drawio_xml`.
+
+The desktop app writes `.$<name>.drawio.dtmp` beside a file when a save is interrupted.
+Those are editor scratch files, not sources, and `*.dtmp` is gitignored.
+
 ## Keeping them honest
 
 The diagrams restate the specs, so a spec change that isn't mirrored here leaves a diagram

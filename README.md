@@ -287,6 +287,9 @@ populate the container's `/data/conflicts.db`.
 
 `storage → ingestion → extraction → api → ui` — see `docs/CAPABILITY-MAP.md` and `docs/SPEC-*.md`.
 
+Diagrams of those boundaries, the daily pipeline, the schema, the class structure, and the
+request flow are in [`docs/diagrams/`](docs/diagrams/README.md).
+
 Contributing with an AI agent? Read **`AGENTS.md`** first — it carries the commands,
 conventions, boundaries, and the gotchas that cost real debugging time.
 
