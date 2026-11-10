@@ -130,7 +130,9 @@ from that file, so a local pass means a pipeline pass.
   freshly seeded or model-filtered DB: unfiltered GDELT events share country-centroid
   coordinates, and Leaflet's spiderfy layer cannot render in jsdom, so the
   cluster-click/scrub checks fail for harness reasons, not app reasons.
-  `browser-tests.mjs` additionally needs Chrome on `:9222` and network for tiles. Run
+  `browser-tests.mjs` additionally needs Chrome on `:9222` and network for tiles. The
+  runner is not guaranteed to have either — a rebuilt or mock runner has no Chrome
+  until someone installs it — so do not promote it to a gate. Run
   them by hand (`tests/ui/README.md`); `scripts/seed.py` includes a no-location conflict
   so the panel is exercisable and offsets coordinates to avoid spiderfy.
 

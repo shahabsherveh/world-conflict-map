@@ -75,6 +75,13 @@ cd tests/ui
 node browser-tests.mjs        # or: npm run test:browser
 ```
 
+Defaults to the API on `:8000` and Chrome on `:9222`. Override with `BASE_URL`/`CDP_URL`
+— useful to keep the dev server on `:8000` while the tests hit a throwaway seeded DB:
+
+```bash
+BASE_URL=http://127.0.0.1:8011 node browser-tests.mjs
+```
+
 It never saves an edit, and proves it: the Pick-on-map check asks `/api/events/{id}`
 afterwards and fails if a coordinate was written.
 
