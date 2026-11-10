@@ -31,9 +31,10 @@ ty check                                 # types (targets 3.12)
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 
 # Chrome for the chrome-devtools MCP (see Gotchas #12); CDP on :9222
-/tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
+npx -y @puppeteer/browsers install chrome@stable   # once; ./chrome/ is gitignored
+chrome/linux-*/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
   --disable-dev-shm-usage --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/chrome-profile about:blank &
+  --user-data-dir=chrome/profile about:blank &
 alembic upgrade head                     # apply migrations
 alembic revision --autogenerate -m "…"   # new migration
 
@@ -172,11 +173,14 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 12. **`chrome-devtools-mcp` cannot launch Chrome here** (no binary at `/opt/google/chrome`,
    and Chrome refuses to run as root). Run Chrome yourself with
    `--remote-debugging-port=9222 --no-sandbox` and configure the MCP with
-   `--browserUrl http://127.0.0.1:9222` so it attaches instead of launching. Two rough
-   edges: `new_page` waits for `load` and times out while map tiles are still fetching
-   (the page is fine — keep using it), and `evaluate_script` replies with prose plus a
-   fenced JSON block, so parse the fence. The Chrome install lives in `/tmp`, so a
-   container rebuild deletes it.
+   `--browserUrl http://127.0.0.1:9222` so it attaches instead of launching. Install Chrome
+   for Testing with `npx -y @puppeteer/browsers install chrome@stable`; it lands in the
+   gitignored `chrome/` at the repo root, so it survives a container rebuild. Its shared
+   libraries are image packages, not repo files: `libglib-2.0.so.0: cannot open shared
+   object file` means re-install them (command in `tests/ui/README.md`). Two rough edges:
+   `new_page` waits for `load` and times out while map tiles are still fetching (the page is
+   fine — keep using it), and `evaluate_script` replies with prose plus a fenced JSON block,
+   so parse the fence.
 
 ## Known limitations
 

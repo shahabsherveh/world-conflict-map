@@ -60,15 +60,31 @@ styling, popup positioning — still need a real browser.
 
 Chrome cannot be launched by the MCP in this container (no binary at
 `/opt/google/chrome`, and `chrome-devtools-mcp` refuses to launch as root), so start it
-yourself and let the MCP attach over CDP:
+yourself and let the MCP attach over CDP. Chrome for Testing installs into the repo's
+gitignored `chrome/` directory, which lives on the workspace volume, so it survives a
+container rebuild:
 
 ```bash
-/tmp/chrome-dl/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
+# once per checkout
+npx -y @puppeteer/browsers install chrome@stable
+
+# every session
+chrome/linux-*/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
   --disable-dev-shm-usage --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/chrome-profile about:blank &
+  --user-data-dir=chrome/profile about:blank &
 
 pi mcp add chrome-devtools -- npx -y chrome-devtools-mcp@latest \
   --browserUrl http://127.0.0.1:9222
+```
+
+On a bare Debian image Chrome needs shared libraries the app itself does not. A missing
+`libglib-2.0.so.0` is the tell:
+
+```bash
+apt-get update && apt-get install -y --no-install-recommends \
+  libglib2.0-0 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+  libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
+  libpango-1.0-0 libcairo2 libasound2
 ```
 
 Then drive it with the codemode tools (`mcp__chrome_devtools__list_pages`,
@@ -81,10 +97,13 @@ block; cluster labels only count events inside the current viewport, so compare 
 What a real browser adds over the jsdom harness: real hit-testing (clicking a cluster or a
 marker dot), popup/sidebar rendering, "Pick on map", and the basemap.
 
-Verified in headless Chrome 149: 13,066 geolocated events render as ~37 cluster bubbles
-plus individual dots at world view (labels summing to 13,066), scrubbing to 3 days
-re-renders exactly 4,275, cluster clicks zoom, event clicks open popup + detail, "Pick on
-map" fills lat/lon, OSM tiles 200, and no console messages.
+Verified in headless Chrome 157 (and 149 before the rebuild): 13,066 geolocated events
+render as ~37 cluster bubbles plus individual dots at world view (labels summing to
+13,066), scrubbing to 3 days re-renders exactly 4,275, cluster clicks zoom, event clicks
+open popup + detail, "Pick on map" fills lat/lon, OSM tiles 200, and no console messages.
+On the seeded demo DB the corroboration badge was checked in the same browser: a
+multi-outlet event shows `4 outlets · 12 articles` in green, a single outlet shows the
+muted counts, and an event with no stored raw row shows no badge at all.
 
 A true visual pass (colours, contrast, cluster aesthetics) still belongs to a human eye.
 This harness is deliberately not wired into `pytest` or the CI gates (`docs/ci-cd.md`):

@@ -298,8 +298,10 @@ the event popup.
 - [x] UI: `cd tests/ui && node map-smoke.mjs` against a freshly seeded DB — all checks passed,
   including the new popup-badge assertions (counts shown, strong variant only when flagged,
   no badge for unknown counts, values escaped)
-- [ ] Manual browser check: no Chrome in this container (gotcha #12: the `/tmp` install was
-  deleted on rebuild); popup *content* is covered by jsdom, popup *positioning* is not
+- [x] Manual browser check: Chrome for Testing 157 (installed via `@puppeteer/browsers` into
+  the gitignored `chrome/`, so it persists) against the seeded DB — Ukraine popup and detail
+  show `4 outlets · 12 articles` in `corroboration strong` (green), Yemen shows the muted
+  `1 outlet · 9 articles`, Sudan (no raw row) shows no badge, OSM tiles loaded
 - [x] Lists and conflict detail carry the counts too, not just the single-event endpoint
 - [x] Full gates: `./scripts/ci-check.sh` — 109 tests, ty/ruff/markdown/shellcheck clean
 
