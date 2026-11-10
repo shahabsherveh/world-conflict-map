@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -10,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import date, timedelta
 
 from app.db import get_session
-from app.models import Conflict, ConflictEvent
+from app.models import Conflict, ConflictEvent, RawEvent, utcnow
 
 DEMOS = [
     ("Ukraine War", "UA", 48.0, 37.5, 5),
@@ -22,6 +23,14 @@ DEMOS = [
     # its set-location flow) exercisable without a network fetch.
     ("Unplaced Border Clashes", "XX", None, None, 4),
 ]
+
+# Demo corroboration, so the popup badge is visible without a network fetch. The
+# three states the API distinguishes are all covered: several outlets (green),
+# one outlet with many articles (muted), and no raw row at all (no badge).
+CORROBORATION: dict[str, tuple[int, int]] = {
+    "Ukraine War": (4, 12),
+    "Yemen Civil War": (1, 9),
+}
 
 
 def main() -> None:
@@ -48,14 +57,35 @@ def main() -> None:
             # spiderfies them — which jsdom cannot render in the UI smoke test.
             event_lat = None if lat is None else lat + (i - 1) * 0.04
             event_lon = None if lon is None else lon + (i - 1) * 0.04
+            event_date = today - timedelta(days=i * 10)
+            counts = CORROBORATION.get(name)
+            # Mark the demo raw row processed: it exists to be read by the API,
+            # not to be re-extracted by the next pipeline run.
+            source_event_id = f"demo-{conflict.id}-{i}" if counts else None
+            if counts:
+                sources, articles = counts
+                session.add(
+                    RawEvent(
+                        source_event_id=source_event_id,
+                        source_day=event_date,
+                        event_date=event_date,
+                        event_root_code="19",
+                        payload=json.dumps(
+                            {"num_sources": str(sources), "num_articles": str(articles)}
+                        ),
+                        processed_at=utcnow(),
+                        outcome="persisted",
+                    )
+                )
             session.add(
                 ConflictEvent(
                     conflict_id=conflict.id,
+                    source_event_id=source_event_id,
                     place_name=name,
                     country=country,
                     lat=event_lat,
                     lon=event_lon,
-                    event_date=today - timedelta(days=i * 10),
+                    event_date=event_date,
                     event_type="battle",
                     intensity=intensity,
                     provenance="auto",

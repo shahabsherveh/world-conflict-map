@@ -253,6 +253,47 @@ async function main() {
 
   window.eval(fs.readFileSync(path.join(STATIC, "app.js"), "utf8"));
 
+  // The event popup is a pure function of the payload, so its corroboration badge
+  // can be asserted without a browser; only popup *positioning* needs one.
+  const eventPopup = window.eval("eventPopup");
+  const popup = (overrides) =>
+    eventPopup({
+      id: 1,
+      headline: "Clash",
+      place_name: "X",
+      country: "SY",
+      event_date: "2024-01-01",
+      event_type: "battle",
+      intensity: 3,
+      provenance: "auto",
+      source_url: "https://example.com/a",
+      sources: null,
+      articles: null,
+      well_corroborated: false,
+      ...overrides,
+    });
+  const strong = popup({ sources: 4, articles: 12, well_corroborated: true });
+  check("popup shows the corroboration counts", /4 outlets · 12 articles/.test(strong));
+  check(
+    "popup marks a well-corroborated event",
+    /class="corroboration strong"/.test(strong),
+    "single-outlet events must not be labelled well corroborated",
+  );
+  check(
+    "popup leaves a single-outlet event muted",
+    !/corroboration strong/.test(
+      popup({ sources: 1, articles: 12, well_corroborated: false }),
+    ),
+  );
+  check(
+    "unknown counts render no badge",
+    !/corroboration/.test(popup({ sources: null, articles: null })),
+  );
+  check(
+    "corroboration values are escaped",
+    !/<img/.test(popup({ sources: "<img>", articles: 1, well_corroborated: false })),
+  );
+
   const expectedDefault = await expectedMarkers(isoDate(daysAgo(30)), isoDate(new Date()));
   check("map data arrived", await waitForData(doc));
   const first = await waitForStable(window);

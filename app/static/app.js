@@ -590,8 +590,25 @@ function eventMarker(e) {
   return marker;
 }
 
+// Corroboration badge: outlet + article counts, not a confidence score. The
+// "well corroborated" variant is the API's counts predicate (2+ outlets and 3+
+// articles), so the UI never invents its own cut-off from `confidence`, whose
+// scale has never been validated. Null counts mean unknown (a manual event, or
+// one whose raw GDELT row has aged out), and show nothing: "0 outlets" would be
+// a claim the data cannot support.
+function corroborationBadge(e) {
+  if (e.sources == null || e.articles == null) return "";
+  const outlets = `${e.sources} outlet${e.sources === 1 ? "" : "s"}`;
+  const articles = `${e.articles} article${e.articles === 1 ? "" : "s"}`;
+  const strong = e.well_corroborated ? " strong" : "";
+  return `<span class="corroboration${strong}" title="Outlets that carried this event and the article count GDELT recorded">${esc(
+    `${outlets} · ${articles}`,
+  )}</span>`;
+}
+
 function eventPopup(e) {
   const actors = [e.actor_a, e.actor_b].filter(Boolean).join(" vs ");
+  const corroboration = corroborationBadge(e);
   return `
     <div class="popup">
       <div class="popup-headline">${esc(e.headline || "(no headline)")}</div>
@@ -600,6 +617,7 @@ function eventPopup(e) {
         e.fatalities ? ` · ${e.fatalities} killed` : ""
       }</div>
       ${actors ? `<div class="popup-meta">${esc(actors)}</div>` : ""}
+      ${corroboration ? `<div class="popup-meta">${corroboration}</div>` : ""}
       ${
         e.source_url
           ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener noreferrer">source ↗</a>`
@@ -616,6 +634,7 @@ function showEvent(e) {
   detailPane.removeAttribute("aria-busy");
   document.getElementById("edit-panel").innerHTML = "";
   const actors = [e.actor_a, e.actor_b].filter(Boolean).join(" vs ");
+  const corroboration = corroborationBadge(e);
   const raw = JSON.stringify(e, null, 2);
   document.getElementById("detail").innerHTML = `
     <h2 id="detail-heading" tabindex="-1">${esc(e.headline || e.place_name || "Event")}</h2>
@@ -623,6 +642,7 @@ function showEvent(e) {
     <div class="meta">${esc(e.event_type || "?")} · intensity ${e.intensity}${
       e.fatalities ? ` · ${e.fatalities} killed` : ""
     } <span class="prov ${esc(e.provenance)}">${esc(e.provenance)}</span></div>
+    ${corroboration ? `<div class="meta">${corroboration}</div>` : ""}
     ${actors ? `<div class="meta">${esc(actors)}</div>` : ""}
     ${
       e.source_url

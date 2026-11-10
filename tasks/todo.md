@@ -283,26 +283,34 @@ query keyed by `source_event_id` (never per-row — see gotcha #5), plus a small
 the event popup.
 
 **Acceptance criteria:**
-- [ ] Event response includes `sources` and `articles`, parsed from `raw_event.payload`
-- [ ] Any "well corroborated" label is a counts predicate (`sources >= 2 and articles >= 3`),
+- [x] Event response includes `sources` and `articles`, parsed from `raw_event.payload`
+- [x] Any "well corroborated" label is a counts predicate (`sources >= 2 and articles >= 3`),
   never a `confidence` threshold — the score is ordinal and its scale is unvalidated
-- [ ] Manual events (`provenance="manual"`) return null counts, not 0 and not an error
-- [ ] Detail-endpoint query count stays bounded (extend the existing query-count test)
-- [ ] UI shows e.g. "4 outlets" and every interpolated value passes through `esc()`
-- [ ] `?v=N` bumped for `app.js`
+- [x] Manual events (`provenance="manual"`) return null counts, not 0 and not an error
+- [x] Detail-endpoint query count stays bounded (extend the existing query-count test)
+- [x] UI shows e.g. "4 outlets" and every interpolated value passes through `esc()`
+- [x] `?v=N` bumped for `app.js`
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/test_api.py -k "corroboration or query_count"`
-- [ ] UI: `cd tests/ui && node map-smoke.mjs` against a freshly seeded DB
-- [ ] Manual check: open an event with several articles, confirm the badge and the link
+- [x] Tests pass: `pytest tests/test_api.py -k "corroboration or query_count"` (4 passed)
+- [x] Mutation checks: per-event lookup → 12 queries for 12 events (failed); unknown→0 (failed);
+  dropping the outlet term made the 1-outlet case "well corroborated" (failed); all restored
+- [x] UI: `cd tests/ui && node map-smoke.mjs` against a freshly seeded DB — all checks passed,
+  including the new popup-badge assertions (counts shown, strong variant only when flagged,
+  no badge for unknown counts, values escaped)
+- [ ] Manual browser check: no Chrome in this container (gotcha #12: the `/tmp` install was
+  deleted on rebuild); popup *content* is covered by jsdom, popup *positioning* is not
+- [x] Lists and conflict detail carry the counts too, not just the single-event endpoint
+- [x] Full gates: `./scripts/ci-check.sh` — 109 tests, ty/ruff/markdown/shellcheck clean
 
 **Dependencies:** Task 10
 
 **Files likely touched:**
 - `app/queries.py`
 - `app/api/schemas.py`, `app/api/routes.py`
-- `app/static/app.js`
-- `tests/test_api.py`
+- `app/static/app.js`, `app/static/index.html`
+- `scripts/seed.py`, `tests/test_api.py`, `tests/ui/map-smoke.mjs`
+- `docs/SPEC-api.md`, `docs/SPEC-ui.md`, `docs/SPEC-extraction.md`
 
 **Estimated scope:** Medium (3–5 files)
 

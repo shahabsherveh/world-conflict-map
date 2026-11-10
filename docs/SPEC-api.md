@@ -26,6 +26,17 @@ FastAPI + Pydantic. (Conventions: CAPABILITY-MAP.md)
 - `GET /api/sources` → data-source list (transparency)
 - Static: `/` → `app/static/index.html`
 
+## Corroboration on event responses
+Every event response (list, conflict detail, and single event) carries `sources` and
+`articles` — the corroboration counts GDELT recorded — plus a `well_corroborated` flag. The
+counts are read from `raw_event.payload` by `source_event_id` in **one batched query** per
+page (`queries.corroboration_counts`); a per-row read is the N+1 this module has already
+been bitten by. `null` counts mean *unknown* — a manual event, or an auto event whose raw
+row retention has pruned — never `0`; a payload that exists but has a missing/unparsable
+key contributes `0`, matching `confidence`'s invariant. `well_corroborated` is the counts
+predicate `sources >= 2 and articles >= 3`, deliberately not a `confidence` threshold: the
+score is ordinal and its scale is unvalidated.
+
 ## Commands
 - `uvicorn app.main:app --reload --port 8000`
 - `pytest tests/test_api.py`
@@ -44,6 +55,10 @@ Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
   a recent day success flips `stale` to false.
 - Test rejection paths: null updates, inverted date ranges, missing conflict references,
   non-http(s) source URLs, and text longer than its column.
+- Test corroboration: counts survive the list, conflict-detail and single-event responses;
+  one outlet with many articles is not `well_corroborated`; a missing raw row yields null
+  (not 0) while an unparsable stored key yields 0; the conflict detail issues ≤3 queries
+  for a page of events (the existing query-count guard, extended).
 
 ## Boundaries
 - Always: validate inputs (Pydantic), with text bounds matching the stored columns

@@ -17,7 +17,10 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
   intensity so severity still reads once you zoom in. A legend bottom-left explains it.
 - Time controls (start + end date inputs) → `GET /api/events` + `GET /api/conflicts` → re-render.
 - Click marker → event detail with place/date/type/actors/intensity, provenance, source link,
-  raw JSON, and an “Open conflict” action.
+  raw JSON, and an “Open conflict” action. When the event has corroboration counts, both the
+  marker popup and this detail pane show a small badge (“4 outlets · 12 articles”); it turns
+  green when the API's `well_corroborated` counts predicate holds. Null counts (manual event,
+  or a pruned raw row) show no badge at all — never a zero-outlet claim.
 - Conflict detail shows the timeline and per-event Edit actions.
 - Edit mode: conflict fields, event fields (including lat/lon), add event, create conflict.
   “Pick on map” fills coordinates from a map click; manual lat/lon remains available.

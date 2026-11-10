@@ -668,6 +668,23 @@ body {
   color: #0f5132;
 }
 
+/* Corroboration counts. Muted for a single outlet; green when the API's counts
+   predicate (2+ outlets, 3+ articles) says several outlets carried the event.
+   Deliberately not driven by `confidence` — its scale is unvalidated. */
+.corroboration {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #e3e3e3;
+  color: #666;
+  white-space: nowrap;
+}
+
+.corroboration.strong {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
 #edit-panel label,
 .event-edit label {
   display: block;

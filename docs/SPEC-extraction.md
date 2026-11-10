@@ -39,7 +39,9 @@ when the model is unavailable). (Conventions: CAPABILITY-MAP.md)
    contribute nothing, so an absent or unparsable count gives `0.0` rather than a second
    default. It is a coverage signal, not a truth claim. Rows persisted before this change keep
    their articles-only score, because processing only touches `processed_at IS NULL` rows, so
-   the column is mixed-scale until something explicitly re-derives it.
+   the column is mixed-scale until something explicitly re-derives it. The API exposes the
+   raw counts for the badge by reading `raw_event.payload` (one batched query per page), not
+   by reversing the score; counts are null once retention has pruned the raw row.
 6. Zero-shot gate: `filter_by_zero_shot` drops drafts whose source URL slug doesn't
    classify as armed conflict (NLI model, threshold from config). Drafts without a
    source URL are kept — the adapter's root-code filter has already run. If the model

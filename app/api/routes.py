@@ -27,6 +27,7 @@ from app.extract.classifier import slug_to_text
 from app.models import Conflict, ConflictEvent, EditLog, utcnow
 from app.queries import (
     conflicts_active_in_range,
+    corroboration_counts,
     events_for_conflict,
     events_in_range,
     latest_successful_ingestion_run,
@@ -157,23 +158,55 @@ def get_conflict(conflict_id: int, db: DbSession):
         )
     return ConflictDetail(
         **summary.model_dump(),
-        events=[_event_out(e) for e in events],
+        events=_events_out(db, events),
     )
 
 
-def _event_out(event: ConflictEvent) -> ConflictEventOut:
+def _event_out(event: ConflictEvent, counts: tuple[int, int] | None = None) -> ConflictEventOut:
     out = ConflictEventOut.model_validate(event)
     headline = slug_to_text(event.source_url) if event.source_url else None
     if headline and headline.isdigit():
         headline = None
-    return out.model_copy(update={"headline": headline or event.summary})
+    sources, articles = counts if counts is not None else (None, None)
+    return out.model_copy(
+        update={
+            "headline": headline or event.summary,
+            "sources": sources,
+            "articles": articles,
+            "well_corroborated": _well_corroborated(sources, articles),
+        }
+    )
+
+
+# "Well corroborated" is a counts predicate, not a `confidence` threshold: the
+# score is ordinal and its scale has never been validated, so a 0.5 line would
+# look measured while being an arbitrary convention. Two independent outlets and
+# three articles is a floor a reader can check against the badge itself.
+WELL_CORROBORATED_MIN_SOURCES = 2
+WELL_CORROBORATED_MIN_ARTICLES = 3
+
+
+def _well_corroborated(sources: int | None, articles: int | None) -> bool:
+    if sources is None or articles is None:
+        return False
+    return sources >= WELL_CORROBORATED_MIN_SOURCES and articles >= WELL_CORROBORATED_MIN_ARTICLES
+
+
+def _events_out(db: Session, events: list[ConflictEvent]) -> list[ConflictEventOut]:
+    """Serialize a page of events with one corroboration lookup.
+
+    Never look counts up per event: a conflict detail can be hundreds of rows,
+    and that is the N+1 this module already got bitten by (Gotcha #5).
+    """
+    counts = corroboration_counts(db, [event.source_event_id for event in events])
+    return [_event_out(event, counts.get(event.source_event_id or "")) for event in events]
 
 
 @router.get("/events", response_model=list[ConflictEventOut])
 def list_events(start: date, end: date, db: DbSession, conflict_id: int | None = None):
     _validate_range(start, end)
     events = events_in_range(db, start, end, conflict_id=conflict_id)
-    return [_event_out(e) for e in events]
+    return _events_out(db, events)
 
 
 @router.get("/events/{event_id}", response_model=ConflictEventOut)
@@ -181,7 +214,7 @@ def get_event(event_id: int, db: DbSession):
     event = db.get(ConflictEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
-    return _event_out(event)
+    return _events_out(db, [event])[0]
 
 
 @router.patch("/conflicts/{conflict_id}", response_model=ConflictOut)
@@ -224,7 +257,7 @@ def update_event(event_id: int, payload: EventUpdate, db: DbSession):
     _apply_patch(db, event, updates, "event")
     db.commit()
     db.refresh(event)
-    return _event_out(event)
+    return _events_out(db, [event])[0]
 
 
 @router.post("/events", response_model=ConflictEventOut, status_code=201)
@@ -236,7 +269,7 @@ def create_event(payload: EventCreate, db: DbSession):
     db.add(event)
     db.commit()
     db.refresh(event)
-    return _event_out(event)
+    return _events_out(db, [event])[0]
 
 
 @router.get("/ingestion-runs", response_model=list[IngestionRunOut])

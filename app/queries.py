@@ -1,11 +1,12 @@
 """Query helpers used by the API layer."""
 
+from collections.abc import Iterable
 from datetime import date
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Conflict, ConflictEvent, IngestionRun
+from app.models import Conflict, ConflictEvent, IngestionRun, RawEvent
 
 
 def conflicts_active_in_range(session: Session, start: date, end: date) -> list[Conflict]:
@@ -69,6 +70,49 @@ def latest_event(session: Session, conflict_id: int) -> ConflictEvent | None:
         .limit(1)
     )
     return session.scalars(stmt).first()
+
+
+def _count(value: str | int | float | None) -> int:
+    """Parse one stored count; absent, unparsable or negative means zero.
+
+    Mirrors `app.extract.gdelt_adapter._count`. The badge and the stored
+    `confidence` must agree on what a missing count means, or the same event
+    would be described two different ways depending on which one you read.
+    """
+    try:
+        return max(int(value or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def corroboration_counts(
+    session: Session, source_event_ids: Iterable[str | None]
+) -> dict[str, tuple[int, int]]:
+    """`(outlets, articles)` per GDELT event id, in one query.
+
+    The counts live in the stored raw payload, which is why the read projects
+    two `json_extract` scalars instead of the payloads themselves: a payload
+    holds every non-empty GDELT column (~1 KB), and a busy conflict has
+    thousands of events, so selecting them whole would move megabytes per
+    detail request.
+
+    An id with no raw row is *absent* from the result, not zero. The counts are
+    unknown for a manual event, or for one whose raw row retention has pruned;
+    the API reports that as null rather than claiming no outlet backed a real
+    event. Absent *keys* inside a stored payload are zero, matching the
+    adapter's documented invariant.
+    """
+    ids = list(
+        dict.fromkeys(source_event_id for source_event_id in source_event_ids if source_event_id)
+    )
+    if not ids:
+        return {}
+    stmt = select(
+        RawEvent.source_event_id,
+        func.json_extract(RawEvent.payload, "$.num_sources"),
+        func.json_extract(RawEvent.payload, "$.num_articles"),
+    ).where(RawEvent.source_event_id.in_(ids))
+    return {row[0]: (_count(row[1]), _count(row[2])) for row in session.execute(stmt)}
 
 
 def existing_source_event_ids(session: Session, ids: list[str]) -> set[str]:

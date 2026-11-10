@@ -52,6 +52,13 @@ class ConflictEventOut(BaseModel):
     source_url: str | None
     confidence: float | None
     provenance: str
+    # Corroboration, read from the stored GDELT row on the way out. Null means
+    # unknown (a manual event, or one whose raw row has been pruned), never
+    # "zero outlets". `well_corroborated` is a counts predicate computed by the
+    # API: the ordinal `confidence` score has no validated threshold.
+    sources: int | None = None
+    articles: int | None = None
+    well_corroborated: bool = False
     headline: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None

@@ -1,3 +1,5 @@
+import json
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -9,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.routes import get_db
 from app.db import make_session_factory
 from app.main import app
-from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun, utcnow
+from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun, RawEvent, utcnow
 
 
 @pytest.fixture
@@ -62,6 +64,24 @@ def seed(session: Session) -> Conflict:
     )
     session.commit()
     return conflict
+
+
+@contextmanager
+def query_counter(session: Session):
+    """Count the SQL statements a block issues through `session`'s engine."""
+    from sqlalchemy import event as sa_event
+
+    count = {"n": 0}
+
+    def before(*_args, **_kwargs):
+        count["n"] += 1
+
+    bind = session.get_bind()
+    sa_event.listen(bind, "before_cursor_execute", before)
+    try:
+        yield count
+    finally:
+        sa_event.remove(bind, "before_cursor_execute", before)
 
 
 def test_list_conflicts_filters_by_range(client) -> None:
@@ -653,21 +673,115 @@ def test_event_text_fields_are_bounded_like_their_columns(client) -> None:
 
 def test_conflict_list_query_count_is_bounded(client) -> None:
     """Regression: listing conflicts must not issue one query per conflict."""
-    from sqlalchemy import event as sa_event
-
     c, session = client
     for _ in range(8):
         seed(session)
-    bind = session.get_bind()
-    count = {"n": 0}
-
-    def before(*_args, **_kwargs):
-        count["n"] += 1
-
-    sa_event.listen(bind, "before_cursor_execute", before)
-    try:
+    with query_counter(session) as count:
         resp = c.get("/api/conflicts", params={"start": "2024-01-01", "end": "2024-12-31"})
-    finally:
-        sa_event.remove(bind, "before_cursor_execute", before)
     assert resp.status_code == 200
     assert count["n"] <= 5, f"N+1 regression: {count['n']} queries for {len(resp.json())} conflicts"
+
+
+def add_raw_payload(session: Session, event: ConflictEvent, payload: dict[str, str]) -> None:
+    """Store the GDELT row an event's corroboration counts are read from."""
+    event.source_event_id = f"gdelt-{event.id}"
+    session.add(
+        RawEvent(
+            source_event_id=event.source_event_id,
+            source_day=event.event_date,
+            event_date=event.event_date,
+            payload=json.dumps(payload),
+            processed_at=utcnow(),
+            outcome="persisted",
+        )
+    )
+    session.commit()
+
+
+def test_event_endpoints_expose_corroboration_counts(client) -> None:
+    """Every endpoint the UI renders from must carry the outlet/article counts."""
+    c, session = client
+    conflict = seed(session)
+    event = session.query(ConflictEvent).first()
+    add_raw_payload(session, event, {"num_sources": "4", "num_articles": "12"})
+
+    detail = c.get(f"/api/events/{event.id}").json()
+    assert (detail["sources"], detail["articles"]) == (4, 12)
+    assert detail["well_corroborated"] is True
+
+    params = {"start": "2024-01-01", "end": "2024-12-31"}
+    listed = next(e for e in c.get("/api/events", params=params).json() if e["id"] == event.id)
+    nested = next(
+        e for e in c.get(f"/api/conflicts/{conflict.id}").json()["events"] if e["id"] == event.id
+    )
+    assert (listed["sources"], listed["articles"]) == (4, 12)
+    assert (nested["sources"], nested["articles"]) == (4, 12)
+
+
+def test_many_articles_from_one_outlet_is_not_well_corroborated(client) -> None:
+    """The label is a counts predicate, not an article volume or confidence score.
+
+    Twelve articles from one outlet is usually one wire story reprinted, and a
+    confidence reading of it would sit above any sensible threshold.
+    """
+    c, session = client
+    seed(session)
+    event = session.query(ConflictEvent).first()
+    add_raw_payload(session, event, {"num_sources": "1", "num_articles": "12"})
+
+    body = c.get(f"/api/events/{event.id}").json()
+    assert (body["sources"], body["articles"]) == (1, 12)
+    assert body["well_corroborated"] is False
+
+
+def test_unknown_corroboration_is_null_not_zero(client) -> None:
+    """No raw row means the counts are unknown; zero would be a claim.
+
+    Manual events never had a GDELT row, and retention prunes rows for older
+    auto events. Both must read as null so the UI shows no badge, instead of
+    asserting that no outlet carried the event.
+    """
+    c, session = client
+    seed(session)
+    auto_without_raw = session.query(ConflictEvent).first()
+    created = c.post("/api/events", json={"event_date": "2024-03-01"}).json()
+
+    for event_id in (auto_without_raw.id, created["id"]):
+        body = c.get(f"/api/events/{event_id}").json()
+        assert body["sources"] is None, body
+        assert body["articles"] is None, body
+        assert body["well_corroborated"] is False
+
+
+def test_unparsable_payload_counts_are_zero(client) -> None:
+    """Inside a stored payload, a bad key is zero — the adapter's invariant."""
+    c, session = client
+    seed(session)
+    events = session.query(ConflictEvent).all()
+    add_raw_payload(session, events[0], {"num_sources": "x", "num_articles": "-3"})
+    add_raw_payload(session, events[1], {})
+
+    bodies = {
+        e["id"]: e
+        for e in c.get("/api/events", params={"start": "2024-01-01", "end": "2024-12-31"}).json()
+    }
+    assert (bodies[events[0].id]["sources"], bodies[events[0].id]["articles"]) == (0, 0)
+    assert (bodies[events[1].id]["sources"], bodies[events[1].id]["articles"]) == (0, 0)
+    assert bodies[events[0].id]["well_corroborated"] is False
+
+
+def test_conflict_detail_query_count_is_bounded(client) -> None:
+    """Regression: corroboration must be read in one query, not one per event."""
+    c, session = client
+    conflict = seed(session)
+    for _ in range(10):
+        event = ConflictEvent(conflict_id=conflict.id, event_date=date(2024, 1, 20), intensity=3)
+        session.add(event)
+        session.flush()
+        add_raw_payload(session, event, {"num_sources": "2", "num_articles": "5"})
+
+    with query_counter(session) as count:
+        resp = c.get(f"/api/conflicts/{conflict.id}")
+    assert resp.status_code == 200
+    assert len(resp.json()["events"]) == 12
+    assert count["n"] <= 3, f"N+1 regression: {count['n']} queries for 12 events"

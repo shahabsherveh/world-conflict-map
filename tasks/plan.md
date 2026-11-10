@@ -43,7 +43,7 @@ Build order follows docs/CAPABILITY-MAP.md: `storage` → `ingestion` → `extra
 
 ### Phase 5: Monetization readiness
 - [x] Task 10: Corroboration scoring from `num_sources` + `num_articles`
-- [ ] Task 11: Corroboration exposed in API + UI badge
+- [x] Task 11: Corroboration exposed in API + UI badge
 - [ ] Task 12: Briefing generator (`scripts/briefing.py`)
 - [ ] Task 13: Demand test (8 issues) + public case study
 
