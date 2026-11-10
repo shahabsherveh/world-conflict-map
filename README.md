@@ -17,7 +17,8 @@ become a product without a rewrite.
 
 - Python 3.12+
 - Network access (for GDELT + the one-time model download)
-- Docker (optional, for the container path) and Node 18+ (optional, for the UI smoke test)
+- Docker (optional, for the container path) and Node 18+ (optional, for the jsdom UI smoke
+  test; the real-browser tests need Node 22+)
 
 ## Setup
 
@@ -313,14 +314,19 @@ python scripts/evaluate.py  # precision/recall of the zero-shot filter (needs mo
 # headless UI smoke test (needs Node 18+ and a server on :8000;
 # use a freshly seeded or model-filtered DB — see tests/ui/README.md)
 cd tests/ui && npm install && node map-smoke.mjs
+
+# real-browser UI tests (needs Node 22+ and a running Chrome on :9222)
+cd tests/ui && node browser-tests.mjs
 ```
 
-The UI smoke test assumes a freshly seeded or model-filtered database. Unfiltered GDELT
+Both UI harnesses assume a freshly seeded or model-filtered database. Unfiltered GDELT
 events often share country-centroid coordinates, and Leaflet spiderfies duplicate points;
 jsdom cannot render that layer, so the cluster-click and scrub checks fail.
 
-Visual/CSS checks use the `chrome-devtools` MCP against a headless Chrome on `:9222` —
-see `tests/ui/README.md` for the Chrome and MCP setup.
+`browser-tests.mjs` covers what jsdom cannot — hit-testing, popup anchoring, computed
+CSS, basemap tiles, Pick-on-map — by driving a headless Chrome on `:9222` over CDP. It
+is read-only and uses no npm dependency. `tests/ui/README.md` has the Chrome install and
+start commands, plus the `chrome-devtools` MCP setup for exploratory checks.
 
 ## CI/CD
 

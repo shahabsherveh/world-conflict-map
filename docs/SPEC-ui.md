@@ -57,7 +57,9 @@ Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
   marker/cluster counts checked against `/api/events`, bounded DOM, cluster clicks, scrub.
   Run it when touching `app.js`; it is not part of pytest (needs npm + a server).
 - Real-browser checks through the `chrome-devtools` MCP (headless Chrome on `:9222`):
-  hit-testing, popups, "Pick on map", basemap. Setup: `../tests/ui/README.md`.
+  hit-testing, popups, "Pick on map", basemap. `tests/ui/browser-tests.mjs` automates
+  them over CDP (zero npm dependencies, read-only); the MCP remains for exploration.
+  Setup: `../tests/ui/README.md`.
 - A human visual pass (colour/contrast, cluster aesthetics) remains the last word.
 
 ## Boundaries

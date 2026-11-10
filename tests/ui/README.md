@@ -1,9 +1,13 @@
-# UI smoke test (headless)
+# UI tests (headless)
 
-`map-smoke.mjs` loads the real `index.html` + Leaflet + `leaflet.markercluster` +
-`app.js` in [jsdom](https://github.com/jsdom/jsdom) and drives them against a running
-API. It exists because the interesting regressions here are JavaScript ones — cluster
-loading, marker counts, time scrubbing — and this environment has no browser.
+Two harnesses, both read-only and both opt-in:
+
+- `map-smoke.mjs` loads the real `index.html` + Leaflet + `leaflet.markercluster` +
+  `app.js` in [jsdom](https://github.com/jsdom/jsdom) and drives them against a running
+  API. It covers the JavaScript regressions — cluster loading, marker counts, time
+  scrubbing, DOM shapes — without a browser install.
+- `browser-tests.mjs` drives a real Chrome over CDP: hit-testing, popup anchoring,
+  computed CSS, basemap tiles, Pick-on-map. Setup is in “Browser tests” below.
 
 ```bash
 # terminal 1
@@ -50,19 +54,58 @@ cluster-click and scrub checks fail for harness reasons rather than app reasons.
 - Changing to a range with no conflicts clears the conflict list, the markers and the
   "No location" panel — no stale rows from the previous range.
 
-## What it cannot assert
+## What jsdom cannot assert
 
 jsdom has no layout engine or CSS. The viewport is stubbed (1200x800) so Leaflet
 computes usable bounds, but **visual** regressions — marker colours, cluster bubble
-styling, popup positioning — still need a real browser.
+styling, popup positioning — need a real browser. That is what the next harness is for.
 
-## Real-browser checks (`chrome-devtools` MCP)
+## Browser tests (`browser-tests.mjs`)
+
+Drives the real Chrome already running on `:9222` over CDP, with no npm dependency
+(Node 22+ has global `fetch` and `WebSocket`). Expectations are read from `/api/events`,
+so it works against a seeded DB or the real GDELT data.
+
+```bash
+# terminal 1: API on a seeded DB
+uvicorn app.main:app --reload --port 8000
+
+# terminal 2: Chrome started as below, then
+cd tests/ui
+node browser-tests.mjs        # or: npm run test:browser
+```
+
+It never saves an edit, and proves it: the Pick-on-map check asks `/api/events/{id}`
+afterwards and fails if a coordinate was written.
+
+### What it asserts
+
+- Conflicts and markers render; no uncaught JS errors or `console.error` calls.
+- At least one OpenStreetMap tile response is 200 — the basemap is really there.
+- A real mouse click on a drawn cluster bubble zooms the map.
+- Clicking the pixel at the map centre opens the popup of *that* event: the map is
+  centred on the event, so the test knows which dot should be under the cursor.
+- The popup is anchored above the clicked marker (centre within 40 px; 0 px offset and
+  a 7 px gap on the seeded DB).
+- The corroboration badge prints the API's counts; the `strong` variant computes to
+  `rgb(209, 231, 221)` / `rgb(15, 81, 50)`; a one-outlet event stays `rgb(227, 227, 227)`;
+  an event with null counts shows no badge.
+- The detail pane mirrors the popup's heading and badge.
+- "Set location" on a no-location row arms picking, a map click fills both coordinate
+  inputs and ends picking mode — and the API still reports the event unplaced.
+
+A missing example skips rather than fails (no cluster, no one-outlet event, no unplaced
+row — e.g. an old DB), so the suite can run anywhere. Like the jsdom harness it is not
+part of `pytest` or `scripts/ci-check.sh`: it needs Chrome, a server, and network for
+tiles.
+
+## Chrome setup (`browser-tests.mjs` and the chrome-devtools MCP)
 
 Chrome cannot be launched by the MCP in this container (no binary at
 `/opt/google/chrome`, and `chrome-devtools-mcp` refuses to launch as root), so start it
-yourself and let the MCP attach over CDP. Chrome for Testing installs into the repo's
-gitignored `chrome/` directory, which lives on the workspace volume, so it survives a
-container rebuild:
+yourself and let both the test script and the MCP attach over CDP. Chrome for Testing
+installs into the repo's gitignored `chrome/` directory, which lives on the workspace
+volume, so it survives a container rebuild:
 
 ```bash
 # once per checkout
@@ -88,28 +131,32 @@ apt-get update && apt-get install -y --no-install-recommends \
 ```
 
 Then drive it with the codemode tools (`mcp__chrome_devtools__list_pages`,
-`evaluate_script`, `take_screenshot`, `list_console_messages`, …). Gotchas: `new_page`
-waits for the `load` event and can time out while map tiles are still fetching — the page
-is loaded, so carry on with it; `evaluate_script` returns prose plus a fenced `json`
-block; cluster labels only count events inside the current viewport, so compare totals to
-`/api/events` at the initial world view, not after zooming.
+`evaluate_script`, `take_screenshot`, `list_console_messages`, …) for exploratory checks.
+`browser-tests.mjs` is the reproducible version; the MCP is for looking around. Gotchas:
+`new_page` waits for the `load` event and can time out while map tiles are still
+fetching — the page is loaded, so carry on with it; `evaluate_script` returns prose plus
+a fenced `json` block; cluster labels only count events inside the current viewport, so
+compare totals to `/api/events` at the initial world view, not after zooming.
 
-What a real browser adds over the jsdom harness: real hit-testing (clicking a cluster or a
-marker dot), popup/sidebar rendering, "Pick on map", and the basemap.
+What a real browser adds over the jsdom harness: real hit-testing (a click lands on the
+marker drawn at that pixel), popup positioning, computed CSS, "Pick on map", and the
+basemap.
 
 Verified in headless Chrome 157 (and 149 before the rebuild): 13,066 geolocated events
 render as ~37 cluster bubbles plus individual dots at world view (labels summing to
 13,066), scrubbing to 3 days re-renders exactly 4,275, cluster clicks zoom, event clicks
 open popup + detail, "Pick on map" fills lat/lon, OSM tiles 200, and no console messages.
+The automated suite passes all checks on the seeded DB, including the three badge states
+(green counts, muted single outlet, no badge for null counts).
 On the seeded demo DB the corroboration badge was checked in the same browser: a
 multi-outlet event shows `4 outlets · 12 articles` in green, a single outlet shows the
 muted counts, and an event with no stored raw row shows no badge at all.
 
 A true visual pass (colours, contrast, cluster aesthetics) still belongs to a human eye.
-This harness is deliberately not wired into `pytest` or the CI gates (`docs/ci-cd.md`):
-it needs npm and a running server, and at world zoom its cluster-click check spiderfies,
-which jsdom cannot render without an SVG/canvas layer — it would fail for harness
-reasons, not app reasons. `scripts/seed.py` seeds one conflict with a single unplaced
+Neither harness is wired into `pytest` or the CI gates (`docs/ci-cd.md`): the jsdom one
+needs npm and a running server, and at world zoom its cluster-click check spiderfies,
+which jsdom cannot render without an SVG/canvas layer; the browser one additionally needs
+Chrome and network for tiles. `scripts/seed.py` seeds one conflict with a single unplaced
 event, so the "No location" panel and its set-location flow are exercisable from demo
 data. The viewport-narrowing checks still assume a populated database (with five demo
 conflicts, the cluster click has already zoomed the list down to one row).

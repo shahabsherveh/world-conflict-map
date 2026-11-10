@@ -29,6 +29,7 @@ ty check                                 # types (targets 3.12)
 ./scripts/install-hooks.sh               # run those gates as a pre-commit hook
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
+cd tests/ui && node browser-tests.mjs    # real Chrome over CDP (needs Chrome on :9222 + serve)
 
 # Chrome for the chrome-devtools MCP (see Gotchas #12); CDP on :9222
 npx -y @puppeteer/browsers install chrome@stable   # once; ./chrome/ is gitignored
@@ -88,8 +89,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - Regression tests for every bug fix (see `test_group_events_does_not_merge_distant_cities_in_one_country`).
 - Guard performance invariants explicitly (see `test_conflict_list_query_count_is_bounded`).
 - `tests/ui/map-smoke.mjs` covers the map JavaScript (clustering, counts, time scrub) in
-  jsdom against a running server. It is **not** part of pytest or the CI gates and has
-  its own npm dependency; run it when touching `app/static/app.js`.
+  jsdom against a running server. `tests/ui/browser-tests.mjs` covers what jsdom cannot
+  (hit-testing, popup anchoring, computed CSS, tiles, Pick-on-map) by driving a real
+  Chrome over CDP. Neither is part of pytest or the CI gates; run them when touching
+  `app/static/app.js` (`tests/ui/README.md`).
 - CI (`.github/workflows/ci.yml`) runs lint, format, shellcheck, `ty check`, `pytest`, a fresh
   `alembic upgrade head` + `alembic check`, an app-import check, an artifact guard, and a
   docker build that serves `/health`. `docs/ci-cd.md` explains each gate and the deploy

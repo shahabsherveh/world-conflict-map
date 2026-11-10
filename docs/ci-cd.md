@@ -126,12 +126,13 @@ from that file, so a local pass means a pipeline pass.
   that changes no rendered output.
 - **No `pip-audit` yet.** `requirements.txt` is unpinned, so an audit reports the
   resolver's current guesses, not what the image ships. Pin first (see Follow-ups).
-- **The jsdom UI smoke test is not a gate.** It needs a running server and a freshly
-  seeded or model-filtered DB: unfiltered GDELT events share country-centroid
+- **The UI harnesses are not gates.** `map-smoke.mjs` needs a running server and a
+  freshly seeded or model-filtered DB: unfiltered GDELT events share country-centroid
   coordinates, and Leaflet's spiderfy layer cannot render in jsdom, so the
-  cluster-click/scrub checks fail for harness reasons, not app reasons. Run it by hand
-  (`tests/ui/README.md`); `scripts/seed.py` includes a no-location conflict so the
-  panel is exercisable and offsets coordinates to avoid spiderfy.
+  cluster-click/scrub checks fail for harness reasons, not app reasons.
+  `browser-tests.mjs` additionally needs Chrome on `:9222` and network for tiles. Run
+  them by hand (`tests/ui/README.md`); `scripts/seed.py` includes a no-location conflict
+  so the panel is exercisable and offsets coordinates to avoid spiderfy.
 
 ## Runner setup (self-hosted)
 

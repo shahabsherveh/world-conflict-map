@@ -2,10 +2,11 @@
   "name": "global-conflict-map-ui-smoke",
   "private": true,
   "version": "1.0.0",
-  "description": "Headless jsdom smoke test for the map UI (loads real Leaflet + markercluster against the running API)",
+  "description": "Headless UI tests for the map (jsdom smoke + real-browser CDP) against the running API",
   "type": "module",
   "scripts": {
-    "test": "node map-smoke.mjs"
+    "test": "node map-smoke.mjs",
+    "test:browser": "node browser-tests.mjs"
   },
   "devDependencies": {
     "jsdom": "^24.1.3"
