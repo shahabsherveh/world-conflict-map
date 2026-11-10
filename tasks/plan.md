@@ -41,6 +41,12 @@ Build order follows docs/CAPABILITY-MAP.md: `storage` → `ingestion` → `extra
 ### Phase 4: Polish
 - [x] Task 9: End-to-end seed + README + cron
 
+### Phase 5: Monetization readiness
+- [x] Task 10: Corroboration scoring from `num_sources` + `num_articles`
+- [ ] Task 11: Corroboration exposed in API + UI badge
+- [ ] Task 12: Briefing generator (`scripts/briefing.py`)
+- [ ] Task 13: Demand test (8 issues) + public case study
+
 Task-by-task acceptance criteria and verification evidence: `tasks/todo.md`.
 
 ## Checkpoints
@@ -49,6 +55,10 @@ Task-by-task acceptance criteria and verification evidence: `tasks/todo.md`.
   armed-conflict filtering works. (Verify the data pipeline early.)
 - **After 6–8:** full UI works end-to-end against seeded data (view + edit).
 - **After 9:** a fresh clone can be set up and run the full daily flow from the README.
+- **After 10–11:** a detail response states how many outlets back an event;
+  `./scripts/ci-check.sh` green.
+- **After 12–13:** a briefing is produced from the DB in one command, and the go/no-go memo
+  is written from real audience numbers rather than a guess.
 
 ## Risks and Mitigations
 
@@ -59,8 +69,16 @@ Task-by-task acceptance criteria and verification evidence: `tasks/todo.md`.
 | Conflict grouping is fuzzy | High | v1 manual + simple rule; grouping isolated behind a helper |
 | GDELT `NumKilled`/`NumWounded` coverage is sparse | Low | Fatalities nullable; intensity derived from event type + tone, not fatalities alone |
 | Free OSM tiles rate/attribution | Low | Standard OSM usage policy; Leaflet defaults |
+| `num_sources` counts distinct outlets in one 15-min window, not total coverage | Med | Expose both counts; label as corroboration, never as verification |
+| Rescoring `confidence` silently changes UI ordering | Med | Ordering regression test; keep the 0.0-for-absent invariant |
+| A briefing publishes an unverified claim and burns credibility | High | Every bullet links a source; state corroboration; human read before send |
+| Public output from Iran raises personal-security exposure | High | Decide identity/redaction posture before issue 1; no identifying detail |
 
 ## Open Questions
-- None blocking. Defaults approved: intensity 1–5, English-only v1, marker size+color,
-  OSM tiles, no pagination, no CORS, no region filtering.
-- CAMEO armed-conflict code allow-list is tuned during Task 4.
+- *(Phase 1–4)* None blocking. Defaults approved: intensity 1–5, English-only v1, marker
+  size+color, OSM tiles, no pagination, no CORS, no region filtering.
+- *(Phase 1–4)* CAMEO armed-conflict code allow-list is tuned during Task 4.
+- *(Phase 5)* Briefing language: Persian only, or Persian with an English summary?
+- *(Phase 5)* Geography is global (decided in review), so no per-region default is needed.
+- *(Phase 5)* Channel is deliberately unspecified; the plan assumes only that the audience
+  can be counted per issue.

@@ -238,6 +238,138 @@ daily cron instructions, `.gitignore` finalization.
 
 ---
 
+## Phase 5: Monetization readiness
+
+Two strands: make the data defensible enough to sell, then test demand with a free global
+briefing before spending on infrastructure or a foreign entity. Rationale and kill criteria:
+the go/no-go memo in Task 13.
+
+Constraint for this phase: no schema migration. `confidence` and `provenance` already exist;
+a real multi-article provenance table would need one and is deferred (AGENTS.md "Ask first").
+
+### Task 10: Corroboration scoring from `num_sources` + `num_articles`
+**Description:** `_confidence` currently uses `num_articles` alone (articles/10, capped at
+1.0). `num_sources` — distinct outlets — is retained in `raw_event.payload` but never read,
+so twelve articles from one outlet score the same as twelve from twelve outlets. Blend both
+into one corroboration score, keeping the documented invariant that absent or unparsable
+counts give exactly 0.0.
+
+**Acceptance criteria:**
+- [x] 12 articles / 4 outlets scores strictly higher than 12 articles / 1 outlet
+- [x] Missing or unparsable counts still return 0.0 — the existing invariant holds
+- [x] Extreme input (e.g. 9999/9999) stays within 0.0–1.0
+- [x] A mutation that drops `num_sources` from the blend makes a test fail
+- [x] Field is documented as corroboration; it must not be described as verification
+
+**Verification:**
+- [x] Tests pass: `pytest tests/test_extraction.py -k confidence` (3 passed)
+- [x] Mutation check: dropping the `num_sources` term failed 2 tests; restored, 3 pass
+- [x] Full gates: `./scripts/ci-check.sh` — 104 tests, ty and markdown clean
+- [x] Calibrated on 717k stored rows: articles p50=4/p90=10/p99=15, sources=1 for ~90%
+
+**Dependencies:** None
+
+**Files likely touched:**
+- `app/extract/gdelt_adapter.py`
+- `tests/test_extraction.py`
+- `docs/SPEC-extraction.md`
+
+**Estimated scope:** Small (1–2 files)
+
+### Task 11: Corroboration exposed in API + UI badge
+**Description:** A reader cannot currently tell whether an event rests on one article or
+forty. Surface the outlet and article counts on the event response, read in one batched
+query keyed by `source_event_id` (never per-row — see gotcha #5), plus a small trust badge in
+the event popup.
+
+**Acceptance criteria:**
+- [ ] Event response includes `sources` and `articles`, parsed from `raw_event.payload`
+- [ ] Any "well corroborated" label is a counts predicate (`sources >= 2 and articles >= 3`),
+  never a `confidence` threshold — the score is ordinal and its scale is unvalidated
+- [ ] Manual events (`provenance="manual"`) return null counts, not 0 and not an error
+- [ ] Detail-endpoint query count stays bounded (extend the existing query-count test)
+- [ ] UI shows e.g. "4 outlets" and every interpolated value passes through `esc()`
+- [ ] `?v=N` bumped for `app.js`
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/test_api.py -k "corroboration or query_count"`
+- [ ] UI: `cd tests/ui && node map-smoke.mjs` against a freshly seeded DB
+- [ ] Manual check: open an event with several articles, confirm the badge and the link
+
+**Dependencies:** Task 10
+
+**Files likely touched:**
+- `app/queries.py`
+- `app/api/schemas.py`, `app/api/routes.py`
+- `app/static/app.js`
+- `tests/test_api.py`
+
+**Estimated scope:** Medium (3–5 files)
+
+### Task 12: Briefing generator (`scripts/briefing.py`)
+**Description:** Render a dated Markdown digest from the DB: conflicts ranked by recent
+activity, events since the previous issue, corroboration counts, one source link each. Stdlib
+only, no network, no writes to the DB. This is the demand-test engine and doubles as the
+case-study artefact.
+
+**Acceptance criteria:**
+- [ ] `python scripts/briefing.py --days 7` prints Markdown to stdout; no network calls
+- [ ] Every event line carries its source URL; an event without one is omitted, not shown
+  unlinked
+- [ ] Output is deterministic for a fixed DB (same input, same order and content)
+- [ ] Runs against `scripts/seed.py` data with no model file present (degraded mode)
+- [ ] `--region <country>` filters without changing the format
+
+**Verification:**
+- [ ] Tests pass: `pytest tests/test_briefing.py`
+- [ ] Manual check: run on a seeded DB and read the output as a subscriber would
+- [ ] Markdown gate: `pymarkdown scan -r docs tasks`
+
+**Dependencies:** Task 11
+
+**Files likely touched:**
+- `scripts/briefing.py`
+- `tests/test_briefing.py`
+- `README.md`
+
+**Estimated scope:** Medium (3–4 files)
+
+### Task 13: Demand test (8 issues) + public case study
+**Description:** Publish eight weekly global briefings, count engagement after each, then
+decide with numbers instead of opinion. In parallel, write the case study the "sell the
+skill" strand needs.
+
+**Acceptance criteria:**
+- [ ] Eight issues published, each at most one page, every claim linked
+- [ ] Per-issue count recorded: replies, reshares, audience growth
+- [ ] Written go/no-go memo: continue, narrow scope, or stop — citing the counts
+- [ ] `docs/CASE-STUDY.md` explains the pipeline for a non-specialist (fetch → filter →
+  group → serve) with no personal or location identifiers
+- [ ] Public identity and hosting posture decided and recorded before issue 1
+
+**Verification:**
+- [ ] Human review: you read each issue before it ships
+- [ ] Markdown gate: `pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks`
+
+**Dependencies:** Task 12
+
+**Files likely touched:**
+- `docs/CASE-STUDY.md`
+- `tasks/demand-test.md` (issue log and counts)
+
+**Estimated scope:** Small (2 files, spread over 8 weeks)
+
+## Checkpoint: Data quality
+- [ ] An event detail states its corroboration and links its source
+- [ ] `./scripts/ci-check.sh` green (all non-docker gates)
+
+## Checkpoint: Demand recorded
+- [ ] A briefing is one command from the DB
+- [ ] Eight issues published and counted
+- [ ] Go/no-go memo written; next phase chosen from evidence
+
+---
+
 ## Session handoff state
 
 Updated after the code-review pass and context setup.
@@ -629,7 +761,7 @@ and how to know it worked.
   `scripts/ci-check.sh`. Clean on all six `scripts/*.sh` files plus the container entrypoint.
 
 #### Optional
-- [ ] Use `num_sources` from `raw_event` for corroboration or confidence.
+- [x] Use `num_sources` from `raw_event` for corroboration — moved to Task 10 (Phase 5).
 - [ ] Backfill more history beyond 2026-10-29..2026-11-04.
 - [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
 - [x] Add CI/CD — see `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, and
