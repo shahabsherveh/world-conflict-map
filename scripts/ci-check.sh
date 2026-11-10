@@ -43,25 +43,55 @@ step "ruff check"
 step "ruff format --check"
 "$(gcm_venv_tool ruff)" format --check app tests scripts
 
-# CI installs a pinned shellcheck binary; locally use whatever is on PATH, or the
-# official image as a fallback (that image tracks :stable, CI is the pinned one).
+# CI installs a pinned shellcheck binary; locally use a binary at the same version,
+# or the official image at that same tag. The workflow's SHELLCHECK_VERSION is the
+# single source of truth and is read here rather than duplicated: findings differ
+# between releases, so an unpinned or drifting shellcheck makes this gate
+# green-today/red-tomorrow for reasons the author never touched.
 # Never skip silently: a gate that says "skipping" still looks green in a scrolled
 # terminal, which is how a missing tool once masqueraded as a passing step.
 step "shellcheck"
+ci_shellcheck_version=$(sed -n 's/^ *SHELLCHECK_VERSION: *//p' .github/workflows/ci.yml | head -1)
+case "$ci_shellcheck_version" in
+  v[0-9]*.[0-9]*.[0-9]*) ;;
+  *)
+    printf 'cannot read SHELLCHECK_VERSION from .github/workflows/ci.yml (got %s)\n' \
+      "${ci_shellcheck_version:-nothing}" >&2
+    exit 1
+    ;;
+  esac
+shellcheck_want="${ci_shellcheck_version#v}"
+
 shellcheck_cmd=""
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck_cmd="shellcheck"
-elif command -v docker >/dev/null 2>&1; then
-  shellcheck_cmd="docker run --rm -v $PWD:/repo -w /repo koalaman/shellcheck:stable"
-else
-  printf 'shellcheck and docker are both unavailable; install one to run this gate\n' >&2
-  exit 1
+  have=$(shellcheck --version | sed -n 's/^version: *//p' | head -1)
+  if [ "$have" = "$shellcheck_want" ]; then
+    shellcheck_cmd="shellcheck"
+  else
+    # Not skipped and not failed: the gate must still run, just on the release CI
+    # uses. Say so, because a stale local binary otherwise explains nothing.
+    printf 'local shellcheck %s != CI %s; using the pinned image\n' \
+      "${have:-unknown}" "$shellcheck_want" >&2
+  fi
+fi
+if [ -z "$shellcheck_cmd" ]; then
+  if command -v docker >/dev/null 2>&1; then
+    shellcheck_cmd="docker run --rm -v $PWD:/repo -w /repo koalaman/shellcheck:$ci_shellcheck_version"
+  else
+    printf 'neither shellcheck %s nor docker is available; install one to run this gate\n' \
+      "$shellcheck_want" >&2
+    exit 1
+  fi
 fi
 # .shellcheckrc provides external-sources; no -x needed.
-$shellcheck_cmd scripts/*.sh docker/pipeline-entrypoint.sh
+$shellcheck_cmd scripts/*.sh scripts/git-hooks/pre-commit docker/pipeline-entrypoint.sh
 
+# Resolved through the venv like every other tool: a bare `pymarkdown` made this
+# the one gate that depended on the caller's PATH, so an installed-but-not-
+# activated venv failed here with "command not found" after several gates had
+# already passed — and it failed inside the pre-commit hook, mid-commit.
 step "markdown lint"
-pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks
+"$(gcm_venv_tool pymarkdown)" scan -r README.md AGENTS.md docs tests/ui/README.md tasks
 
 step "ty check"
 "$(gcm_venv_tool ty)" check

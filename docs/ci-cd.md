@@ -13,6 +13,8 @@ Files:
 | `.github/dependabot.yml` | Weekly PRs for GitHub Actions and the UI-test npm deps |
 | `requirements-ci.txt` | Exact ruff/ty/pymarkdown versions the gates run (one source of truth) |
 | `scripts/ci-check.sh` | The same gates, locally. `--docker` adds the image build |
+| `scripts/git-hooks/pre-commit` | Runs `scripts/ci-check.sh` on commit; activated by `scripts/install-hooks.sh` |
+| `scripts/install-hooks.sh` | Points `core.hooksPath` at the tracked hooks directory |
 | `scripts/deploy.sh` | Build → replace → readiness check → roll back (what the deploy job runs) |
 | `scripts/install-runner.sh` | Register this repo's self-hosted runner (pinned release, verified hash) |
 | `scripts/cutover-data.sh` | One-time, WAL-safe move of an existing DB into `GCM_DATA_DIR` |
@@ -106,8 +108,12 @@ from that file, so a local pass means a pipeline pass.
   cutover scripts are the highest-consequence code in the repo and nothing else parses
   them: actionlint checks only the `run:` blocks embedded in workflows. CI downloads
   v0.11.0 into `$RUNNER_TEMP` and verifies the sha256 before running it;
-  `scripts/ci-check.sh` uses a local binary or the official image so the gate also runs
-  outside CI.
+  `scripts/ci-check.sh` reads that same `SHELLCHECK_VERSION` out of the workflow and
+  uses either a local binary at exactly that version or the Docker image at that tag
+  (`koalaman/shellcheck:v0.11.0`), so the gate also runs outside CI without drifting.
+  A local binary at another version is not silently used: the pinned image takes over
+  and the reason is printed. `:stable` is deliberately not used — it has drifted past
+  the tarball CI verifies, which would make shell-script findings depend on the day.
 
 - **No zero-shot model in CI.** The suite stubs the classifier; downloading ~570 MB
   would add minutes to every run and test nothing the adapter tests do not already
@@ -311,6 +317,38 @@ Copy the failing step's output and fix the cause, then re-run the same gate loca
 | Image | `./scripts/ci-check.sh --docker` |
 
 `./scripts/ci-check.sh` runs all non-docker gates in order.
+
+## Commit-time gates
+
+`./scripts/install-hooks.sh` sets `core.hooksPath` to `scripts/git-hooks/`, so the
+hook is versioned and reviewed like any other file instead of living in the
+untracked `.git/hooks/`. `scripts/git-hooks/pre-commit` is a thin wrapper on
+`scripts/ci-check.sh` — one definition of the gate list, not two that can drift.
+
+The hook is opt-in per clone, because git deliberately never runs hooks it did not
+find configured; run the installer once after cloning. `git commit --no-verify`
+skips it (documented, not accidental: pytest at commit time is slow for a WIP
+checkpoint, and CI still enforces the bar on push).
+
+The installer refuses to arm the hook unless the venv and the pinned tools exist,
+so a cold clone fails at install time with the exact fix instead of at the next
+commit. The gates themselves resolve every tool through `scripts/_venv.sh`, so they
+do not depend on the venv being activated on PATH.
+
+### What the hook does not cover
+
+A green hook is not the same guarantee as a green pipeline. Known gaps, all caught
+by CI on push, none by the hook:
+
+- **The working tree, not the index.** Partial staging (`git add -p`) can commit a
+  blob that would fail while the worktree the hook inspected passes, and an
+  unrelated dirty file with a lint error blocks a commit that does not include it.
+- **`cherry-pick` and `revert` do not run `pre-commit`**, and merges run
+  `pre-merge-commit`, which the repo does not define. Those commits skip the gate
+  entirely.
+- **A moved checkout silently disables it.** `core.hooksPath` is an absolute path;
+  if the directory no longer exists, git ignores the missing hook and commits
+  normally. Re-run `./scripts/install-hooks.sh` after moving or renaming the repo.
 
 ## Follow-ups (not done here)
 

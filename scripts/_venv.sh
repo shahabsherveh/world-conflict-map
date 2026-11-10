@@ -16,8 +16,8 @@ export GCM_VENV
 gcm_venv_python() {
   if [ ! -x "$GCM_VENV/bin/python" ]; then
     printf '[venv] no interpreter at %s\n' "$GCM_VENV" >&2
-    printf '[venv] create it: python3 -m venv %s && %s/bin/pip install -r %s/requirements.txt\n' \
-      "$GCM_VENV" "$GCM_VENV" "$gcm_repo_root" >&2
+    printf '[venv] create it: python3 -m venv %s && %s/bin/pip install -r %s/requirements.txt -r %s/requirements-ci.txt\n' \
+      "$GCM_VENV" "$GCM_VENV" "$gcm_repo_root" "$gcm_repo_root" >&2
     return 1
   fi
   printf '%s\n' "$GCM_VENV/bin/python"

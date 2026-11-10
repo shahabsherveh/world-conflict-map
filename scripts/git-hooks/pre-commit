@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run the same gates the CI pipeline runs before a commit
+# lands, so a broken commit never reaches the remote. Thin wrapper around
+# scripts/ci-check.sh (the single source of truth for the gate list); it runs
+# pytest and ty too, so `git commit --no-verify` is the escape hatch for a
+# knowingly dirty WIP. Installed by scripts/install-hooks.sh via core.hooksPath.
+set -euo pipefail
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+exec "$repo_root/scripts/ci-check.sh"

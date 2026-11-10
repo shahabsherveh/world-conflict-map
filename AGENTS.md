@@ -22,10 +22,11 @@ pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
 ruff check .                             # lint
 ruff format app tests scripts            # format
-shellcheck scripts/*.sh docker/pipeline-entrypoint.sh   # shell scripts (.shellcheckrc)
+shellcheck scripts/*.sh scripts/git-hooks/pre-commit docker/pipeline-entrypoint.sh  # .shellcheckrc
 pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks  # markdown
 ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
+./scripts/install-hooks.sh               # run those gates as a pre-commit hook
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 
@@ -92,6 +93,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
   `alembic upgrade head` + `alembic check`, an app-import check, an artifact guard, and a
   docker build that serves `/health`. `docs/ci-cd.md` explains each gate and the deploy
   rollback. Run `./scripts/ci-check.sh` before pushing so the pipeline has nothing to find.
+- `./scripts/install-hooks.sh` points `core.hooksPath` at the tracked
+  `scripts/git-hooks/`, so `git commit` runs `scripts/ci-check.sh` and a red gate stops
+  the commit. It is opt-in per clone (git never auto-enables hooks) and
+  `git commit --no-verify` bypasses it for deliberately dirty WIP.
 - Visual/CSS checks need a real browser. Use the `chrome-devtools` MCP (codemode tools
   `mcp__chrome_devtools__*`), which attaches to the headless Chrome on `:9222`; see
   `tests/ui/README.md` for the workflow and what each layer covers.

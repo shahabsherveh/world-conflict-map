@@ -104,7 +104,7 @@ jobs:
           ls -l "$SHELLCHECK_BIN"
           "$SHELLCHECK_BIN" --version
           # Plain invocation: .shellcheckrc sets external-sources.
-          "$SHELLCHECK_BIN" scripts/*.sh docker/pipeline-entrypoint.sh
+          "$SHELLCHECK_BIN" scripts/*.sh scripts/git-hooks/pre-commit docker/pipeline-entrypoint.sh
 
       - name: Markdown lint
         run: '"$GITHUB_WORKSPACE/.venv/bin/pymarkdown" scan -r README.md AGENTS.md docs tests/ui/README.md tasks'
