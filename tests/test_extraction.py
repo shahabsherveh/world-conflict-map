@@ -75,10 +75,19 @@ def make_raw(**overrides: str) -> dict[str, str]:
         "action_geo_long": "37.13",
         "goldstein_scale": "-7.5",
         "num_articles": "20",
+        "num_sources": "4",
         "source_url": "http://example.com",
     }
     raw.update(overrides)
     return raw
+
+
+def adapter_confidence(**overrides: str) -> float:
+    """`_confidence` for a raw row, narrowed to float (the adapter always sets it)."""
+    draft = GDELTAdapter().to_event_draft(make_raw(**overrides))
+    assert isinstance(draft, EventDraft)
+    assert draft.confidence is not None
+    return draft.confidence
 
 
 def test_derive_intensity() -> None:
@@ -136,22 +145,36 @@ def test_adapter_is_a_base_source_adapter() -> None:
     assert issubclass(GDELTAdapter, BaseSourceAdapter)
 
 
-def test_confidence_treats_a_missing_count_as_no_corroboration() -> None:
+def test_confidence_treats_absent_counts_as_no_corroboration() -> None:
     """One absence, one value: an unparsable count means the same as no count."""
-    adapter = GDELTAdapter()
+    assert adapter_confidence(num_articles="", num_sources="") == 0.0
+    assert adapter_confidence(num_articles="n/a", num_sources="x") == 0.0
 
-    def confidence(raw: dict[str, str]) -> float | None:
-        draft = adapter.to_event_draft(raw)
-        assert isinstance(draft, EventDraft)
-        return draft.confidence
-
-    assert confidence(make_raw(num_articles="7")) == 0.7
-    assert confidence(make_raw(num_articles="50")) == 1.0
-    assert confidence(make_raw(num_articles="")) == 0.0
-    assert confidence(make_raw(num_articles="n/a")) == 0.0
     raw = make_raw()
-    del raw["num_articles"]
-    assert confidence(raw) == 0.0
+    raw.pop("num_articles")
+    raw.pop("num_sources")
+    draft = GDELTAdapter().to_event_draft(raw)
+    assert isinstance(draft, EventDraft)
+    assert draft.confidence == 0.0
+
+
+def test_confidence_rewards_distinct_outlets_over_article_volume() -> None:
+    """Ten articles from one outlet is syndication; from four outlets, corroboration."""
+    one_outlet = adapter_confidence(num_articles="12", num_sources="1")
+    two_outlets = adapter_confidence(num_articles="12", num_sources="2")
+    four_outlets = adapter_confidence(num_articles="12", num_sources="4")
+
+    assert four_outlets > one_outlet
+    # Guards the blend itself: with the same article count, adding an outlet must
+    # move the score. If the `num_sources` term were dropped, these would be equal.
+    assert two_outlets > one_outlet
+
+
+def test_confidence_stays_in_range_for_extreme_counts() -> None:
+    assert adapter_confidence(num_articles="9999", num_sources="9999") == 1.0
+
+    # A negative count is not corroboration; it must not push the score below zero.
+    assert adapter_confidence(num_articles="-5", num_sources="-5") == 0.0
 
 
 def test_persist_drafts_creates_auto_events() -> None:

@@ -34,18 +34,42 @@ def _summary(raw: dict[str, str]) -> str | None:
     return f"{base} — {place}" if place else base
 
 
-def _confidence(raw: dict[str, str]) -> float:
-    """Article-count corroboration, 0.0..1.0.
+# Denominators come from observed percentiles in the armed-conflict subset (n≈2.9k):
+# NumArticles p50=4 / p90=10 / p99=15, and NumSources is 1 for 94.9% of events, so /4 puts
+# genuinely multi-outlet coverage at the top of the range. The weight is a convention, not a
+# fitted parameter: ranking is insensitive to it (Spearman ≥0.99 for any weight in 0.2–0.8),
+# so there is nothing to optimise. What it does control is where the absolute 0.5 line falls
+# — a threshold nothing has validated.
+ARTICLES_FOR_FULL_CONFIDENCE = 10.0
+SOURCES_FOR_FULL_CONFIDENCE = 4.0
+SOURCE_WEIGHT = 0.6
 
-    A missing or unparsable count means the same thing — GDELT reported no
-    corroboration — so both give 0.0; two different values for one absence made
-    the column impossible to filter on.
+
+def _count(raw: dict[str, str], key: str) -> int:
+    """Parse one corroboration count; absent, unparsable or negative means zero.
+
+    GDELT emits both columns, so a missing one is a fixture or parse gap rather
+    than evidence of a source. Treating it as zero keeps one absence mapping to
+    one value, which is what makes the column filterable.
     """
     try:
-        articles = int(raw.get("num_articles") or 0)
+        return max(int(raw.get(key) or 0), 0)
     except ValueError:
-        return 0.0
-    return round(min(articles / 10.0, 1.0), 2)
+        return 0
+
+
+def _confidence(raw: dict[str, str]) -> float:
+    """Ordinal corroboration score, 0.0..1.0: article volume plus an outlet bonus.
+
+    Twelve articles from one outlet is usually a single wire story reprinted; twelve
+    across four outlets is independent corroboration, so the outlet term is the bonus.
+    Read this as a ranking key, not a measurement — the weights are a convention (ranking
+    barely moves across them) and the scale is unvalidated. When a decision matters, gate
+    on the counts (`sources >= 2 and articles >= 3`), not on a threshold of this number.
+    """
+    articles = min(_count(raw, "num_articles") / ARTICLES_FOR_FULL_CONFIDENCE, 1.0)
+    sources = min(_count(raw, "num_sources") / SOURCES_FOR_FULL_CONFIDENCE, 1.0)
+    return round((1 - SOURCE_WEIGHT) * articles + SOURCE_WEIGHT * sources, 2)
 
 
 class GDELTAdapter(BaseSourceAdapter):

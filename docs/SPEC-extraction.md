@@ -28,8 +28,18 @@ when the model is unavailable). (Conventions: CAPABILITY-MAP.md)
    instead; manual edits may still set a count.
 4. `derive_intensity(event_type, fatalities, goldstein) -> 1..5` — a small pure, unit-tested
    function (severity by event type + fatality/tone adjustment, clamped to 1–5).
-5. `confidence` from `NumArticles` (more coverage → higher, capped at 1.0). A missing or
-   unparsable count is the same absence and gives `0.0`, not a second default.
+5. `confidence` is an **ordinal** corroboration score, 0.0–1.0, blending `NumArticles`
+   (coverage volume) with `NumSources` (a distinct-outlet bonus; ten articles from one outlet
+   is usually one wire story reprinted). Denominators are observed percentiles from the
+   armed-conflict subset (articles p50=4/p90=10/p99=15; sources = 1 for 94.9% of events), so a
+   single-outlet event cannot exceed 0.55. The 0.4/0.6 weight is a **convention, not a fitted
+   parameter**: ranking is insensitive to it (Spearman ≥0.99 for any weight in 0.2–0.8). The
+   absolute scale is unvalidated — do not threshold it as though 0.7 meant something; gate
+   decisions on the counts (`sources >= 2 and articles >= 3`) instead. Zero or negative counts
+   contribute nothing, so an absent or unparsable count gives `0.0` rather than a second
+   default. It is a coverage signal, not a truth claim. Rows persisted before this change keep
+   their articles-only score, because processing only touches `processed_at IS NULL` rows, so
+   the column is mixed-scale until something explicitly re-derives it.
 6. Zero-shot gate: `filter_by_zero_shot` drops drafts whose source URL slug doesn't
    classify as armed conflict (NLI model, threshold from config). Drafts without a
    source URL are kept — the adapter's root-code filter has already run. If the model
