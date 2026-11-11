@@ -32,7 +32,10 @@ const markers = L.markerClusterGroup({
   // library's loader lives in a closure that clearLayers() cannot cancel, so a
   // new range could be drawn while the previous one was still trickling in.
   maxClusterRadius: 55,
-  disableClusteringAtZoom: 13,
+  // Clustering stays on at every zoom. Disabling it at 13 used to dissolve the
+  // bubble for the hundreds of events GDELT geocodes to one country centroid,
+  // stacking every dot on a single pixel where only the topmost was clickable.
+  // Keeping the bubble lets a click at max zoom spiderfy the stack instead.
   showCoverageOnHover: false,
   iconCreateFunction(cluster) {
     const count = cluster.getChildCount();

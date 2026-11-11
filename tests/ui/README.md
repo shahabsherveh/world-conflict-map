@@ -23,10 +23,16 @@ Requires Node 18+ (global `fetch`). The library files are downloaded from unpkg 
 cached under `node_modules/.cache/ui-smoke/`.
 
 Use a freshly seeded DB (from the repo root: `python scripts/seed.py`, or
-`docker compose run --rm web python scripts/seed.py` for the Docker stack) or a
-model-filtered DB. Unfiltered GDELT events often share country-centroid coordinates;
-Leaflet spiderfies duplicate points, and jsdom cannot render that layer, so the
-cluster-click and scrub checks fail for harness reasons rather than app reasons.
+`docker compose run --rm web python scripts/seed.py` for the Docker stack) or the real
+DB. Unfiltered GDELT events often share country-centroid coordinates; clustering keeps
+those events in a bubble at every zoom, so the harness passes on the real 13k-event DB.
+Spiderfy still needs a browser, so the coincident-event check lives in the browser suite.
+
+The harness is independent of how *dense* the fixture is, not of whether there is one at
+all: an empty database has no event to anchor the time-scrub window to, so seed first.
+A single-conflict fixture is handled too — the viewport check reports `SKIPPED` rather
+than passing on a 1 → 0 edge case. Panels whose population is empty ("No location" when
+every event is geocoded) assert that they are hidden, not that they have rows.
 
 ## What it asserts
 
@@ -90,8 +96,14 @@ afterwards and fails if a coordinate was written.
 - Conflicts and markers render; no uncaught JS errors or `console.error` calls.
 - At least one OpenStreetMap tile response is 200 — the basemap is really there.
 - A real mouse click on a drawn cluster bubble zooms the map.
+- Coincident events are individually reachable at max zoom: GDELT puts hundreds of events
+  on one country centroid, so the test jumps to the most crowded coordinate, clicks its
+  bubble, and requires the event dots to land on distinct pixels instead of stacking on
+  one. (A coordinate with no duplicate skips.)
 - Clicking the pixel at the map centre opens the popup of *that* event: the map is
-  centred on the event, so the test knows which dot should be under the cursor.
+  centred on the event, so the test knows which dot should be under the cursor. The popup
+  checks pick an event that is alone at its coordinate; shared ones belong to the stack
+  check above.
 - The popup is anchored above the clicked marker (centre within 40 px; 0 px offset and
   a 7 px gap on the seeded DB).
 - The corroboration badge prints the API's counts; the `strong` variant computes to
@@ -151,8 +163,9 @@ basemap.
 
 Verified in headless Chrome 157 (and 149 before the rebuild): 13,066 geolocated events
 render as ~37 cluster bubbles plus individual dots at world view (labels summing to
-13,066), scrubbing to 3 days re-renders exactly 4,275, cluster clicks zoom, event clicks
-open popup + detail, "Pick on map" fills lat/lon, OSM tiles 200, and no console messages.
+13,066), scrubbing to 3 days re-renders exactly 4,275, cluster clicks zoom, the 398 events
+at one Israeli centroid spiderfy to 398 distinct pixels at max zoom, event clicks open
+popup + detail, "Pick on map" fills lat/lon, OSM tiles 200, and no console messages.
 The automated suite passes all checks on the seeded DB, including the three badge states
 (green counts, muted single outlet, no badge for null counts).
 On the seeded demo DB the corroboration badge was checked in the same browser: a
@@ -161,8 +174,8 @@ muted counts, and an event with no stored raw row shows no badge at all.
 
 A true visual pass (colours, contrast, cluster aesthetics) still belongs to a human eye.
 Neither harness is wired into `pytest` or the CI gates (`docs/ci-cd.md`): the jsdom one
-needs npm and a running server, and at world zoom its cluster-click check spiderfies,
-which jsdom cannot render without an SVG/canvas layer; the browser one additionally needs
+needs npm and a running server, and it cannot render markercluster's spiderfy layer, so
+the coincident-event check lives in the browser suite; the browser one additionally needs
 Chrome and network for tiles. `scripts/seed.py` seeds one conflict with a single unplaced
 event, so the "No location" panel and its set-location flow are exercisable from demo
 data. The viewport-narrowing checks still assume a populated database (with five demo

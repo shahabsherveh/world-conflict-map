@@ -212,13 +212,19 @@ async function mapZoom(page) {
 }
 
 async function openEventAt(page, event) {
+  // Let a previous cluster zoom finish first: markercluster drops the moveend
+  // that adds the new view's markers while its zoom animation is running, so a
+  // view change issued mid-animation leaves the previous event's dot on screen.
+  await page.waitFor("map animation to settle", async () => !(await page.eval(
+    `document.querySelector(".leaflet-map-pane")?.classList.contains("leaflet-cluster-anim")`,
+  )));
   // `animate: false` matters: with a pan animation the previous event's dot is
   // still at the centre when a click would land, so the popup would belong to
   // the wrong event. Jumping makes the centre deterministic.
   await page.eval(`(() => {
     const m = ${MAP};
     m.closePopup();
-    m.setView([${event.lat}, ${event.lon}], 13, { animate: false });
+    m.setView([${event.lat}, ${event.lon}], m.getMaxZoom(), { animate: false });
   })()`);
   // Leaflet removes the popup node on the map's fade timer, so a click issued
   // immediately after closePopup still hits the previous event's anchored popup
@@ -227,12 +233,15 @@ async function openEventAt(page, event) {
   await page.waitFor("previous popup closed", async () => (await page.eval(
     `document.querySelectorAll(".leaflet-popup").length`,
   )) === 0);
-  await page.waitFor("map at zoom 13", async () => (await mapZoom(page)) === 13);
+  await page.waitFor("map at max zoom", async () => (await mapZoom(page)) === (await page.eval(
+    `${MAP}.getMaxZoom()`,
+  )));
   await page.waitFor("event dots", async () => (await page.eval(
     `document.querySelectorAll(".leaflet-marker-icon.event-dot").length`,
   )) > 0);
   // setView centred this event, so its dot must be the one at the container
-  // centre (zoom 13 disables clustering). Clicking that pixel is the test.
+  // centre (at max zoom only coincident events cluster, and these are chosen to
+  // be alone). Clicking that pixel is the test.
   const mapBox = await page.box("#map");
   const centre = { x: mapBox.x + mapBox.width / 2, y: mapBox.y + mapBox.height / 2 };
   await page.waitFor("this event's dot at the centre", async () => {
@@ -356,13 +365,122 @@ try {
   // Expectations come from the API, so this works on a seeded or a real DB.
   const events = await api(`/api/events?start=${isoDate(daysAgo(30))}&end=${isoDate(new Date())}`);
   const mappable = events.filter((event) => event.lat != null && event.lon != null);
-  const strong = mappable.find((event) => event.well_corroborated);
+
+  // GDELT geocodes many events to the same country centroid, so a real DB has
+  // coordinates shared by hundreds of events. The popup checks below need an
+  // event that is alone at its pixel; the shared ones are covered by the stack
+  // check, which is the only place a popup can belong to the wrong event.
+  const coordCounts = new Map();
+  for (const event of mappable) {
+    const key = `${event.lat},${event.lon}`;
+    coordCounts.set(key, (coordCounts.get(key) ?? 0) + 1);
+  }
+  // Clustering stays on at max zoom, where markercluster still groups anything
+  // within ~55 px (well under 0.001° here), so "alone" must mean no neighbour in
+  // the surrounding 0.001° cells, not just no exact duplicate.
+  const cell = (event) => `${Math.round(event.lat * 1000)},${Math.round(event.lon * 1000)}`;
+  const cells = new Map();
+  for (const event of mappable) cells.set(cell(event), (cells.get(cell(event)) ?? 0) + 1);
+  const alone = (event) => {
+    const [lat, lon] = cell(event).split(",").map(Number);
+    if (cells.get(cell(event)) !== 1) return false;
+    for (let dLat = -1; dLat <= 1; dLat += 1) {
+      for (let dLon = -1; dLon <= 1; dLon += 1) {
+        if ((dLat || dLon) && cells.has(`${lat + dLat},${lon + dLon}`)) return false;
+      }
+    }
+    return true;
+  };
+  const strong = mappable.find((event) => event.well_corroborated && alone(event));
   const muted = mappable.find(
-    (event) => event.sources === 1 && event.articles != null && !event.well_corroborated,
+    (event) =>
+      event.sources === 1 && event.articles != null && !event.well_corroborated && alone(event),
   );
   const unknown = mappable.find(
-    (event) => event.sources == null && event.articles == null,
+    (event) => event.sources == null && event.articles == null && alone(event),
   );
+
+  // Coincident events: clustering used to be disabled at zoom 13, so the events
+  // that share GDELT's country-centroid all rendered on one pixel and only the
+  // topmost could be clicked. At max zoom the stack must now be resolved (a
+  // bubble click spiderfies it) — otherwise most events are unreachable.
+  const [stackLat, stackLon, stackCount] =
+    [...coordCounts.entries()]
+      .map(([key, count]) => [...key.split(",").map(Number), count])
+      .sort((a, b) => b[2] - a[2])[0] ?? [];
+  if (!stackCount || stackCount < 2) {
+    skip(
+      "coincident events are individually reachable at max zoom",
+      "no coordinate is shared by two events",
+    );
+  } else {
+    await page.eval(`(() => {
+      const m = ${MAP};
+      m.closePopup();
+      m.setView([${stackLat}, ${stackLon}], m.getMaxZoom(), { animate: false });
+    })()`);
+    await page.waitFor("markers at the shared coordinate", async () => (await page.eval(
+      `document.querySelectorAll(".cluster, .event-dot").length`,
+    )) > 0);
+    // Zooming re-runs the cluster tree; wait until either a bubble or the stack's
+    // dots exist, so a still-trickling render cannot be read as "no stack".
+    await page.waitFor("the shared coordinate's markers", async () => (await page.eval(
+      `document.querySelectorAll(".leaflet-marker-icon.cluster").length > 0 ||` +
+        ` document.querySelectorAll(".leaflet-marker-icon.event-dot").length >= 2`,
+    )));
+    const stackBox = await page.box("#map");
+    const stackCentre = {
+      x: stackBox.x + stackBox.width / 2,
+      y: stackBox.y + stackBox.height / 2,
+    };
+    // A fix may keep the coordinate clustered at max zoom; clicking the bubble
+    // is then what spreads the events out.
+    const hasClusterAtCentre = await page.eval(`(() => {
+      const map = document.getElementById("map").getBoundingClientRect();
+      const cx = map.x + map.width / 2;
+      const cy = map.y + map.height / 2;
+      return [...document.querySelectorAll(".leaflet-marker-icon.cluster")].some((el) => {
+        const r = el.getBoundingClientRect();
+        return Math.hypot(r.x + r.width / 2 - cx, r.y + r.height / 2 - cy) < 2;
+      });
+    })()`);
+    // Compare the pixel positions of the dots that belong to this coordinate,
+    // matched by the marker titles (headline/place) rather than by geometry, so
+    // unrelated dots nearby cannot make a stack look resolved. The spiderfy
+    // animation moves the dots after they are added, so wait for the spread
+    // rather than reading the centre the animation starts from.
+    const stackTitles = mappable
+      .filter((event) => event.lat === stackLat && event.lon === stackLon)
+      .map((event) => event.headline || event.place_name || "event");
+    const readSpread = () => page.eval(`(() => {
+      const titles = new Set(${JSON.stringify(stackTitles)});
+      const dots = [...document.querySelectorAll(".leaflet-marker-icon.event-dot")]
+        .filter((el) => titles.has(el.getAttribute("title")));
+      const positions = new Set(dots.map((el) => {
+        const r = el.getBoundingClientRect();
+        return Math.round(r.x + r.width / 2) + "," + Math.round(r.y + r.height / 2);
+      }));
+      return { dots: dots.length, positions: positions.size };
+    })()`);
+    if (hasClusterAtCentre) {
+      await page.clickAt(stackCentre.x, stackCentre.y);
+      await page.waitFor(
+        "the stack to spiderfy",
+        async () => (await readSpread()).positions > 1,
+        8_000,
+      ).catch(() => null);
+    }
+    const spread = await readSpread();
+    check(
+      "coincident events are individually reachable at max zoom",
+      spread.positions > 1,
+      `${stackCount} events share ${stackLat},${stackLon}; ` +
+        `${spread.dots} dots at ${spread.positions} distinct pixel(s)` +
+        (hasClusterAtCentre ? " after clicking the bubble" : ""),
+    );
+    // Leave the map clustered for the popup checks that follow.
+    await page.eval(`window.eval("markers").unspiderfy()`).catch(() => null);
+  }
 
   if (!strong) {
     skip("popup shows corroboration counts", "no well-corroborated event in range");

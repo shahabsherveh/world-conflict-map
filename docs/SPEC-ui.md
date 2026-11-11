@@ -9,12 +9,16 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 (Conventions: CAPABILITY-MAP.md)
 
 ## Behavior
-- Map centered on world; one marker per event, grouped by Leaflet.markercluster at low
-  zoom. Cluster bubbles encode event density twice — colour on a log-scaled heat ramp
-  (blue = few, red = many) and size — and print the event count, so hotspots are legible
-  at a glance while the DOM stays bounded (a 30-day range is ~13k events). Single events
-  are small dots (6–12 px, well under the smallest bubble) on the same ramp, driven by
-  intensity so severity still reads once you zoom in. A legend bottom-left explains it.
+- Map centered on world; one marker per event, grouped by Leaflet.markercluster at every
+  zoom. Clustering never turns off: GDELT often geocodes hundreds of events to one country
+  centroid, and dissolving the bubble at high zoom used to stack them on a single pixel
+  where only the topmost was clickable. At max zoom, clicking the bubble spiderfies the
+  stack so every event can be reached. Cluster bubbles encode event density twice — colour
+  on a log-scaled heat ramp (blue = few, red = many) and size — and print the event count,
+  so hotspots are legible at a glance while the DOM stays bounded (a 30-day range is ~13k
+  events). Single events are small dots (6–12 px, well under the smallest bubble) on the
+  same ramp, driven by intensity so severity still reads once you zoom in. A legend
+  bottom-left explains it.
 - Time controls (start + end date inputs) → `GET /api/events` + `GET /api/conflicts` → re-render.
 - Click marker → event detail with place/date/type/actors/intensity, provenance, source link,
   raw JSON, and an “Open conflict” action. When the event has corroboration counts, both the

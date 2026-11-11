@@ -44,6 +44,9 @@ python -m app.extract.run                # daily pipeline: fetch → filter → 
 uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 
 python scripts/seed.py                   # demo data (no network)
+python scripts/briefing.py --days 7      # Markdown digest of the DB (stdlib only, read-only)
+./scripts/check-health.sh                # is the deployed app answering? (cron/timer)
+./scripts/install-health-watch.sh --dry-run  # the 15-minute systemd timer that runs it
 ./scripts/install-runner.sh --url …     # register the CI runner (RUNNER_TOKEN=…)
 ./scripts/cutover-data.sh                # dry-run: move existing DB into GCM_DATA_DIR
 ./scripts/cutover-data.sh --apply        # ...and copy (WAL-safe, verified, keeps a .bak)
@@ -83,7 +86,8 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 ## Testing
 
 - `tests/` mirrors modules: `test_storage`, `test_ingestion`, `test_extraction`,
-  `test_api`, `test_location`, `test_config`.
+  `test_api`, `test_location`, `test_config`, `test_raw_store`, and `test_briefing`
+  (the script, not a module).
 - Test **behaviour**, and make fixtures complete enough that a mutation is actually caught —
   a test that passes for the wrong reason is worse than none.
 - Regression tests for every bug fix (see `test_group_events_does_not_merge_distant_cities_in_one_country`).
@@ -154,10 +158,9 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    /api/pipeline-health` (and `scripts/check-pipeline.sh` from cron) is the symptom
    check for exactly this: it reports the last *successful* run's age, so a
    pipeline that writes to the wrong DB shows up as stale instead of silent. The UI smoke test
-   needs a freshly seeded or model-filtered DB: unfiltered GDELT events share
-   country-centroid coordinates, Leaflet spiderfies them, and jsdom cannot render that
-   layer, so the cluster-click/scrub checks fail. `scripts/seed.py` offsets its demo
-   coordinates, so a fresh seed is safe.
+   now passes against the real DB because coincident events stay clustered at every zoom;
+   spiderfy still needs a browser, so `browser-tests.mjs` owns that check. `scripts/seed.py`
+   offsets its demo coordinates, keeping a fresh seed the fast fixture.
 10. **Scripts must not assume the venv is at `.venv` or that they run from the repo
    root.** `scripts/_venv.sh` owns the location (`GCM_VENV` overrides it) and every
    caller uses `"$(gcm_venv_python)"` / `"$(gcm_venv_tool ruff)"`; the cron entry
