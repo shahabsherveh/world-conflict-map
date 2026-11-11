@@ -69,12 +69,41 @@ when the model is unavailable). (Conventions: CAPABILITY-MAP.md)
 - `app/extract/intensity.py` — `derive_intensity`
 - `app/extract/classifier.py` — zero-shot NLI classifier (batched)
 - `app/extract/filter.py` — `filter_by_zero_shot` semantic gate
-- `app/extract/grouping.py` — link events to conflicts (proximity + time window)
+- `app/extract/grouping.py` — link events to conflicts (100 km anchor + gap window)
 - `app/extract/location.py` — `haversine_km` + optional coordinate repair (off by default)
 - `app/extract/run.py` — pipeline entrypoint (fetch → adapt → filter → persist → group)
 
 ## Code style
 Conventions: CAPABILITY-MAP.md. Adapter returns dataclasses; no DB/HTTP access inside it.
+
+## Grouping rule
+
+An unlinked event joins a conflict when the country matches, the event is within
+`radius_km` (100 km) of the conflict's anchor — the coordinates of its earliest
+geolocated event — and its date falls between the conflict's `start_date` and
+`gap_days` (14) after the conflict's most recent event. Otherwise a new conflict is
+created. An explicit `end_date` (a human ending it) wins over the gap.
+
+The window exists because nothing ever set `end_date`: the span only widened, so one
+stale event bridged onto the current window and resurrected a dormant theatre (365 days
+for 63 of 1,443 conflicts on the first real DB). It is a *gap*, not a duration, so an
+event every 10 days chains indefinitely.
+
+Events with no coordinates fall back to comparing the first component of the place
+string. That is real evidence when the conflict is named after its first event's place,
+and it matches nothing for a placeless event (`city_of(None)` is `None`), so the
+unlocated tail stays one conflict per event rather than collapsing into one.
+
+Candidate selection is ordered by `(start_date, id)`. Without an `ORDER BY` the winner
+was whatever rowid order returned, so identical data grouped differently after a
+re-import.
+
+Known limitation: a conflict is *named* after whichever event arrived first, and GDELT
+dates have day granularity. In 137 of 1,517 conflicts more than one place string shares
+the earliest date, so the name — which is what the briefing and UI show — is decided by
+import order. Dense theatres are legitimately one cluster (Hebron is within 100 km of
+Gaza, Jerusalem and Tel Aviv), which is why a 7-day briefing can be titled
+`## Hebron, Israel (general), Israel`.
 
 ## Testing strategy
 - Fixture GDELT records → assert armed-conflict filter, field mapping, intensity bounds.

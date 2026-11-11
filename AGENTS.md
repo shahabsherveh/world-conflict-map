@@ -140,7 +140,9 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    Re-geocoding "city, country" fixed some records and moved Dnipro/Komyshuvakha/Kagera
    hundreds of km. Repair stays off; fix such points by hand.
 4. **Grouping once matched the country word**, merging every Yemen event into one conflict.
-   It is now proximity-based (100 km + time window). Do not reintroduce keyword matching.
+   It is now proximity-based (100 km anchor + a 14-day gap window). Do not reintroduce
+   keyword matching. The window is a *gap since the last event*, not a total duration, and
+   an explicit `end_date` overrides it — see `docs/SPEC-extraction.md#grouping-rule`.
 5. **N+1 is easy to reintroduce** in `list_conflicts`; the query-count test enforces ≤5.
 6. **Nominal `uvicorn` without `--reload` serves stale Python**; browsers cache `index.html`
    (mitigated by `no-store` middleware + `?v=N`).

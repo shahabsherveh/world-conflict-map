@@ -1,8 +1,9 @@
 """Group events into conflict entities.
 
-Rule (v2): an unlinked event joins an existing conflict when the country matches,
-the event is within `radius_km` of the conflict's anchor point, and the date falls
-within the conflict's time span. Otherwise a new conflict is created.
+Rule (v3): an unlinked event joins an existing conflict when the country matches,
+the event is within `radius_km` of the conflict's anchor point, and its date falls
+within the conflict's time span — from the start date until `gap_days` after the
+conflict's most recent event. Otherwise a new conflict is created.
 
 Proximity (not shared keywords) is what defines a theatre of conflict: an earlier
 version matched any shared word, which let the country name alone ("yemen") merge
@@ -14,6 +15,8 @@ Isolated here so it can be replaced with richer clustering later.
 
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
@@ -21,6 +24,17 @@ from app.extract.location import haversine_km
 from app.models import Conflict, ConflictEvent, EditLog
 
 DEFAULT_RADIUS_KM = 100.0
+
+# How long a theatre keeps collecting events after its last one. Without a cap the
+# span only ever widens (nothing sets `end_date`), so a single event bridged two
+# dates a year apart into one conflict: on the real DB that was 365 days for 63 of
+# 1,443 conflicts, every one of them a stale 2025-10-29 row resurrecting a live
+# 2026 theatre. Fourteen days keeps a quiet week inside one conflict while a
+# genuinely dormant theatre starts a new one.
+DEFAULT_GAP_DAYS = 14
+
+# Name the grouping rule invents when an event has no place string to borrow.
+UNNAMED_CONFLICT = "Unnamed conflict"
 
 
 def city_of(place_name: str | None) -> str | None:
@@ -31,10 +45,20 @@ def city_of(place_name: str | None) -> str | None:
     return city or None
 
 
-def _time_overlaps(event: ConflictEvent, conflict: Conflict) -> bool:
+def _time_overlaps(
+    event: ConflictEvent, conflict: Conflict, last_date: date, gap_days: int
+) -> bool:
+    """Does the event fall inside the conflict's window?
+
+    `last_date` is the conflict's latest event date (its own start date when it has
+    no dated events). An explicit `end_date` still wins: a human ending a conflict
+    means it, and no gap extends it.
+    """
     if event.event_date < conflict.start_date:
         return False
-    return not (conflict.end_date is not None and event.event_date > conflict.end_date)
+    if conflict.end_date is not None:
+        return event.event_date <= conflict.end_date
+    return (event.event_date - last_date).days <= gap_days
 
 
 def _anchor(session: Session, conflict: Conflict, cache: dict[int, tuple[float, float] | None]):
@@ -67,23 +91,80 @@ def _matches(
     conflict: Conflict,
     radius_km: float,
     cache: dict[int, tuple[float, float] | None],
+    gap_days: int,
+    last_dates: dict[int, date],
 ) -> bool:
-    if conflict.country != event.country:
+    # `is not` distinguishes two absent countries from a pair that matches. Written
+    # as `!=` this was always false for NULL: `NULL = NULL` is NULL, never true, so
+    # the ~495 ungeocoded events could never join each other and each became its
+    # own single-event conflict.
+    if event.country is None or conflict.country is None:
+        if event.country is not conflict.country:
+            return False
+    elif conflict.country != event.country:
         return False
-    if not _time_overlaps(event, conflict):
+    # .get, not []: a conflict can exist with no linked events yet (seeded, or
+    # holding only manual events), and its own start date is then the window.
+    last_date = last_dates.get(conflict.id, conflict.start_date)
+    if not _time_overlaps(event, conflict, last_date, gap_days):
         return False
 
     if event.lat is None or event.lon is None:
         # No coordinates: fall back to the city name so the event is still grouped.
-        return city_of(conflict.name) == city_of(event.place_name)
+        return _same_place(conflict, event)
 
     anchor = _anchor(session, conflict, cache)
     if anchor is None:
-        return city_of(conflict.name) == city_of(event.place_name)
+        return _same_place(conflict, event)
     return haversine_km(event.lat, event.lon, anchor[0], anchor[1]) <= radius_km
 
 
-def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
+def _same_place(conflict: Conflict, event: ConflictEvent) -> bool:
+    """Fallback for a pair where at least one side has no coordinates.
+
+    The conflict name still holds the place string of its first event, so for a
+    conflict whose events were never geocoded that is real evidence. An event with no
+    place string yields None and matches nothing, which is what keeps the unlocated
+    tail (495 single-event conflicts on the real DB) from collapsing into one.
+    """
+    return city_of(conflict.name) == city_of(event.place_name)
+
+
+def _country_matches(country: str | None):
+    """Candidate conflicts for an event's country, NULL included.
+
+    `Conflict.country == None` would already compile to `IS NULL` (SQLAlchemy rewrites
+    it), so this is not a bug fix. `is_(None)` states the intent where a reader would
+    otherwise have to know that rewrite to trust the comparison.
+    """
+    if country is None:
+        return Conflict.country.is_(None)
+    return Conflict.country == country
+
+
+def _last_event_dates(session: Session) -> dict[int, date]:
+    """Latest event date per conflict, for the gap window.
+
+    Conflicts created during this run are absent here; `group_events` falls back to
+    their start date and updates the map as it links events.
+    """
+    stmt = select(ConflictEvent.conflict_id, ConflictEvent.event_date).where(
+        ConflictEvent.conflict_id.is_not(None)
+    )
+    last: dict[int, date] = {}
+    for conflict_id, event_date in session.execute(stmt):
+        if conflict_id is None:  # excluded by the WHERE, stated for the type checker
+            continue
+        if event_date > last.get(conflict_id, event_date):
+            last[conflict_id] = event_date
+    return last
+
+
+def group_events(
+    session: Session,
+    radius_km: float = DEFAULT_RADIUS_KM,
+    gap_days: int = DEFAULT_GAP_DAYS,
+) -> int:
     """Link unlinked events to conflicts. Returns the number of conflicts created.
 
     Manual events are never claimed. Their `conflict_id` is whatever a human set
@@ -104,20 +185,27 @@ def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
     )
     created = 0
     anchors: dict[int, tuple[float, float] | None] = {}
+    last_dates = _last_event_dates(session)
     for event in unlinked:
         match = next(
             (
                 conflict
                 for conflict in session.scalars(
-                    select(Conflict).where(Conflict.country == event.country)
+                    select(Conflict)
+                    .where(_country_matches(event.country))
+                    # Without an ORDER BY the first match was whatever rowid order
+                    # returned, so which of two eligible conflicts absorbed an event
+                    # depended on insertion history. Oldest first is stable and puts
+                    # a new event with the theatre that has been running longest.
+                    .order_by(Conflict.start_date, Conflict.id)
                 )
-                if _matches(session, event, conflict, radius_km, anchors)
+                if _matches(session, event, conflict, radius_km, anchors, gap_days, last_dates)
             ),
             None,
         )
         if match is None:
             match = Conflict(
-                name=event.place_name or event.country or "Unnamed conflict",
+                name=event.place_name or event.country or UNNAMED_CONFLICT,
                 country=event.country,
                 start_date=event.event_date,
                 status="active",
@@ -134,6 +222,10 @@ def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
                 (event.lat, event.lon) if event.lat is not None and event.lon is not None else None
             )
         event.conflict_id = match.id
+        # Keep the window in step with what was just added, so a later event in this
+        # same loop measures its gap from this one rather than from an older query.
+        if event.event_date > last_dates.get(match.id, match.start_date):
+            last_dates[match.id] = event.event_date
         # A conflict whose earlier events had no coordinates starts anchorless, so
         # `_matches` fell back to comparing city names. Now that this event gives it
         # coordinates, record them: leaving None cached keeps the fallback for the
@@ -143,7 +235,11 @@ def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
     return created
 
 
-def regroup_all(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
+def regroup_all(
+    session: Session,
+    radius_km: float = DEFAULT_RADIUS_KM,
+    gap_days: int = DEFAULT_GAP_DAYS,
+) -> int:
     """Unlink every event and rebuild the conflicts from scratch.
 
     Repairs data produced by an older grouping rule; it is not part of the daily
@@ -174,4 +270,4 @@ def regroup_all(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
         )
     )
     session.flush()
-    return group_events(session, radius_km)
+    return group_events(session, radius_km, gap_days)

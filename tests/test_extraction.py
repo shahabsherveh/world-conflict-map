@@ -17,7 +17,7 @@ from app.extract.classifier import (
 )
 from app.extract.filter import filter_by_zero_shot
 from app.extract.gdelt_adapter import GDELTAdapter
-from app.extract.grouping import group_events, regroup_all
+from app.extract.grouping import _same_place, group_events, regroup_all
 from app.extract.intensity import derive_intensity
 from app.extract.run import persist_drafts, resolve_target_days, to_drafts
 from app.ingest.audit import STALE_REASON, settle_stale_runs
@@ -982,3 +982,266 @@ def test_run_settles_a_row_left_running_by_a_killed_process(monkeypatch) -> None
     assert row is not None
     assert row.status == "failed"
     assert row.error == STALE_REASON
+
+
+def test_group_events_starts_a_new_conflict_after_a_dormant_gap() -> None:
+    """Regression: a year-long gap must not resurrect a dormant theatre.
+
+    The time span only ever widened (nothing sets `end_date`), so one stale event
+    bridged onto the current window. On the real DB that was 365 days for 63 of
+    1,443 conflicts.
+    """
+    session = make_session()
+    conflict = Conflict(
+        name="Aleppo, Aleppo, Syria",
+        country="SY",
+        start_date=date(2024, 1, 1),
+        status="active",
+    )
+    session.add(conflict)
+    session.flush()
+    session.add(_ev("a", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 1))
+    session.flush()
+    session.query(ConflictEvent).filter(ConflictEvent.source_event_id == "a").update(
+        {"conflict_id": conflict.id}
+    )
+    session.commit()
+
+    # A year later at the same spot: the theatre was dormant, so this is new.
+    session.add(_ev("b", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 1))
+    session.flush()
+    session.query(ConflictEvent).filter(ConflictEvent.source_event_id == "b").update(
+        {"event_date": date(2025, 1, 2)}
+    )
+    session.commit()
+
+    group_events(session)
+    session.commit()
+    assert len(session.scalars(select(Conflict)).all()) == 2
+
+
+def test_group_events_keeps_a_quiet_week_inside_one_conflict() -> None:
+    """The gap cap must not split a theatre that is merely quiet for a few days."""
+    session = make_session()
+    session.add_all(
+        [
+            _ev("a", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 1),
+            _ev("b", "SY", "Aleppo, Aleppo, Syria", 36.21, 37.14, 8),
+            _ev("c", "SY", "Aleppo, Aleppo, Syria", 36.22, 37.15, 15),
+        ]
+    )
+    session.commit()
+
+    group_events(session)
+    session.commit()
+    conflicts = session.scalars(select(Conflict)).all()
+    assert len(conflicts) == 1
+    assert {e.source_event_id for e in conflicts[0].events} == {"a", "b", "c"}
+
+
+def test_group_events_gap_is_measured_from_the_last_event_not_the_start() -> None:
+    """Events 10 days apart chain indefinitely; the gap is not a total duration.
+
+    A total-duration cap would cut this theatre off at day 14 even though it never
+    went quiet, which is the opposite of what the cap is for.
+    """
+    session = make_session()
+    # Add and flush in date order: commit() would assign the ids after the flush,
+    # and with autoflush off the tiebreak by id can then put the last event first.
+    for day in (1, 11, 21):
+        session.add(_ev(f"e{day}", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, day))
+        session.flush()
+    session.commit()
+
+    group_events(session)
+    session.commit()
+    conflicts = session.scalars(select(Conflict)).all()
+    assert len(conflicts) == 1
+    assert {e.source_event_id for e in conflicts[0].events} == {"e1", "e11", "e21"}
+
+
+def test_group_events_never_lets_an_explicit_end_date_absorb_later_events() -> None:
+    """A human ending a conflict outranks the gap window."""
+    session = make_session()
+    conflict = Conflict(
+        name="Aleppo, Aleppo, Syria",
+        country="SY",
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 1, 10),
+        status="ended",
+    )
+    session.add(conflict)
+    session.flush()
+    session.add(_ev("a", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 5))
+    session.add(_ev("b", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 12))
+    session.commit()
+
+    group_events(session)
+    session.commit()
+    # "b" is 2 days after "a" -- inside the 14-day gap -- but past the end date.
+    hosted = session.scalars(select(ConflictEvent).where(ConflictEvent.conflict_id == conflict.id))
+    assert [e.source_event_id for e in hosted] == ["a"]
+
+
+def test_group_events_links_events_that_have_no_country() -> None:
+    """Regression: `country = NULL` matches nothing, so ungeocoded events never merged.
+
+    GDELT leaves `country` empty on some rows. The candidate query compared
+    `Conflict.country == event.country`, which for NULL compiles to `country = NULL`
+    and matches no row at all, so every such event started its own conflict.
+
+    The events share a place but get different names on purpose: with the same string
+    the city-name fallback would link them even with the country query still broken,
+    and the test would pass for the wrong reason.
+    """
+    session = make_session()
+    session.add_all(
+        [
+            ConflictEvent(
+                source_event_id="a",
+                country=None,
+                place_name="Aleppo, Aleppo, Syria",
+                lat=36.20,
+                lon=37.13,
+                event_date=date(2024, 1, 5),
+                intensity=3,
+            ),
+            ConflictEvent(
+                source_event_id="b",
+                country=None,
+                place_name="Aleppo",
+                lat=36.21,
+                lon=37.14,
+                event_date=date(2024, 1, 9),
+                intensity=3,
+            ),
+        ]
+    )
+    session.commit()
+
+    created = group_events(session)
+    session.commit()
+    assert created == 1
+    conflicts = session.scalars(select(Conflict)).all()
+    assert len(conflicts) == 1
+    assert {e.source_event_id for e in conflicts[0].events} == {"a", "b"}
+
+
+def test_group_events_keeps_placeless_events_apart() -> None:
+    """Events with no place string share no evidence, so they must not merge.
+
+    The city-name fallback is all such an event has when it has no coordinates, and
+    `city_of(None)` is None: two placeless events match nothing, so each keeps its
+    own conflict. Deliberately pinned as behaviour, not as an accident -- collapsing
+    them would fabricate a theatre out of rows that name no place at all.
+    """
+    session = make_session()
+    session.add_all(
+        [
+            ConflictEvent(
+                source_event_id=eid,
+                country=None,
+                place_name=None,
+                lat=None,
+                lon=None,
+                event_date=date(2024, 1, 5),
+                intensity=3,
+            )
+            for eid in ("a", "b")
+        ]
+    )
+    session.commit()
+
+    assert group_events(session) == 2
+    session.commit()
+    conflicts = session.scalars(select(Conflict)).all()
+    assert len(conflicts) == 2
+    assert {c.name for c in conflicts} == {"Unnamed conflict"}
+    # The fallback is what keeps them apart; the country/coordinate checks alone
+    # would let the second event join the first on "same country, nothing else".
+    hosted = [(c, e) for c in conflicts for e in c.events]
+    assert len(hosted) == 2
+    assert not any(_same_place(c, e) for c, e in hosted)
+
+
+def test_group_events_keeps_unlocated_events_apart_from_located_conflicts() -> None:
+    """An unlocated event must not join a conflict that has coordinates.
+
+    They share no anchor, and a countryless, placeless event carries no evidence it
+    belongs to a particular theatre.
+    """
+    session = make_session()
+    session.add_all(
+        [
+            ConflictEvent(
+                source_event_id="geo",
+                country=None,
+                place_name=None,
+                lat=36.20,
+                lon=37.13,
+                event_date=date(2024, 1, 5),
+                intensity=3,
+            ),
+            ConflictEvent(
+                source_event_id="nog",
+                country=None,
+                place_name=None,
+                lat=None,
+                lon=None,
+                event_date=date(2024, 1, 6),
+                intensity=3,
+            ),
+        ]
+    )
+    session.commit()
+
+    group_events(session)
+    session.commit()
+    conflicts = session.scalars(select(Conflict)).all()
+    assert len(conflicts) == 2
+    assert {c.country for c in conflicts} == {None}
+
+
+def test_group_events_picks_the_same_conflict_regardless_of_row_order() -> None:
+    """Regression: candidate selection was whatever rowid order returned.
+
+    Two eligible conflicts (same country, both within range) and no ORDER BY meant
+    the winner depended on insertion history, so the same data grouped differently
+    after a re-import. The oldest theatre must win, consistently.
+    """
+
+    def run(reverse: bool) -> set[str]:
+        session = make_session()
+        older = Conflict(
+            name="Aleppo, Aleppo, Syria", country="SY", start_date=date(2024, 1, 1), status="active"
+        )
+        newer = Conflict(
+            name="Aleppo, Aleppo, Syria", country="SY", start_date=date(2024, 1, 5), status="active"
+        )
+        for conflict in (newer, older) if reverse else (older, newer):
+            session.add(conflict)
+            session.flush()
+        session.add(_ev("anchor-old", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 1))
+        session.add(_ev("anchor-new", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 5))
+        session.flush()
+        session.query(ConflictEvent).filter(ConflictEvent.source_event_id == "anchor-old").update(
+            {"conflict_id": older.id}
+        )
+        session.query(ConflictEvent).filter(ConflictEvent.source_event_id == "anchor-new").update(
+            {"conflict_id": newer.id}
+        )
+        session.add(_ev("fresh", "SY", "Aleppo, Aleppo, Syria", 36.21, 37.14, 7))
+        session.commit()
+
+        group_events(session)
+        session.commit()
+        fresh = session.scalars(
+            select(ConflictEvent).where(ConflictEvent.source_event_id == "fresh")
+        ).one()
+        # The conflict it joined determines the label; older is the earliest.
+        winner = session.get(Conflict, fresh.conflict_id)
+        assert winner is not None
+        return set() if winner.start_date == date(2024, 1, 1) else {"NEWER"}
+
+    assert run(reverse=False) == set()
+    assert run(reverse=True) == set()
