@@ -111,8 +111,11 @@ def _apply_patch(db: Session, obj, updates: dict, target_type: str) -> None:
                     target_type=target_type,
                     target_id=obj.id,
                     field=field,
-                    old_value="" if old is None else str(old),
-                    new_value="" if value is None else str(value),
+                    # None becomes SQL NULL, not "". Collapsing the two made the
+                    # audit trail unable to say whether a field was cleared or
+                    # set to an empty string.
+                    old_value=None if old is None else str(old),
+                    new_value=None if value is None else str(value),
                 )
             )
             setattr(obj, field, value)

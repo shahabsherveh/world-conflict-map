@@ -151,3 +151,74 @@ def test_edit_log_appends() -> None:
     )
     session.commit()
     assert session.query(EditLog).count() == 1
+
+
+def test_make_engine_enables_wal_and_busy_timeout(tmp_path) -> None:
+    """The API and the pipeline write the same file; a writer must wait, not 500."""
+    engine = make_engine(f"sqlite:///{tmp_path / 'wal.db'}")
+    try:
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA journal_mode").scalar() == "wal"
+            assert connection.exec_driver_sql("PRAGMA busy_timeout").scalar() == 5000
+    finally:
+        engine.dispose()
+
+
+def test_second_writer_waits_instead_of_failing_immediately(tmp_path) -> None:
+    """Regression: without `busy_timeout` a concurrent write raised "database is locked"."""
+    import threading
+    import time
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'busy.db'}")
+    Base.metadata.create_all(engine)
+    holder = engine.raw_connection()
+    contender = engine.raw_connection()
+    holder.execute(
+        "INSERT INTO edit_log (target_type, target_id, field, edited_at)"
+        " VALUES ('t', 1, 'f', '2024-01-01 00:00:00')"
+    )
+
+    outcome: list[str] = []
+
+    def write() -> None:
+        try:
+            contender.execute(
+                "INSERT INTO edit_log (target_type, target_id, field, edited_at)"
+                " VALUES ('t', 2, 'f', '2024-01-01 00:00:00')"
+            )
+            contender.commit()
+            outcome.append("ok")
+        except Exception as exc:  # pragma: no cover - only on regression
+            outcome.append(type(exc).__name__)
+
+    thread = threading.Thread(target=write)
+    thread.start()
+    try:
+        time.sleep(0.2)
+        # Still blocked, not failed: the contender is inside its busy timeout.
+        assert outcome == []
+        holder.commit()
+        thread.join(timeout=10)
+        assert outcome == ["ok"]
+    finally:
+        holder.close()
+        contender.close()
+        engine.dispose()
+
+
+def test_engine_is_built_lazily_from_the_environment(monkeypatch, tmp_path) -> None:
+    """Importing `app.db` must not pin the URL from the environment at import time."""
+    import app.db as db_module
+
+    monkeypatch.setattr(db_module, "_engine", None)
+    monkeypatch.setattr(db_module, "_session_factory", None)
+    monkeypatch.setenv("GCM_DATABASE_URL", f"sqlite:///{tmp_path / 'lazy.db'}")
+
+    engine = db_module.get_engine()
+    assert engine.url.database == str(tmp_path / "lazy.db")
+    session = db_module.get_session()
+    try:
+        assert session.get_bind() is engine
+    finally:
+        session.close()
+        engine.dispose()

@@ -126,10 +126,9 @@ from that file, so a local pass means a pipeline pass.
   that changes no rendered output.
 - **No `pip-audit` yet.** `requirements.txt` is unpinned, so an audit reports the
   resolver's current guesses, not what the image ships. Pin first (see Follow-ups).
-- **The UI harnesses are not gates.** `map-smoke.mjs` needs a running server and a
-  freshly seeded or model-filtered DB: unfiltered GDELT events share country-centroid
-  coordinates, and Leaflet's spiderfy layer cannot render in jsdom, so the
-  cluster-click/scrub checks fail for harness reasons, not app reasons.
+- **The UI harnesses are not gates.** `map-smoke.mjs` needs a running server with a
+  *populated* DB (any density works; an empty one cannot anchor its time-scrub window)
+  and npm to install jsdom.
   `browser-tests.mjs` additionally needs Chrome on `:9222` and network for tiles. The
   runner is not guaranteed to have either — a rebuilt or mock runner has no Chrome
   until someone installs it — so do not promote it to a gate. Run
@@ -293,6 +292,28 @@ curl -s http://127.0.0.1:8000/health
 curl -s 'http://127.0.0.1:8000/api/conflicts?start=1970-01-01&end=2100-01-01'
 ```
 
+### Monitoring after the deploy
+
+`restart: unless-stopped` covers a crash, not a container that comes up and then
+fails every request, and the deploy job only checks readiness once. Two host-side
+watchers cover the gap; install both with cron or a systemd timer:
+
+- `scripts/check-health.sh` — the *same* readiness definition as `deploy.sh`
+  (`/health` 200 **and** `/api/conflicts` returns a JSON array), exits non-zero so
+  cron's `MAILTO` or systemd's `OnFailure` reaches a human.
+- `scripts/install-health-watch.sh` — installs a 15-minute `gcm-health-check.timer`
+  that runs it (`--dry-run` prints the units, `--remove` uninstalls).
+- `scripts/check-pipeline.sh` — the other half of the picture: the app can be up while
+  the *data* has stopped updating (gotcha #9 in `AGENTS.md`). It reads
+  `/api/pipeline-health` and exits non-zero when the last successful run is older than
+  `pipeline_stale_hours`.
+
+```bash
+sudo ./scripts/install-health-watch.sh          # app is answering
+# and in the crontab, for the data:
+0 8 * * * /path/to/repo/scripts/check-pipeline.sh
+```
+
 Anything else that touches the stack (cron, a manual `docker compose` run) must use
 the same `GCM_DATA_DIR`: source `scripts/_data-dir.sh`, or run through
 `scripts/docker-daily.sh` / `scripts/deploy.sh`, which do it for you. The daily
@@ -300,9 +321,16 @@ script also forwards arguments, so `scripts/docker-daily.sh --days 7` is a real
 backfill (a bare `docker compose run --rm pipeline` uses `./data/db` and used to
 drop the flag).
 
-Config is the one thing still read from the checkout the command runs in
-(`./config/gdelt.yaml`). For the deployed stack that is the deploy checkout, so edit
-and commit the config rather than editing a working copy and restarting.
+Config follows the same rule as data: `scripts/_data-dir.sh` defines
+`GCM_CONFIG_DIR` (default `./config`) and both compose services mount
+`$GCM_CONFIG_DIR/gdelt.yaml`. For the deployed stack that resolves to the deploy
+checkout, which is disposable — the next deploy's `git clean -ffdx` removes any hand
+edit. Change config in git, not in a working copy that you then restart.
+
+A docs-only push does not deploy. `workflow_run` cannot use `paths-ignore` (it is
+evaluated against the CI run's event, not this one), so the deploy job diffs
+`HEAD^..HEAD` and skips the build when every changed file is a `*.md` or under
+`docs/`, `tasks/`, `.agents/`. A shallow clone or a manual run always deploys.
 
 The app is intentionally loopback-only (`127.0.0.1:8000`) and has no auth; never add
 a public binding or a port-forward to this pipeline.
@@ -359,13 +387,18 @@ by CI on push, none by the hook:
   running each command locally; the first PR exercises `workflow_run`,
   `$GITHUB_PATH`, uv's interpreter cache and the deploy rollback on the real runner.
   Keep the `production` environment ungated until that passes.
-- **Pin dependencies.** `requirements.txt` is unpinned, so two CI runs can install
-  different code. Compile a lock (`uv pip compile requirements.txt -o
-  requirements.lock`), install from it in CI and in the Dockerfile, and add the `pip`
-  ecosystem back to `dependabot.yml`. This is a dependency decision, hence not
-  bundled with the pipeline.
-- **Dependabot for pip** becomes possible only after pinning.
-- **UI smoke as a gate** once it has a fixture seed dense enough for its viewport
-  checks (it now passes except the "list narrows" check on demo data).
-- **Retention/monitoring**: the deploy job records health, but nothing alerts if the
-  container dies later (`restart: unless-stopped` covers crashes, not failure loops).
+- **Pin the runtime dependencies (needs a decision).** `requirements.txt` is still
+  unpinned, so the image and CI install whatever the resolver picks that day. The gate
+  tools are pinned in `requirements-ci.txt`, which is what protects a green commit from
+  being reddened by a release; the runtime is not. Fixing that means committing a
+  lock file and installing from it in the Dockerfile — a dependency decision, so it is
+  deliberately left open. Until then there is no `pip-audit` gate and no pip ecosystem
+  in `dependabot.yml`: an audit against unpinned requirements reports guesses.
+- **The UI harnesses stay out of CI by decision.** `map-smoke.mjs` now tolerates any
+  populated fixture (dense, demo, or the real DB) and reports `SKIPPED` where a fixture
+  cannot demonstrate a check, so its data-density caveat is gone. It is still not a
+  gate: the runner has neither npm nor Chrome installed and may be rebuilt, and the
+  browser suite additionally needs network for tiles. See the note under "The gates".
+- **Retention**: image layers and buildkit cache accumulate and nothing prunes them.
+  A monthly `docker image prune -f --filter until=168h` and
+  `docker builder prune -f --filter until=168h` keeps disk usage flat.

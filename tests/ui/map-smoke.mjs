@@ -46,8 +46,18 @@ async function fetchRange(start, end) {
     fetch(`${BASE_URL}/api/events?start=${start}&end=${end}`),
     fetch(`${BASE_URL}/api/conflicts?start=${start}&end=${end}`),
   ]);
-  if (!eventsRes.ok) throw new Error(`GET /api/events ${eventsRes.status}`);
-  if (!conflictsRes.ok) throw new Error(`GET /api/conflicts ${conflictsRes.status}`);
+  // A 500 on an empty database means the schema was never migrated, not that the
+  // UI is broken. Say so instead of failing a map check for the wrong reason.
+  if (!eventsRes.ok || !conflictsRes.ok) {
+    const status = !eventsRes.ok ? eventsRes.status : conflictsRes.status;
+    if (status === 500) {
+      throw new Error(
+        `API returned 500 for ${BASE_URL} — is the database migrated? ` +
+          "Run `alembic upgrade head` against it first.",
+      );
+    }
+    throw new Error(`GET /api/${eventsRes.ok ? "conflicts" : "events"} ${status}`);
+  }
   return { events: await eventsRes.json(), conflicts: await conflictsRes.json() };
 }
 
@@ -344,10 +354,16 @@ async function main() {
   const table = doc.getElementById("nolocation-panel");
   const rows = doc.querySelectorAll("#nolocation-list .nl-row");
 
+  // An empty panel is correct when the data has nothing to place; assert that
+  // instead of demanding rows a fixture may legitimately lack.
   check(
     "no-location panel shows the conflicts with no geocoded event",
-    !table.hidden && rows.length === Math.min(expectedNoLoc.count, 200),
-    `${rows.length} rows, expected ${expectedNoLoc.count}`,
+    expectedNoLoc.count === 0
+      ? table.hidden && rows.length === 0
+      : !table.hidden && rows.length === Math.min(expectedNoLoc.count, 200),
+    expectedNoLoc.count === 0
+      ? `hidden=${table.hidden}, 0 rows expected`
+      : `${rows.length} rows, expected ${expectedNoLoc.count}`,
   );
   check(
     "every no-location row still has an event in range",
@@ -356,12 +372,18 @@ async function main() {
     ),
     `${rows.length} rows, ${expectedNoLoc.unplacedIds.size} conflicts with an unplaced event`,
   );
+  // With nothing unplaced the UI omits the clause rather than printing "0 with
+  // no location", so both forms are correct — a false positive would be a
+  // non-zero count that the note fails to mention.
   check(
     "panel count and in-view note agree",
-    doc.getElementById("nolocation-count").textContent === `(${expectedNoLoc.count})` &&
-      new RegExp(expectedNoLoc.count + " with no location").test(
-        doc.querySelector("#conflict-list .list-note")?.textContent ?? "",
-      ),
+    // An empty panel paints no count at all, so only compare when it shows one.
+    doc.getElementById("nolocation-count").textContent ===
+      (expectedNoLoc.count === 0 ? "" : `(${expectedNoLoc.count})`) &&
+      (expectedNoLoc.count === 0 ||
+        new RegExp("\\b" + expectedNoLoc.count + " with no location").test(
+          doc.querySelector("#conflict-list .list-note")?.textContent ?? "",
+        )),
     doc.querySelector("#conflict-list .list-note")?.textContent ?? "(no note)",
   );
   check(
@@ -386,8 +408,10 @@ async function main() {
   );
 
   // Opening a row must not move the map: the in-view list must be unchanged.
+  // Only meaningful when there is a row — see the panel check above.
   const inViewBefore = doc.getElementById("conflict-count").textContent;
-  doc.querySelector("#nolocation-list .conflict-item").click();
+  const inViewNoteHadRows = Boolean(doc.querySelector("#nolocation-list .conflict-item"));
+  doc.querySelector("#nolocation-list .conflict-item")?.click();
   await new Promise((r) => setTimeout(r, 400));
   check(
     "opening a no-location conflict does not move the map",
@@ -396,19 +420,21 @@ async function main() {
   );
   check(
     "opening a no-location conflict fills the detail pane",
-    Boolean(doc.querySelector("#detail h2")),
-    doc.querySelector("#detail h2")?.textContent ?? "",
+    !inViewNoteHadRows || Boolean(doc.querySelector("#detail h2")),
+    inViewNoteHadRows ? (doc.querySelector("#detail h2")?.textContent ?? "") : "SKIPPED (nothing unplaced)",
   );
 
   // "Set location" must arm the existing pick-on-map flow, not invent a position.
-  doc.querySelector("#nolocation-list .nl-place").click();
+  const placeButton = doc.querySelector("#nolocation-list .nl-place");
+  placeButton?.click();
   await new Promise((r) => setTimeout(r, 900));
   check(
     "set-location arms pick-on-map on the unplaced event",
-    doc.getElementById("map").classList.contains("picking") &&
-      Boolean(doc.getElementById("edit-ev-lat")) &&
-      doc.getElementById("edit-ev-lat").value === "",
-    `picking=${doc.getElementById("map").classList.contains("picking")}`,
+    !placeButton ||
+      (doc.getElementById("map").classList.contains("picking") &&
+        Boolean(doc.getElementById("edit-ev-lat")) &&
+        doc.getElementById("edit-ev-lat").value === ""),
+    placeButton ? `picking=${doc.getElementById("map").classList.contains("picking")}` : "SKIPPED (nothing unplaced)",
   );
   // Cancel so the rest of the run is unaffected.
   doc.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -445,8 +471,6 @@ async function main() {
   }
   check("cluster click raises no errors", errors.length === 0, errors.join(" | "));
 
-  // The panel lists what is on screen: drilling into one conflict narrows it,
-  // and the summary number must match the rows actually rendered.
   const readList = () => ({
     items: doc.querySelectorAll("#conflict-list .conflict-item").length,
     label: doc.getElementById("conflict-count").textContent,
@@ -464,23 +488,31 @@ async function main() {
     return state;
   };
 
-  let before = await stableList();
-  // The cluster clicked above is whichever one happens to be first in the DOM, so
-  // it can land on a view holding a single conflict — nothing left to narrow. Go
-  // back to the world view first, which always lists many conflicts.
-  if (before.items <= 1) {
-    doc.querySelector(".leaflet-control.reset-view")?.click();
-    before = await stableList();
+  // The panel lists what is on screen: drilling into one conflict narrows it,
+  // and the summary number must match the rows actually rendered. Return to the
+  // world view first — the cluster clicked above is whichever happens to be
+  // first in the DOM, and a view holding a single conflict has nothing left to
+  // narrow. World view lists every conflict in range on any fixture.
+  doc.querySelector(".leaflet-control.reset-view")?.click();
+  const before = await stableList();
+  // A fixture with only one conflict cannot demonstrate narrowing at any zoom.
+  // Skip rather than pass on a 1 -> 0 edge case that proves nothing.
+  const canNarrow = before.items > 1;
+  let after = before;
+  let clickedId = null;
+  if (canNarrow) {
+    const firstItem = doc.querySelector("#conflict-list .conflict-item");
+    clickedId = firstItem.dataset.id;
+    firstItem.click();
+    after = await stableList();
   }
-  const firstItem = doc.querySelector("#conflict-list .conflict-item");
-  const clickedId = firstItem.dataset.id;
-  firstItem.click();
-  const after = await stableList();
 
   check(
     "conflict list follows the map viewport",
-    after.items > 0 && after.items < before.items,
-    `${before.items} rows → ${after.items} after zooming in`,
+    !canNarrow || (after.items > 0 && after.items < before.items),
+    canNarrow
+      ? `${before.items} rows → ${after.items} after zooming in`
+      : `SKIPPED (single-conflict fixture: ${before.items} row)`,
   );
   check(
     "summary count matches the rendered rows",
@@ -502,8 +534,9 @@ async function main() {
   );
   check(
     "the conflict you clicked stays in the list",
-    Boolean(doc.querySelector(`#conflict-list .conflict-item[data-id="${clickedId}"]`)),
-    `id ${clickedId}`,
+    !canNarrow ||
+      Boolean(doc.querySelector(`#conflict-list .conflict-item[data-id="${clickedId}"]`)),
+    clickedId === null ? "SKIPPED (single-conflict fixture)" : `id ${clickedId}`,
   );
 
   // Time scrub: a populated 3-day window must re-query and re-render from scratch.

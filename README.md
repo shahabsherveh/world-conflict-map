@@ -61,10 +61,12 @@ Open **<http://localhost:8000>**.
 > after each day finishes. If you just want to see the map, run `python scripts/seed.py`
 > first (instant, no network) and serve that; run the pipeline later.
 
-- Markers are sized and colored by intensity (1–5) and cluster by zoom, so a wide date
-  range stays responsive. Cluster bubbles are a heatmap of event density — blue (few) to
-  red (many), with the count printed inside. Single events are drawn as small dots on the
-  same ramp, so the whole map speaks one colour language.
+- Markers are sized and colored by intensity (1–5) and cluster at every zoom, so a wide
+  date range stays responsive. Cluster bubbles are a heatmap of event density — blue (few)
+  to red (many), with the count printed inside. Single events are drawn as small dots on
+  the same ramp, so the whole map speaks one colour language. Events that share a
+  coordinate (hundreds can share one GDELT country centroid) stay in a bubble even at full
+  zoom; click it to spiderfy them so each one is reachable.
 - Change the **From / To** dates to see conflicts active in that window.
 - Click a marker to see the event, its conflict, and the underlying news source.
 - Use the side panel to **edit a conflict**, **edit or move an event** (including lat/lon
@@ -275,6 +277,28 @@ This writes the host database (`./conflicts.db` by default). For the Docker stac
 `docker compose run --rm web python scripts/seed.py` instead — a host seed does not
 populate the container's `/data/conflicts.db`.
 
+## Weekly briefing (Markdown)
+
+Render a dated digest of recent activity straight from the database — no server, no
+network, no writes:
+
+```bash
+python scripts/briefing.py --days 7                    # stdout, Markdown
+python scripts/briefing.py --days 7 --issue 1 > issue-1.md
+python scripts/briefing.py --days 7 --region UA        # one country
+python scripts/briefing.py --days 7 --end 2026-11-04   # a past window
+```
+
+It lists the 10 busiest theatres with the three most recent sourced events each
+(`--top 0` for everything, `--events-per-theatre N` for longer entries), ranks by
+recency and then by outlets/articles rather than by the ordinal `confidence` score, and
+omits any event without an `http(s)` source link. Output is deterministic for a fixed
+database, so two issues can be diffed. On the real data a 7-day issue is ~96 lines.
+
+Read it before publishing: the theatre titles come from GDELT place strings, so a
+country-wide cluster can read as a city name (see "Known limitations" in `AGENTS.md`).
+The publishing plan and engagement counts live in `tasks/demand-test.md`.
+
 ## Data source & filtering
 
 - **Source:** GDELT 2.0 `.export.CSV.zip` files — free, no key, 15-minute granularity.
@@ -312,16 +336,17 @@ pytest                      # unit + integration tests
 python scripts/evaluate.py  # precision/recall of the zero-shot filter (needs model)
 
 # headless UI smoke test (needs Node 18+ and a server on :8000;
-# use a freshly seeded or model-filtered DB — see tests/ui/README.md)
+# a seeded DB is the fastest fixture — see tests/ui/README.md)
 cd tests/ui && npm install && node map-smoke.mjs
 
 # real-browser UI tests (needs Node 22+ and a running Chrome on :9222)
 cd tests/ui && node browser-tests.mjs
 ```
 
-Both UI harnesses assume a freshly seeded or model-filtered database. Unfiltered GDELT
-events often share country-centroid coordinates, and Leaflet spiderfies duplicate points;
-jsdom cannot render that layer, so the cluster-click and scrub checks fail.
+Unfiltered GDELT events often share country-centroid coordinates, but clustering keeps
+those events in a bubble at every zoom, so both harnesses run against the real DB. Spiderfy
+needs a browser, so `browser-tests.mjs` owns the coincident-event check; a freshly seeded DB
+is still the quickest fixture.
 
 `browser-tests.mjs` covers what jsdom cannot — hit-testing, popup anchoring, computed
 CSS, basemap tiles, Pick-on-map — by driving a headless Chrome on `:9222` over CDP. It

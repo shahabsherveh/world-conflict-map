@@ -785,3 +785,19 @@ def test_conflict_detail_query_count_is_bounded(client) -> None:
     assert resp.status_code == 200
     assert len(resp.json()["events"]) == 12
     assert count["n"] <= 3, f"N+1 regression: {count['n']} queries for 12 events"
+
+
+def test_patch_logs_null_distinctly_from_empty(client) -> None:
+    """Regression: both were stored as "", so the audit trail lost the difference."""
+    c, session = client
+    conflict = seed(session)
+    assert c.patch(f"/api/conflicts/{conflict.id}", json={"country": None}).status_code == 200
+
+    log = session.query(EditLog).one()
+    assert log.field == "country"
+    assert log.old_value == "SY"
+    assert log.new_value is None
+
+    c.patch(f"/api/conflicts/{conflict.id}", json={"name": "War A"})
+    session.expire_all()
+    assert session.query(EditLog).count() == 1  # unchanged value logs nothing

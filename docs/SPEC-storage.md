@@ -40,7 +40,8 @@ SQLite + SQLAlchemy 2.0 ORM + Alembic migrations. (Conventions: CAPABILITY-MAP.m
 - `pytest tests/test_storage.py`
 
 ## Project structure (module)
-- `app/db.py` — engine/session
+- `app/db.py` — engine/session (`database_url()` reads the environment at call time;
+  the engine is built lazily on first `get_session()`, never at import)
 - `app/models.py` — SQLAlchemy models
 - `app/migrations/` — Alembic
 
@@ -54,6 +55,10 @@ Conventions: CAPABILITY-MAP.md. Models are SQLAlchemy 2.0 declarative with typed
 
 ## Boundaries
 - Always: use migrations (never hand-edit the .db); write tests for new queries.
+- Always: keep the SQLite connect pragmas — `foreign_keys=ON`, `journal_mode=WAL` (readers
+  keep working while the pipeline writes) and `busy_timeout=5000` (a competing writer
+  waits instead of raising "database is locked"). `connect_args timeout=0` makes the
+  pragma, not pysqlite's default, the single source of that wait.
 - Ask first: schema changes (new column/table), adding indexes.
 - Never: commit the .db file or secrets.
 

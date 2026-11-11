@@ -44,7 +44,9 @@ Diagrams of these boundaries, the daily pipeline, and the schema live in
 - `tests/` — pytest
 - `tests/fixtures/` — zero-shot evaluation samples
 - `config/` — data-source config
+- `scripts/` — operator tools (seed, fetch, backfill, briefing, gates)
 - `docs/` — intent and specs
+- `tasks/` — plan, task log, demand-test log
 
 ### Code style
 - Python: PEP 8, ruff-formatted (`ruff format`), full type hints, ruff lint.

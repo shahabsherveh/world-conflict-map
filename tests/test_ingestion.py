@@ -3,7 +3,9 @@ import zipfile
 from datetime import date
 
 import httpx
+import pytest
 
+from app.ingest import gdelt as gdelt_module
 from app.ingest.gdelt import GDELTClient, parse_export_zip, read_day_from_dir
 from app.ingest.normalizer import COLUMNS, dedupe_new, parse_export_tsv
 
@@ -107,3 +109,97 @@ def test_fetch_day_skips_missing_files(monkeypatch) -> None:
     monkeypatch.setattr(client, "download_export", fake_download)
     events = client.fetch_day(date(2024, 1, 1))
     assert len(events) == 95
+
+
+def zip_payload(*event_ids: str) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr(
+            "sample.export.CSV",
+            "".join(
+                make_row(global_event_id=eid, event_root_code="19") + "\n" for eid in event_ids
+            ),
+        )
+    return buf.getvalue()
+
+
+def ok_response(url: str, content: bytes) -> httpx.Response:
+    return httpx.Response(200, content=content, request=httpx.Request("GET", url))
+
+
+def test_download_export_retries_a_timeout_then_succeeds(monkeypatch) -> None:
+    sleeps: list[float] = []
+    client = GDELTClient(attempts=3, backoff_seconds=0.5, sleep=sleeps.append)
+    calls: list[str] = []
+
+    def fake_get(url: str, **_kwargs) -> httpx.Response:
+        calls.append(url)
+        if len(calls) < 3:
+            raise httpx.ConnectTimeout("connect timed out")
+        return ok_response(url, zip_payload("1"))
+
+    monkeypatch.setattr(gdelt_module.httpx, "get", fake_get)
+    events = client.download_export("20240101000000")
+
+    assert events is not None
+    assert [event["global_event_id"] for event in events] == ["1"]
+    assert len(calls) == 3
+    assert sleeps == [0.5, 1.0]  # exponential backoff, no sleep on the last try
+
+
+def test_download_export_retries_a_5xx_then_succeeds(monkeypatch) -> None:
+    client = GDELTClient(attempts=2, backoff_seconds=0, sleep=lambda _: None)
+    responses = iter(
+        [
+            httpx.Response(503, request=httpx.Request("GET", "http://x")),
+            httpx.Response(200, content=zip_payload("7"), request=httpx.Request("GET", "http://x")),
+        ]
+    )
+    monkeypatch.setattr(gdelt_module.httpx, "get", lambda url, **_kw: next(responses))
+
+    events = client.download_export("20240101000000")
+    assert events is not None
+    assert [event["global_event_id"] for event in events] == ["7"]
+
+
+def test_download_export_treats_an_empty_archive_as_no_data(monkeypatch) -> None:
+    """Regression: an empty archive raised IndexError out of the live fetch path."""
+    buf = io.BytesIO()
+    zipfile.ZipFile(buf, "w").close()  # valid zip, zero entries
+    monkeypatch.setattr(
+        gdelt_module.httpx, "get", lambda url, **_kw: ok_response(url, buf.getvalue())
+    )
+    assert GDELTClient().download_export("20240101000000") is None
+
+
+def test_fetch_day_skips_one_slot_that_exhausts_its_retries(monkeypatch) -> None:
+    """The other 95 slots still land; the lost one is reported, not hidden."""
+    client = GDELTClient(attempts=3, backoff_seconds=0, sleep=lambda _: None)
+    payload = zip_payload("1")
+    attempts: list[str] = []
+
+    def fake_get(url: str, **_kwargs) -> httpx.Response:
+        if "001500" in url:
+            attempts.append(url)
+            raise httpx.ReadTimeout("read timed out")
+        return ok_response(url, payload)
+
+    monkeypatch.setattr(gdelt_module.httpx, "get", fake_get)
+    failed: list[str] = []
+    events = client.fetch_day(date(2024, 1, 1), failed)
+
+    assert len(events) == 95
+    assert failed == ["20240101001500"]
+    assert len(attempts) == 3  # bounded retries, not an infinite loop
+
+
+def test_fetch_day_raises_when_no_slot_produced_data(monkeypatch) -> None:
+    """A day that retrieves nothing must fail the run, not look like an empty success."""
+    client = GDELTClient(attempts=2, backoff_seconds=0, sleep=lambda _: None)
+
+    def fake_get(url: str, **_kwargs) -> httpx.Response:
+        raise httpx.ReadTimeout("read timed out")
+
+    monkeypatch.setattr(gdelt_module.httpx, "get", fake_get)
+    with pytest.raises(httpx.ReadTimeout):
+        client.fetch_day(date(2024, 1, 1))

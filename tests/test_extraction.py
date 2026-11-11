@@ -1,5 +1,5 @@
 import zipfile
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -20,9 +20,10 @@ from app.extract.gdelt_adapter import GDELTAdapter
 from app.extract.grouping import group_events, regroup_all
 from app.extract.intensity import derive_intensity
 from app.extract.run import persist_drafts, resolve_target_days, to_drafts
+from app.ingest.audit import STALE_REASON, settle_stale_runs
 from app.ingest.gdelt import GDELTClient
 from app.ingest.normalizer import COLUMNS
-from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun, RawEvent
+from app.models import Base, Conflict, ConflictEvent, EditLog, IngestionRun, RawEvent, utcnow
 
 
 def make_session() -> Session:
@@ -835,3 +836,149 @@ def test_run_retries_raw_rows_stranded_by_a_failed_processing_pass(monkeypatch, 
     assert outcomes == {stranded_day: "persisted", next_day: "persisted"}
     events = session.scalars(select(ConflictEvent)).all()
     assert len(events) == 2
+
+
+def test_filter_keeps_an_event_whose_url_has_no_slug() -> None:
+    """Regression: an empty slug classified as "not conflict" and dropped the event.
+
+    A URL like `https://example.com/` carries no evidence either way; the filter
+    must not manufacture a rejection out of the missing text.
+    """
+    drafts = [make_draft("1", "https://example.com/"), make_draft("2", "http://x/podcast")]
+    kept = filter_by_zero_shot(drafts, StubClassifier())
+    assert [d.source_event_id for d in kept] == ["1"]
+
+
+def test_group_events_does_not_claim_manual_events() -> None:
+    session = make_session()
+    manual = _ev("m", "SY", "Aleppo, Syria", 36.20, 37.13, 10)
+    manual.provenance = "manual"
+    session.add(manual)
+    session.flush()
+
+    group_events(session)
+    session.flush()
+
+    assert manual.conflict_id is None
+    assert session.scalars(select(Conflict)).all() == []
+
+
+def test_regroup_all_keeps_manual_links_and_their_conflict() -> None:
+    """Regrouping rebuilds auto conflicts; a human's placement must survive it."""
+    session = make_session()
+    curated = Conflict(name="Human conflict", country="SY", start_date=date(2024, 1, 1))
+    session.add(curated)
+    session.flush()
+    manual = _ev("m", "SY", "Aleppo, Syria", 36.20, 37.13, 10)
+    manual.provenance = "manual"
+    manual.conflict_id = curated.id
+    # Different country: grouping cannot legitimately absorb it into the manual
+    # conflict, so a rebuild must create its own row.
+    auto = _ev("a", "YE", "Aden, Yemen", 12.8, 45.0, 11)
+    auto.conflict_id = curated.id
+    session.add_all([manual, auto])
+    session.flush()
+    session.add(EditLog(target_type="conflict", target_id=curated.id, field="name", new_value="x"))
+    session.commit()
+
+    created = regroup_all(session)
+    session.commit()
+
+    assert created == 1
+    # The manual conflict keeps its id, its name and its audit row; without that
+    # exemption the rebuild deleted it and the event link came back pointing at
+    # an unrelated conflict.
+    kept = session.get(Conflict, curated.id)
+    assert kept is not None
+    assert kept.name == "Human conflict"
+    assert manual.conflict_id == curated.id
+    assert auto.conflict_id != curated.id
+    assert session.scalars(select(EditLog)).one().target_id == curated.id
+
+
+def test_run_reports_a_download_that_never_succeeded(monkeypatch) -> None:
+    """A day short one 15-minute window is a success — but a visible one."""
+    day = date(2024, 1, 15)
+    stamp = run_module.GDELTClient().fifteen_minute_stamps(day)[1]
+
+    class FlakyClient:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        def fetch_day(self, _target, failed_slots=None):
+            if failed_slots is not None:
+                failed_slots.append(stamp)
+            return []
+
+    session = make_session()
+    monkeypatch.setattr(run_module, "GDELTClient", FlakyClient)
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
+
+    assert run_module.run(start=day, end=day) == 0
+    run = day_runs(session)[0]
+    assert run.status == "success"
+    assert run.degraded_reason == "1 download(s) skipped after retries"
+
+
+def test_settle_stale_runs_fails_only_abandoned_rows() -> None:
+    """A `running` row from a killed process must stop claiming to be live."""
+    session = make_session()
+    abandoned = IngestionRun(
+        status="running",
+        source_day=date(2024, 1, 1),
+        started_at=utcnow() - timedelta(hours=13),
+    )
+    live = IngestionRun(status="running", source_day=date(2024, 1, 2))
+    done = IngestionRun(
+        status="success",
+        source_day=date(2024, 1, 3),
+        started_at=utcnow() - timedelta(hours=20),
+        finished_at=utcnow() - timedelta(hours=19),
+    )
+    session.add_all([abandoned, live, done])
+    session.commit()
+
+    assert settle_stale_runs(session, older_than_hours=12) == 1
+
+    session.refresh(abandoned)
+    assert abandoned.status == "failed"
+    assert abandoned.error == STALE_REASON
+    assert abandoned.finished_at is not None
+    live_row = session.get(IngestionRun, live.id)
+    done_row = session.get(IngestionRun, done.id)
+    assert live_row is not None and live_row.status == "running"
+    assert done_row is not None and done_row.status == "success"
+
+
+def test_run_settles_a_row_left_running_by_a_killed_process(monkeypatch) -> None:
+    day = date(2024, 1, 15)
+    session = make_session()
+
+    class EmptyClient:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        def fetch_day(self, _target, _failed_slots=None):
+            return []
+
+    abandoned = IngestionRun(
+        status="running",
+        source_day=date(2024, 1, 14),
+        started_at=utcnow() - timedelta(hours=13),
+    )
+    session.add(abandoned)
+    session.commit()
+    abandoned_id = abandoned.id
+
+    monkeypatch.setattr(run_module, "GDELTClient", EmptyClient)
+    monkeypatch.setattr(run_module, "get_session", lambda: session)
+    monkeypatch.setattr(run_module, "load_classifier", lambda: (None, None))
+
+    run_module.run(start=day, end=day)
+
+    # run() closes its session, so re-fetch through the (reopened) session.
+    row = session.get(IngestionRun, abandoned_id)
+    assert row is not None
+    assert row.status == "failed"
+    assert row.error == STALE_REASON

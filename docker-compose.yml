@@ -29,7 +29,10 @@ services:
       # actions/checkout runs `git clean -ffdx`, which would delete an in-tree
       # data/ directory along with the database. Local use keeps ./data/db.
       - ${GCM_DATA_DIR:-./data/db}:/data
-      - ./config/gdelt.yaml:/app/config/gdelt.yaml:ro
+      # Defined once in scripts/_data-dir.sh, like the data dir: the deploy
+      # checkout is disposable, so a hand edit here would vanish on redeploy.
+      # Deployed config changes go through git.
+      - ${GCM_CONFIG_DIR:-./config}/gdelt.yaml:/app/config/gdelt.yaml:ro
     restart: unless-stopped
 
   # One-shot daily pipeline. Not started by `docker compose up` (profiles);
@@ -46,4 +49,7 @@ services:
       GCM_DATABASE_URL: sqlite:////data/conflicts.db
     volumes:
       - ${GCM_DATA_DIR:-./data/db}:/data
-      - ./config/gdelt.yaml:/app/config/gdelt.yaml:ro
+      # Defined once in scripts/_data-dir.sh, like the data dir: the deploy
+      # checkout is disposable, so a hand edit here would vanish on redeploy.
+      # Deployed config changes go through git.
+      - ${GCM_CONFIG_DIR:-./config}/gdelt.yaml:/app/config/gdelt.yaml:ro

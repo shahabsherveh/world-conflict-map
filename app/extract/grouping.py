@@ -84,13 +84,21 @@ def _matches(
 
 
 def group_events(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
-    """Link unlinked events to conflicts. Returns the number of conflicts created."""
+    """Link unlinked events to conflicts. Returns the number of conflicts created.
+
+    Manual events are never claimed. Their `conflict_id` is whatever a human set
+    (possibly nothing, meaning "unassigned"), and grouping exists to guess links
+    for machine-extracted events, not to overrule that choice.
+    """
     # Process oldest first so a conflict is anchored on its earliest event;
     # otherwise event insertion order can split one theatre into two conflicts.
     unlinked = list(
         session.scalars(
             select(ConflictEvent)
-            .where(ConflictEvent.conflict_id.is_(None))
+            .where(
+                ConflictEvent.conflict_id.is_(None),
+                ConflictEvent.provenance != "manual",
+            )
             .order_by(ConflictEvent.event_date, ConflictEvent.id)
         )
     )
@@ -142,14 +150,28 @@ def regroup_all(session: Session, radius_km: float = DEFAULT_RADIUS_KM) -> int:
     run, which only ever links new events. Conflict rows are derived again, so
     conflict-level curation (a renamed conflict, an ended status) is lost — check
     for it before applying. Event rows are never rewritten apart from their
-    `conflict_id`, so no marker moves. Conflict ids restart from 1, so the audit
-    rows that point at them are dropped rather than left dangling.
+    `conflict_id`, so no marker moves.
+
+    Manual events are exempt: they keep their `conflict_id`, and the conflict row
+    that holds them survives so that link stays valid. Re-linking them silently
+    was worse than useless — conflict ids restart from 1, so a hand-placed event
+    would have come back attached to an unrelated conflict.
 
     Returns the number of conflicts created.
     """
-    session.execute(update(ConflictEvent).values(conflict_id=None))
+    manual_conflicts = select(Conflict.id).where(
+        Conflict.events.any(ConflictEvent.provenance == "manual")
+    )
+    session.execute(
+        update(ConflictEvent).where(ConflictEvent.provenance != "manual").values(conflict_id=None)
+    )
     session.flush()
-    session.execute(delete(Conflict))
-    session.execute(delete(EditLog).where(EditLog.target_type == "conflict"))
+    session.execute(delete(Conflict).where(~Conflict.id.in_(manual_conflicts)))
+    session.execute(
+        delete(EditLog).where(
+            EditLog.target_type == "conflict",
+            EditLog.target_id.not_in(manual_conflicts),
+        )
+    )
     session.flush()
     return group_events(session, radius_km)

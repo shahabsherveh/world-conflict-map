@@ -7,3 +7,6 @@ raw_retention_days: 30
 # Alert threshold for `scripts/check-pipeline.sh`: no successful run for this
 # long means the map has stopped updating.
 pipeline_stale_hours: 48
+# A `running` ingestion_run older than this is treated as a dead process and
+# settled to `failed` at the start of the next run. Raise it for a long backfill.
+stale_run_hours: 12

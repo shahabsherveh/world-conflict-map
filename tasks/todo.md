@@ -323,17 +323,35 @@ only, no network, no writes to the DB. This is the demand-test engine and double
 case-study artefact.
 
 **Acceptance criteria:**
-- [ ] `python scripts/briefing.py --days 7` prints Markdown to stdout; no network calls
-- [ ] Every event line carries its source URL; an event without one is omitted, not shown
-  unlinked
-- [ ] Output is deterministic for a fixed DB (same input, same order and content)
-- [ ] Runs against `scripts/seed.py` data with no model file present (degraded mode)
-- [ ] `--region <country>` filters without changing the format
+- [x] `python scripts/briefing.py --days 7` prints Markdown to stdout; no network calls
+  (`sqlite3` + stdlib only, opened `mode=ro`, so it cannot write either)
+- [x] Every event line carries its source URL; an event without one is omitted, not shown
+  unlinked — and non-`http(s)` URLs are refused too
+- [x] Output is deterministic for a fixed DB (same input, same order and content; total
+  ordering ends on `conflict.id`)
+- [x] Runs against `scripts/seed.py` data with no model file present (degraded mode)
+- [x] `--region <country>` filters without changing the format
+- [x] Ranking uses corroboration counts, never a `confidence` threshold (same reasoning as
+  Task 11: the score is ordinal and unvalidated)
+- [x] Output is bounded: `--top` (default 10 theatres) and `--events-per-theatre` (default
+  3), each with a "…N more, not shown" line; `--top 0` prints everything
 
 **Verification:**
-- [ ] Tests pass: `pytest tests/test_briefing.py`
-- [ ] Manual check: run on a seeded DB and read the output as a subscriber would
-- [ ] Markdown gate: `pymarkdown scan -r docs tasks`
+- [x] Tests pass: `pytest tests/test_briefing.py` (17 tests). Mutation-checked: removing
+  the no-source guard failed 2 tests; summing per-event counts instead of taking the
+  strongest failed the corroboration test
+- [x] Manual check: run on the seeded DB and on the real 1.4 GB `conflicts.db` (2.6 s, 96
+  lines for a 7-day issue). Reading it changed four things the spec did not anticipate:
+  (1) uncapped output was ~13k lines for 1,436 theatres, so the issue is now capped;
+  (2) one article produced up to three identical lines (GDELT emits one row per actor
+  pair), so duplicate reports fold into "… N related reports" while the heading still
+  counts stored rows; (3) the header's event total now counts stored rows, not folded
+  lines; (4) **content caveat, not a bug to fix silently** — theatre titles are
+  place-derived, so a country-centroid cluster reads as a place name ("## Belgium",
+  "## Belfast, Belfast, United Kingdom") and GDELT's own noise comes with it. A
+  subscriber-facing issue needs a human pass over the titles or the grouping changes
+  already awaiting approval below.
+- [x] Markdown gate: `pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks`
 
 **Dependencies:** Task 11
 
@@ -348,6 +366,11 @@ case-study artefact.
 **Description:** Publish eight weekly global briefings, count engagement after each, then
 decide with numbers instead of opinion. In parallel, write the case study the "sell the
 skill" strand needs.
+
+**Plan and log:** `tasks/demand-test.md` — kill criteria chosen in advance, the
+pre-issue-1 decisions to record (identity, hosting, channel, what "engaged" counts), a
+per-issue table, and the memo skeleton. Nothing in this task can be done from a code
+session; it needs eight weeks of publishing.
 
 **Acceptance criteria:**
 - [ ] Eight issues published, each at most one page, every claim linked
@@ -370,17 +393,18 @@ skill" strand needs.
 **Estimated scope:** Small (2 files, spread over 8 weeks)
 
 ## Checkpoint: Data quality
-- [ ] An event detail states its corroboration and links its source
-- [ ] `./scripts/ci-check.sh` green (all non-docker gates)
+- [x] An event detail states its corroboration and links its source
+- [x] `./scripts/ci-check.sh` green (all non-docker gates) — 142 tests, ruff, format,
+  shellcheck (v0.11.0), pymarkdown, ty, alembic apply + drift
 
 ## Checkpoint: Demand recorded
-- [ ] A briefing is one command from the DB
-- [ ] Eight issues published and counted
+- [x] A briefing is one command from the DB
+- [ ] Eight issues published and counted — log started in `tasks/demand-test.md`
 - [ ] Go/no-go memo written; next phase chosen from evidence
 
 ---
 
-## Session handoff state
+## Session handoff state (earlier passes — historical, see the Phase 5 handoff below)
 
 Updated after the code-review pass and context setup.
 
@@ -397,7 +421,7 @@ below under "Remaining work"; the first two to pick up are the daemon `dns` sett
 
 ```bash
 source .venv/bin/activate
-./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (102), alembic
+./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (142), alembic
 ```
 
 The same gates run in `.github/workflows/ci.yml` on every push and PR; a green
@@ -551,21 +575,25 @@ without registering anything.
 ### Remaining work (not started)
 
 #### Data integrity (from the code review)
-- [ ] **Retry GDELT downloads instead of aborting the run.** Why: `fetch_day` tolerates
-  only 404s, so one `ReadTimeout`/`ConnectError`/5xx in any of the 96 daily slots
-  propagates out of `run()` and the remaining days of a multi-day backfill never run; there
-  is no retry or backoff. `parse_export_zip` also raises `IndexError` on an empty archive
-  on the live path (`read_day_from_dir` catches it, `fetch_day` does not). How: bounded
-  retries with backoff around `download_export`, treat an empty/invalid zip like a 404,
-  and keep the `ingestion_run.status = failed` record for the day that really fails. Done
-  when a simulated timeout on one slot still stores the other 95.
-- [ ] **Enable WAL and a `busy_timeout` on the SQLite engine.** Why: `make_engine` sets only
-  `PRAGMA foreign_keys`; the API writes from the threadpool while the daily pipeline
-  writes through the same file, so a concurrent `PATCH` can raise `database is locked`
-  (500). `scripts/cutover-data.sh` is deliberately WAL-safe, which implies WAL was assumed
-  but never enabled. How: set `journal_mode=WAL` (and `busy_timeout`, e.g. 5000 ms) in the
-  connect listener; WAL is persistent per database file, so confirm it after the cutover.
-  Done when two writers can interleave without a lock error.
+- [x] **Retry GDELT downloads instead of aborting the run.** `GDELTClient._request` retries
+  transport errors and 408/425/429/5xx three times with exponential backoff (0.5 s
+  doubling, `sleep` injected for tests); a slot that exhausts them is skipped and named in
+  `fetch_day(failed_slots=…)`, which `run()` records as
+  `degraded_reason = "N download(s) skipped after retries"`. An empty or invalid archive
+  is now "no data" (like a 404) instead of an `IndexError` on the live path. A day where
+  no slot produced anything still raises, so the day really shows `status = failed`
+  instead of a silent zero-event success. Tests: one timeout then success (asserts the
+  backoff sleeps), 5xx then success, empty archive, 95-of-96 slots survive one dead slot,
+  all-slots-dead raises, and a `run()` test asserting the degraded reason.
+- [x] **Enable WAL and a `busy_timeout` on the SQLite engine.** `make_engine` now sets
+  `journal_mode=WAL` and `busy_timeout=5000` alongside `foreign_keys`. One non-obvious
+  detail: pysqlite already installs its own 5 s busy handler, which made the pragma look
+  decorative — a mutation test removing it still passed. The engine therefore connects
+  with `timeout=0` so the pragma is the single source of the wait, and the mutation is
+  caught. Tests: WAL + 5000 reported on connect, and two real writers where the second
+  blocks (rather than raising "database is locked") and commits once the first releases.
+  Not yet observed on the deployed file — WAL is persistent per database, so confirm with
+  `PRAGMA journal_mode` against `/data/conflicts.db` after the next deploy.
 - [ ] **Bound the grouping time window.** Why: grouping never sets `Conflict.end_date` and
   `_time_overlaps` only checks the existing span, so two events in the same 100 km and
   country merge even five years apart, resurrecting dormant theatres as active. How: cap
@@ -585,17 +613,19 @@ without registering anything.
   anchor and opens a second conflict. How: match on the stored place strings for
   anchorless conflicts, or defer anchoring to the first located event and merge the
   unplaced remainder afterwards — grouping rule, so get approval first.
-- [ ] **Clear the minor review findings.** Why: each is small but silently loses
-  information. `load_config` returns the `lru_cache`d dict itself (a caller mutating it
-  poisons every later read) and never re-reads the YAML; the engine is built at import
-  time, so `GCM_DATABASE_URL` must be set before any `app.*` import; `_apply_patch` logs
-  `None` and `""` identically, so `edit_log` cannot distinguish cleared from empty;
-  `slug_to_text` returns `""` for a URL with no slug, so the zero-shot filter drops an
-  event it has no evidence against; `regroup_all` re-links manual events that have no
-  `conflict_id` and never logs the change. How: return a copy from `load_config` (or memoise
-  on the file mtime), build the engine lazily, log a sentinel for `None`, keep slug-less
-  URLs like drafts without a URL, and skip/report manual events in `regroup_all`. Done
-  when each has a regression test.
+- [x] **Clear the minor review findings.** All five fixed, each with a regression test that
+  fails without the fix. `load_config()` returns a fresh copy of a privately cached dict,
+  so a caller mutating the result can no longer poison later reads. The engine is built
+  lazily on first `get_session()` from `database_url()` (read at call time), so
+  `GCM_DATABASE_URL` no longer has to be set before importing `app.*` — Alembic's
+  `env.py` uses the same accessor. `_apply_patch` stores SQL `NULL` for `None`, so
+  `edit_log` distinguishes "cleared" from "set to empty". `filter_by_zero_shot` keeps
+  drafts whose URL yields no slug (an empty text is no evidence either way) instead of
+  silently dropping them. `group_events` and `regroup_all` no longer claim manual events:
+  a hand-assigned `conflict_id` is a human decision, and since ids restart from 1 on
+  regroup, re-linking one would have attached it to an unrelated conflict. (The
+  "never re-reads the YAML" half is left as-is: config is read once per process by
+  design, and the web app restarts on deploy.)
 
 #### UI / product
 - [x] Marker clustering for wide time ranges (`leaflet.markercluster` 1.5.3 from unpkg).
@@ -643,19 +673,20 @@ The pipeline is in place and has run green end to end (see "Run the CI/CD pipeli
 the runner once"). These are the gaps deliberately left open. Each says what to change
 and how to know it worked.
 
-- [ ] **Gate deploys of schema changes behind review.** Why: `web` runs
-  `alembic upgrade head` on every deploy, and rollback restores the image only — an old
-  app on a new schema cannot be undone automatically. How: Settings → Environments →
-  `production` → Required reviewers (the workflow already targets that environment);
-  and/or `paths-ignore` for docs-only pushes in `deploy.yml` so a README commit does not
-  redeploy. Done when a schema-changing push waits for approval and a docs-only push
-  does not deploy.
-- [ ] **Give the config a single source, like the data dir.** Why: the deployed stack
-  mounts `config/gdelt.yaml` from the deploy checkout, so the README's "edit config and
-  restart web" only holds for a bare local stack. How: add `GCM_CONFIG_DIR` next to
-  `GCM_DATA_DIR` in `scripts/_data-dir.sh` (default `./config`), reference it in
-  `docker-compose.yml` for both services, and state that deployed config edits go
-  through git. Done when `deploy.sh` and `docker-daily.sh` mount the same file.
+- [~] **Gate deploys of schema changes behind review.** Half done, and the remaining half
+  is not a code change. The deploy job now diffs `HEAD^..HEAD` and skips the build when
+  every changed file is a `*.md` under `docs/`, `tasks/` or `.agents/`, so a README push no
+  longer force-recreates the container (`paths-ignore` cannot be used here: `workflow_run`
+  evaluates it against the CI run's event). Verified locally against a scratch repo:
+  docs-only → `deploy=false`, code → `true`, mixed → `true`, shallow clone → deploys.
+  Still open: **Approval on the `production` environment** — Settings → Environments →
+  `production` → Required reviewers. That is a repo setting with no local check, and it
+  is deliberately *after* "Run the CI/CD pipeline on the runner once", which is green.
+- [x] **Give the config a single source, like the data dir.** `scripts/_data-dir.sh` now
+  exports `GCM_CONFIG_DIR` (default `./config`) next to `GCM_DATA_DIR`, and both compose
+  services mount `$GCM_CONFIG_DIR/gdelt.yaml`. `deploy.sh` and `docker-daily.sh` already
+  source that file, so they cannot drift again; `docs/ci-cd.md` states that deployed
+  config edits go through git because the deploy checkout is wiped by `git clean -ffdx`.
 - [x] **Write and rehearse the first-deploy cutover.** `scripts/cutover-data.sh` is the
   runbook: dry-run by default, `--apply` to copy, `--force` to replace (the old target is
   renamed `.bak-<timestamp>`, nothing is deleted). Rehearsed against a synthetic schema:
@@ -704,30 +735,47 @@ and how to know it worked.
   entry outliving `$RUNNER_TEMP`, tools installed in a later step that a failure skips
   (→ install inside the venv step), and the daemon's fallback resolvers on build
   containers (→ `network: host` on every build path).
-- [ ] **Make the UI smoke data-density-independent, then gate it.** Why: with the
-  five-conflict demo seed it passes except "conflict list follows the map viewport" —
-  the preceding cluster click has already zoomed the list to one row, so narrowing is
-  unobservable. How: reset the map to world view before the viewport check (or seed a
-  fixture DB dense enough), then add a `ui` job to `ci.yml` that starts `uvicorn` on a
-  temp DB, seeds it, and runs `tests/ui/map-smoke.mjs`. Keep the seed coordinate offsets:
-  jsdom cannot render Leaflet's spiderfy for coincident points. Done when the harness is
-  green from demo data in CI.
-- [ ] **Pin `requirements.txt`, then add `pip-audit` and Dependabot for pip.** Why: CI
-  installs whatever the resolver picks, so an audit reports guesses, and
-  `.github/dependabot.yml` has no pip ecosystem for the same reason. How: `uv pip compile
-  requirements.txt -o requirements.lock` (keep torch on the CPU index), install the lock
-  in CI and the Dockerfile, add `pip-audit -r requirements.lock` to the `gates` job, and
-  re-enable the pip ecosystem weekly. Done when two consecutive CI runs install identical
-  versions and the audit runs.
-- [ ] **Notice post-deploy failure.** Why: the deploy job checks readiness once; nothing
-  watches a container that starts crash-looping an hour later. How: a systemd timer or
-  host cron that curls `/health` and a `/api/conflicts` query and logs/notifies on
-  failure (same readiness definition as `scripts/deploy.sh`). Done when a stopped
-  container is visible without inspecting `docker ps`.
+- [x] **Make the UI smoke data-density-independent.** Done, with one deliberate exception:
+  the "gate it in CI" half is **not** being done, by the later decision in `cf226c5` that
+  the UI harnesses must stay out of the gates (the runner has no npm or Chrome and may be
+  rebuilt). Changes: the viewport check always resets to world view first and reports
+  `SKIPPED` on a single-conflict fixture instead of passing on a 1 → 0 edge case; panels
+  whose population is empty (e.g. "No location" when everything is geocoded) assert the
+  *hidden* state rather than demanding rows; and a 500 from the API now says "is the
+  database migrated?" instead of failing a map assertion. Verified green against three
+  fixtures: the demo seed, a 200-conflict / 8,000-event DB of GDELT-style centroid stacks
+  (also exercises clustering through thousands of coincident points), and the real 13k-event
+  DB in the browser suite. An *empty* database still fails — there is no event to anchor
+  the time-scrub window to — so "populated fixture" remains a prerequisite, now documented.
+- [ ] **Pin `requirements.txt`, then add `pip-audit` and Dependabot for pip.** Still open —
+  this is the one dependency decision left, and it belongs to you (AGENTS.md "Ask first").
+  What the exposure actually is: the *gates* are already pinned in `requirements-ci.txt`,
+  so a new release cannot redden a green commit or make CI lie; the *runtime* is not, so
+  the image and CI can resolve different package versions on different days, and an audit
+  against unpinned requirements reports guesses. How when you decide: `uv pip compile
+  requirements.txt -o requirements.lock` with torch on the CPU index, install the lock in
+  the Dockerfile and CI, add `pip-audit -r requirements.lock` to `gates`, and re-enable
+  the pip ecosystem weekly. `dependabot.yml` now says exactly this instead of the older
+  "add pip back once pinned" note.
+- [x] **Notice post-deploy failure.** `scripts/check-health.sh` uses the same readiness
+  definition as `deploy.sh` (`/health` 200 **and** `/api/conflicts` returns a JSON array)
+  and exits non-zero with a one-line reason. `scripts/install-health-watch.sh` installs a
+  15-minute systemd timer (`--dry-run` / `--remove` supported, runs as the invoking user).
+  Verified: healthy stack → exit 0; nothing listening → exit 1 with `DOWN: …`. Adversarial
+  check that caught a false negative in the *test*, not the script: deleting the SQLite
+  *main* file while the server holds its WAL leaves reads working (all pages in the WAL),
+  so the API still answers `[]` — a real database outage that empties the file is caught,
+  a WAL-only deletion is not, and no HTTP probe can see the difference.
+- [ ] **Install the two watchers on the host.** The scripts exist but the timer and the
+  `check-pipeline.sh` cron line are host state: run `sudo ./scripts/install-health-watch.sh`
+  and add `0 8 * * * /path/to/repo/scripts/check-pipeline.sh` to the crontab. Done when a
+  stopped container and a stale pipeline each produce a non-zero exit without inspecting
+  `docker ps`.
 - [ ] **Housekeeping.** Why: image layers and buildkit cache accumulate and nothing prunes
   them. How: monthly `docker image prune -f --filter until=168h` and `docker builder
   prune -f --filter until=168h`; delete local validation artefacts (`gcm-web:ci`,
-  `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys.
+  `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys. Needs the
+  deploy host, so it waits on the same session as the watcher install above.
 
 #### Operations / data
 - [x] **Upgrade the host database past `b7da7a666155`.** Done by the container:
@@ -736,14 +784,19 @@ and how to know it worked.
   touched yet (the `web` service migrates on start).
 - [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
   backup of the current ~1.4 GB DB before any pruning or reset.
-- [ ] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
+- [x] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
   document them as pre-metadata runs. `source_day IS NULL` now also means "phase row",
   but the two are distinguishable (`phase` is null for the legacy rows), and
   `/api/pipeline-health` ignores both because it reads day rows only.
-- [ ] Mark stale `running` `ingestion_run` rows failed on startup. This matters slightly
-  more now that every invocation adds three `running` phase rows for the length of
-  `retry_stranded_raw_days`/`group_events`/`prune_raw_events`; a kill leaves them
-  `running` on purpose (it shows where the process died), but nothing ever settles them.
+- [x] Mark stale `running` `ingestion_run` rows failed. `app/ingest/audit.py` settles any
+  `running` row older than `stale_run_hours` (config, default 12) to `failed` with
+  `error = "settled as failed: the run never finished (process died or was killed)"`, and
+  `run()` calls it first — before adding rows of its own — so an eternal "running" from
+  last week stops looking like live progress. Deliberately *not* done on web-app startup:
+  the pipeline is the only writer, and a web restart would otherwise declare a live
+  backfill dead. Raise `stale_run_hours` for a backfill longer than half a day. Tests: the
+  selector touches only abandoned rows (not a live run, not a settled success), and a
+  `run()` leaves the abandoned row `failed` with that error.
 - [x] Record whether the zero-shot filter was available/used in run audit metadata:
   `ingestion_run.degraded_reason` carries `zero-shot filter unavailable (ExcType: msg);
   ran unfiltered` while the run stays `status='success'` (unfiltered events are real,
@@ -780,8 +833,62 @@ and how to know it worked.
 - [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
 ### Approval state
-Pending approvals (both are grouping-rule changes): bound the conflict time window so a
-multi-year gap starts a new conflict, and make candidate selection deterministic instead
-of rowid-ordered with `country IS NULL` matching worldwide. Also awaiting a decision on
-the residual anchorless case above. Article-title fetching is still declined; raw payload
-storage is implemented in `raw_event`.
+Pending approvals (all grouping-rule changes, so all wait on you): bound the conflict time
+window so a multi-year gap starts a new conflict, make candidate selection deterministic
+instead of rowid-ordered, and the residual anchorless case. **New evidence for the first
+two**: the Task 12 briefing run on the real DB shows the consequence in public — a
+7-day issue's top theatres were titled `## Belgium` and `## Belfast, Belfast, United
+Kingdom`, i.e. broad clusters named after a place inside them. That is what a subscriber
+would read, so grouping quality is now a content risk, not only a data-quality one.
+
+Also open for a decision: pinning the runtime dependencies (see "CI/CD follow-ups").
+Article-title fetching is still declined; raw payload storage is implemented in
+`raw_event`.
+
+## Session handoff state (Phase 5 pass)
+
+### Status
+The `pi update --extensions` run that preceded this session touched only the agent
+extensions (`pi-subagents` 0.87.0 → 0.88.0 and the `agent-skills` git checkout); nothing
+in this repo changed for it. This pass closed every `tasks/todo.md` item that is both
+in-repo and implementable without a product decision:
+
+- Data integrity: GDELT retry/backoff + slot skipping, WAL + `busy_timeout`, the five
+  minor review findings, stale `running` rows settled by the pipeline.
+- CI/CD: `GCM_CONFIG_DIR`, docs-only deploys skipped, post-deploy health watcher
+  (systemd timer + `check-health.sh`), UI smoke made fixture-density-independent, the
+  "gate the UI smoke" half explicitly declined (see `cf226c5`).
+- Phase 5: Task 12 briefing generator with 17 tests, plus `tasks/demand-test.md`.
+
+Still blocked, and why: the three grouping-rule changes (need approval), the case study
+and the eight-issue demand test (weeks of publishing, not code), the `production`
+environment approval + two host watcher installs + housekeeping (host settings), runtime
+dependency pinning (a dependency decision), and the ops-only retention/backfill choices.
+
+### Verification baseline (re-run these first)
+
+```bash
+source .venv/bin/activate
+./scripts/ci-check.sh   # tool pins, ruff, format, shellcheck, ty, pytest (142), alembic
+```
+
+Environment notes for the next session: docker cannot reach a registry from this
+container, so the shellcheck gate must run with a local v0.11.0 binary on `PATH`
+(`koalaman/shellcheck:v0.11.0` image pull fails with an auth EOF); CI itself downloads
+the pinned tarball and is unaffected. UI harnesses: `tests/ui/map-smoke.mjs` passes on
+the demo seed, on a 200-conflict centroid-stack fixture, and on the real DB; it needs a
+*populated* DB (an empty one cannot anchor its scrub window) and a server
+(`BASE_URL=http://127.0.0.1:PORT node map-smoke.mjs`).
+
+### Working tree
+Uncommitted at the time of writing, on `main`. Two sets of changes are mixed together and
+should be committed separately:
+
+1. The in-flight UI clustering work that was already dirty on entry (markercluster at
+   every zoom, spiderfy at max zoom, `browser-tests.mjs` coincident-event check, and the
+   matching `README`/`AGENTS`/`SPEC-ui`/`tests/ui/README` prose).
+2. This pass: `app/db.py`, `app/ingest/{gdelt,audit,raw_store}.py`, `app/extract/{run,
+   filter,grouping}.py`, `app/api/routes.py`, `app/config.py`, `config/gdelt.yaml`,
+   `docker-compose.yml`, `scripts/_data-dir.sh`, `scripts/briefing.py`,
+   `scripts/check-health.sh`, `scripts/install-health-watch.sh`, the workflows, tests,
+   docs and tasks.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Single definition of where the deployed stack keeps its SQLite DB and HF model
-# cache. Sourced by deploy.sh and docker-daily.sh.
+# Single definition of where the deployed stack keeps its SQLite DB, HF model
+# cache, and its config file. Sourced by deploy.sh and docker-daily.sh.
 #
 # This exists because the two did drift: the deploy job exported
 # /var/lib/global-conflict-map/db while the cron pipeline used the compose
@@ -12,6 +12,13 @@
 # up` (no GCM_DATA_DIR) still falls back to ./data/db for local use.
 : "${GCM_DATA_DIR:=/var/lib/global-conflict-map/db}"
 export GCM_DATA_DIR
+
+# Config gets the same treatment. The deploy checkout is disposable (`git clean
+# -ffdx` on the next deploy), so the file the running containers read must be
+# named in one place and edited in git — a hand edit in the checkout silently
+# disappears on the next deploy. Both services mount this directory.
+: "${GCM_CONFIG_DIR:=./config}"
+export GCM_CONFIG_DIR
 
 # Docker creates a missing bind-mount target as root, which then breaks every
 # later non-root write (backups, the pipeline, sqlite3). Create it as the

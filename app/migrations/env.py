@@ -2,7 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
-from app.db import SQLITE_URL, make_engine
+from app.db import database_url, make_engine
 from app.models import Base
 
 # this is the Alembic Config object, which provides
@@ -20,7 +20,7 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     context.configure(
-        url=SQLITE_URL,
+        url=database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -32,7 +32,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = make_engine(SQLITE_URL)
+    connectable = make_engine(database_url())
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

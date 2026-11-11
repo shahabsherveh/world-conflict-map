@@ -27,10 +27,17 @@ GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
 - Dedupe by `global_event_id` (`GLOBALEVENTID`).
 - Persist parsed rows into `raw_event` **before** extraction/filtering, then mark each row
   with its outcome once processing completes.
-- Tolerate a missing 15-min file (HTTP 404 → skip that slot); any other HTTP failure
-  propagates and fails the run loudly, because a 5xx or a timeout means the day is
-  incomplete rather than absent. Cached local files that are missing or corrupt
-  (`read_day_from_dir`) are skipped so a partial download can be retried next run.
+- Tolerate a missing 15-min file (HTTP 404 → skip that slot). Transient failures
+  (timeouts, connection errors, 408/425/429/5xx) are retried with exponential backoff
+  (3 attempts, 0.5 s doubling) and, if they persist, that slot is skipped and named in
+  `fetch_day(failed_slots=…)` — which `app.extract.run` records as
+  `degraded_reason = "N download(s) skipped after retries"`. Losing one 15-minute window
+  is a fraction of the day; aborting loses all 96 slots and every later day of a backfill.
+  A day where *no* slot produced data still raises, so the day's `ingestion_run` shows
+  `failed` rather than an empty success that looks like a frozen map. An empty or corrupt
+  archive is treated like a 404 (no data), not like an error. Cached local files that are
+  missing or corrupt (`read_day_from_dir`) are skipped so a partial download can be retried
+  next run.
 - Prune processed raw rows after `raw_retention_days` (default 30); unprocessed rows are kept.
 - This module is a library only; the runnable entrypoint is `app.extract.run`, which calls it.
 
@@ -43,6 +50,7 @@ GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
 - `app/ingest/gdelt.py` — download client (15-min stamps, zip fetch, TSV parse)
 - `app/ingest/normalizer.py` — `COLUMNS` + `parse_export_tsv` + `dedupe_new`
 - `app/ingest/raw_store.py` — raw-row persistence, pending queue, outcome marking, pruning
+- `app/ingest/audit.py` — settles `running` `ingestion_run` rows abandoned by a killed process
 - `config/gdelt.yaml`
 
 ## Code style
@@ -54,6 +62,8 @@ Conventions: CAPABILITY-MAP.md
   disk; the eval sample under `tests/fixtures/` belongs to extraction.
 - Test 15-min stamp enumeration (96 stamps, correct boundaries).
 - Test 404 skipping via a mocked transport, and missing/corrupt local files via `tmp_path`.
+- Test retry/backoff (injected `sleep`), that one exhausted slot leaves the other 95,
+  that a day with no retrievable slot raises, and that empty archives are "no data".
 - Test raw-row dedupe, pending selection, outcome marking, and retention pruning.
 
 ## Boundaries

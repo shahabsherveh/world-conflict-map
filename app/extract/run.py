@@ -18,6 +18,7 @@ from app.extract.classifier import ZeroShotConflictClassifier
 from app.extract.filter import filter_by_zero_shot
 from app.extract.gdelt_adapter import GDELTAdapter
 from app.extract.grouping import group_events
+from app.ingest.audit import settle_stale_runs
 from app.ingest.gdelt import GDELTClient, read_day_from_dir
 from app.ingest.normalizer import dedupe_new
 from app.ingest.raw_store import (
@@ -176,6 +177,13 @@ def cache_note(skipped: list[str]) -> str | None:
     return f"{len(skipped)} corrupt cached export file(s) skipped"
 
 
+def download_note(failed: list[str]) -> str | None:
+    """A day missing a few 15-minute windows is still a success — but not a silent one."""
+    if not failed:
+        return None
+    return f"{len(failed)} download(s) skipped after retries"
+
+
 @contextmanager
 def pipeline_phase(session: Session, mode: str, phase: str) -> Generator[None, None, None]:
     """Time one whole-invocation step on its own `ingestion_run` row.
@@ -291,6 +299,10 @@ def run(
     total_raw = 0
     created = 0
     try:
+        # A killed run leaves its rows `running` on purpose (see settle_stale_runs).
+        # Settle them before this invocation adds rows of its own, or an eternal
+        # "running" from last week looks like it is still progressing.
+        settle_stale_runs(session, older_than_hours=float(cfg["stale_run_hours"]))
         if not raw_only:
             with pipeline_phase(session, run_mode, "retry_stranded_raw_days"):
                 total_new += retry_stranded_raw_days(
@@ -312,12 +324,13 @@ def run(
             processed = 0
             new_count = 0
             skipped_cache: list[str] = []
+            failed_slots: list[str] = []
             try:
                 if source_dir is not None:
                     raw_events = read_day_from_dir(source_dir, target, skipped_cache)
                 else:
                     assert client is not None
-                    raw_events = client.fetch_day(target)
+                    raw_events = client.fetch_day(target, failed_slots)
 
                 raw_count = len(raw_events)
                 raw_events = dedupe_new(raw_events)
@@ -345,9 +358,12 @@ def run(
             run_record.finished_at = utcnow()
             run_record.items_seen = raw_count
             run_record.items_new = new_count
-            # The classifier note was set at creation; a partly corrupt cache is
-            # only known now, so merge rather than overwrite.
-            run_record.degraded_reason = merge_notes(degraded_reason, cache_note(skipped_cache))
+            # The classifier note was set at creation; a partly corrupt cache or a
+            # slot that never downloaded is only known now, so merge rather than
+            # overwrite.
+            run_record.degraded_reason = merge_notes(
+                degraded_reason, cache_note(skipped_cache), download_note(failed_slots)
+            )
             session.commit()
             print(
                 f"{target}: {raw_count} raw, {raw_new} new raw, "
