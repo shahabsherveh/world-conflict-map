@@ -86,8 +86,8 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 ## Testing
 
 - `tests/` mirrors modules: `test_storage`, `test_ingestion`, `test_extraction`,
-  `test_api`, `test_location`, `test_config`, `test_raw_store`, and `test_briefing`
-  (the script, not a module).
+  `test_api`, `test_location`, `test_config`, `test_raw_store`, `test_download_model`,
+  and `test_briefing` (the script, not a module).
 - Test **behaviour**, and make fixtures complete enough that a mutation is actually caught —
   a test that passes for the wrong reason is worse than none.
 - Regression tests for every bug fix (see `test_group_events_does_not_merge_distant_cities_in_one_country`).
@@ -147,7 +147,15 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 6. **Nominal `uvicorn` without `--reload` serves stale Python**; browsers cache `index.html`
    (mitigated by `no-store` middleware + `?v=N`).
 7. **The zero-shot model downloads once** via `python scripts/download_model.py`; the pipeline
-   degrades gracefully (skips the filter) if unavailable.
+   degrades gracefully (skips the filter) if unavailable. It is cached under
+   `$GCM_DATA_DIR/hf-cache` and shared by the host run and the container (`scripts/_data-dir.sh`
+   exports `HF_HOME`, the Dockerfile sets `HF_HOME=/data/hf-cache`); don't let them diverge into
+   two copies. `HF_HOME` is set by that script, not by the code — `python scripts/download_model.py`
+   or `python -m app.extract.run` run straight from a shell use `~/.cache/huggingface` instead, so
+   either source `scripts/_data-dir.sh` first or pass `HF_HOME=` explicitly; both warn on stderr
+   when the default cache is in use. On a network that can't reach `cdn-lfs.huggingface.co`, large
+   downloads stall as `*.incomplete` blobs and never finish — copy a complete cache in from another
+   machine instead and confirm with `python scripts/download_model.py --check`.
 8. **Auto-generated Alembic revisions are excluded** from ruff lint/format — don't reformat them.
    `ty check` excludes them too.
 9. **The containerized stack's data path is `GCM_DATA_DIR`, defined only in

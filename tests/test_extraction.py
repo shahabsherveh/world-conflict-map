@@ -14,6 +14,7 @@ from app.extract.classifier import (
     NOT_CONFLICT_LABEL,
     ZeroShotConflictClassifier,
     slug_to_text,
+    warn_if_model_cache_is_local,
 )
 from app.extract.filter import filter_by_zero_shot
 from app.extract.gdelt_adapter import GDELTAdapter
@@ -1245,3 +1246,17 @@ def test_group_events_picks_the_same_conflict_regardless_of_row_order() -> None:
 
     assert run(reverse=False) == set()
     assert run(reverse=True) == set()
+
+
+def test_model_cache_warning_when_hf_home_unset(monkeypatch, capsys) -> None:
+    # Running the pipeline by hand must not silently load ~/.cache while the
+    # cron/container use <GCM_DATA_DIR>/hf-cache.
+    monkeypatch.delenv("HF_HOME", raising=False)
+    warn_if_model_cache_is_local()
+    assert "HF_HOME is not set" in capsys.readouterr().err
+
+
+def test_model_cache_warning_silent_when_hf_home_set(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("HF_HOME", "/tmp/some-cache")
+    warn_if_model_cache_is_local()
+    assert capsys.readouterr().err == ""

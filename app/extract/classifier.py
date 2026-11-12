@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
@@ -10,6 +12,26 @@ CONFLICT_LABEL = "armed conflict"
 NOT_CONFLICT_LABEL = "not armed conflict"
 DEFAULT_THRESHOLD = 0.7
 DEFAULT_BATCH_SIZE = 16
+
+
+def warn_if_model_cache_is_local() -> None:
+    """Say so when the model will load from ~/.cache instead of the shared cache.
+
+    `scripts/daily.sh` sources scripts/_data-dir.sh, which exports HF_HOME to
+    <GCM_DATA_DIR>/hf-cache — the volume the container also mounts. Running
+    `python -m app.extract.run` by hand does not, so it silently loads a
+    different cache and re-downloads the ~570 MB model. HF_HOME is deliberately
+    not guessed here: the default lives in scripts/_data-dir.sh, and a second
+    copy in Python is how these two drift apart in the first place.
+    """
+    if not os.environ.get("HF_HOME"):
+        print(
+            "WARNING: HF_HOME is not set; loading the model from the default "
+            "~/.cache/huggingface. The daily pipeline and container use "
+            "<GCM_DATA_DIR>/hf-cache — source scripts/_data-dir.sh to match.",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def slug_to_text(url: str) -> str:
@@ -48,6 +70,7 @@ class ZeroShotConflictClassifier:
     def __init__(self, model: str = "cross-encoder/nli-deberta-v3-small") -> None:
         from transformers import pipeline
 
+        warn_if_model_cache_is_local()
         # Any object with the pipeline's __call__ shape counts; annotating only
         # the concrete type would make the test fakes type errors.
         self._pipeline: Any = pipeline("zero-shot-classification", model=model)

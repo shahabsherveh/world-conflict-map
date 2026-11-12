@@ -231,7 +231,13 @@ What it guarantees, each rehearsed against a synthetic DB:
 - **Non-destructive.** An existing target is renamed `conflicts.db.bak-<timestamp>`
   (`--force` required); the old database is never deleted.
 - **Cache-aware.** Copies `<source dir>/hf-cache` when present, avoiding a ~570 MB
-  re-download on the first pipeline run.
+  re-download on the first pipeline run. That is the *only* model cache both the
+  container (`HF_HOME=/data/hf-cache`) and the host pipeline use — `daily.sh`
+  sources `scripts/_data-dir.sh`, which exports `HF_HOME="$GCM_DATA_DIR/hf-cache"`.
+  If the host cannot reach `cdn-lfs.huggingface.co` (downloads stall as
+  `*.incomplete`), copy a finished cache from another machine into
+  `$GCM_DATA_DIR/hf-cache/hub/` and verify with
+  `python scripts/download_model.py --check`.
 - **Refuses unsafe runs.** Wrong-schema file, missing source, or a running container
   that mounts the target directory all abort before writing.
 

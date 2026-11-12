@@ -20,6 +20,17 @@ export GCM_DATA_DIR
 : "${GCM_CONFIG_DIR:=./config}"
 export GCM_CONFIG_DIR
 
+# HuggingFace model cache (the ~570 MB zero-shot weights). Kept under the data
+# dir so it is the *same* cache for the container (`HF_HOME=/data/hf-cache`
+# in the Dockerfile, with GCM_DATA_DIR mounted at /data) and for the host
+# pipeline. Without this, `scripts/daily.sh` used ~/.cache/huggingface while the
+# container used <data dir>/hf-cache: two copies, so a model copied in from
+# another machine had to be installed twice and looked like it kept
+# re-downloading. Override with GCM_HF_HOME or HF_HOME to keep a cache elsewhere.
+: "${GCM_HF_HOME:=${HF_HOME:-$GCM_DATA_DIR/hf-cache}}"
+export GCM_HF_HOME
+export HF_HOME="$GCM_HF_HOME"
+
 # Docker creates a missing bind-mount target as root, which then breaks every
 # later non-root write (backups, the pipeline, sqlite3). Create it as the
 # invoking user and fail with an actionable message instead.

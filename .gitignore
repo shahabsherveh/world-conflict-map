@@ -3,6 +3,11 @@ __pycache__/
 *.py[cod]
 # local data (incl. conflicts.db and raw GDELT downloads) — never commit
 *.db
+# SQLite WAL companions: a running app/pipeline creates these next to the DB, and
+# `*.db` does not match `conflicts.db-shm`. Losing them is harmless; committing
+# them is not (they hold uncheckpointed pages).
+*.db-shm
+*.db-wal
 data/
 .pytest_cache/
 .ruff_cache/
