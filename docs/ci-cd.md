@@ -407,6 +407,10 @@ by CI on push, none by the hook:
 
 ## Follow-ups (not done here)
 
+The host-only items below (daemon `dns`, the two watchers, the cutover, retention,
+pruning, and the `production` reviewers) have an ordered, copy-paste runbook with an
+expected result for each in [`host-runbook.md`](host-runbook.md).
+
 - **First hosted run.** The workflows are validated so far only by actionlint and by
   running each command locally; the first PR exercises `workflow_run`,
   `$GITHUB_PATH`, uv's interpreter cache and the deploy rollback on the real runner.

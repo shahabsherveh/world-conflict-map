@@ -51,6 +51,7 @@ python scripts/briefing.py --days 7      # Markdown digest of the DB (stdlib onl
 ./scripts/check-health.sh                # is the deployed app answering? (cron/timer)
 ./scripts/install-health-watch.sh --dry-run  # the 15-minute systemd timer that runs it
 ./scripts/install-runner.sh --url …     # register the CI runner (RUNNER_TOKEN=…)
+# host-only steps (daemon dns, watchers, cutover, retention, pruning): docs/host-runbook.md
 ./scripts/cutover-data.sh                # dry-run: move existing DB into GCM_DATA_DIR
 ./scripts/cutover-data.sh --apply        # ...and copy (WAL-safe, verified, keeps a .bak)
 python scripts/evaluate.py               # filter precision/recall (needs model)

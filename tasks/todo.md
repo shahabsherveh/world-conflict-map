@@ -692,8 +692,9 @@ and how to know it worked.
   evaluates it against the CI run's event). Verified locally against a scratch repo:
   docs-only → `deploy=false`, code → `true`, mixed → `true`, shallow clone → deploys.
   Still open: **Approval on the `production` environment** — Settings → Environments →
-  `production` → Required reviewers. That is a repo setting with no local check, and it
-  is deliberately *after* "Run the CI/CD pipeline on the runner once", which is green.
+  `production` → Required reviewers (`docs/host-runbook.md` §6). That is a repo setting
+  with no local check, and it is deliberately *after* "Run the CI/CD pipeline on the
+  runner once", which is green.
 - [x] **Give the config a single source, like the data dir.** `scripts/_data-dir.sh` now
   exports `GCM_CONFIG_DIR` (default `./config`) next to `GCM_DATA_DIR`, and both compose
   services mount `$GCM_CONFIG_DIR/gdelt.yaml`. `deploy.sh` and `docker-daily.sh` already
@@ -709,7 +710,7 @@ and how to know it worked.
   chowns the result; `hf-cache` is copied when present. Still a human step on the real
   host: `docker compose -p workspace down`, then
   `./scripts/cutover-data.sh --apply --owner "$USER"`, then confirm `/api/conflicts`
-  returns the counted rows.
+  returns the counted rows (`docs/host-runbook.md` §3).
 - [x] **Venv was created but empty.** `Verify tools resolve` failed with "no ruff
   in .../.venv" seconds after uv exited 0. Cause: tool installation lived in the
   *next* step, and GitHub skips every later step once one has failed, so the check
@@ -729,9 +730,9 @@ and how to know it worked.
   with an explicit `--network=host` fallback in deploy.sh. Verified: a fresh
   `docker compose build web` succeeds, and a control compose build *without* the key
   fails in ~12s on this host; a full `./scripts/deploy.sh` run reports ready.
-- [ ] **Set `"dns"` in the deploy host's `daemon.json`.** The `--network=host` build flag
-  is a workaround for CI only: `docker compose run pipeline` (model download) and the
-  deploy container also get the broken resolver defaults.
+- [ ] **Set `"dns"` in the deploy host's `daemon.json`** (`docs/host-runbook.md` §1). The
+  `--network=host` build flag is a workaround for CI only: `docker compose run pipeline`
+  (model download) and the deploy container also get the broken resolver defaults.
 - [x] **Get the Shellcheck step's actual output.** No longer needed: the step passes
   now that the tools are installed by the venv action before any gate runs, and the
   shellcheck download publishes `SHELLCHECK_BIN` by absolute path. The earlier
@@ -788,24 +789,27 @@ and how to know it worked.
   *main* file while the server holds its WAL leaves reads working (all pages in the WAL),
   so the API still answers `[]` — a real database outage that empties the file is caught,
   a WAL-only deletion is not, and no HTTP probe can see the difference.
-- [ ] **Install the two watchers on the host.** The scripts exist but the timer and the
-  `check-pipeline.sh` cron line are host state: run `sudo ./scripts/install-health-watch.sh`
-  and add `0 8 * * * /path/to/repo/scripts/check-pipeline.sh` to the crontab. Done when a
-  stopped container and a stale pipeline each produce a non-zero exit without inspecting
+- [ ] **Install the two watchers on the host** (`docs/host-runbook.md` §5). The scripts
+  exist but the timer and the `check-pipeline.sh` cron line are host state: run
+  `sudo ./scripts/install-health-watch.sh` and add
+  `0 8 * * * /path/to/repo/scripts/check-pipeline.sh` to the crontab. Done when a stopped
+  container and a stale pipeline each produce a non-zero exit without inspecting
   `docker ps`.
-- [ ] **Housekeeping.** Why: image layers and buildkit cache accumulate and nothing prunes
-  them. How: monthly `docker image prune -f --filter until=168h` and `docker builder
-  prune -f --filter until=168h`; delete local validation artefacts (`gcm-web:ci`,
-  `rhysd/actionlint`) if unused. Done when disk usage is stable across deploys. Needs the
-  deploy host, so it waits on the same session as the watcher install above.
+- [ ] **Housekeeping** (`docs/host-runbook.md` §8). Why: image layers and buildkit cache
+  accumulate and nothing prunes them. How: monthly `docker image prune -f --filter
+  until=168h` and `docker builder prune -f --filter until=168h`; delete local validation
+  artefacts (`gcm-web:ci`, `rhysd/actionlint`) if unused. Done when disk usage is stable
+  across deploys. Needs the deploy host, so it waits on the same session as the watcher
+  install above.
 
 #### Operations / data
 - [x] **Upgrade the host database past `b7da7a666155`.** Done by the container:
   `docker compose exec web alembic current` reports `3eaf800e3086 (head)`. A *host*
   run still has to migrate first if it is pointed at a database the container has not
   touched yet (the `web` service migrates on start).
-- [ ] Decide raw retention: keep the 30-day default or set `raw_retention_days: 0`; take a
-  backup of the current ~1.4 GB DB before any pruning or reset.
+- [ ] Decide raw retention (`docs/host-runbook.md` §7): keep the 30-day default or set
+  `raw_retention_days: 0`; take a backup of the current ~1.4 GB DB before any pruning or
+  reset.
 - [x] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
   document them as pre-metadata runs. `source_day IS NULL` now also means "phase row",
   but the two are distinguishable (`phase` is null for the legacy rows), and
@@ -847,7 +851,7 @@ and how to know it worked.
 
 #### Optional
 - [x] Use `num_sources` from `raw_event` for corroboration — moved to Task 10 (Phase 5).
-- [ ] Backfill more history beyond 2026-10-29..2026-11-04.
+- [ ] Backfill more history beyond 2026-10-29..2026-11-04 (`docs/host-runbook.md` §9).
 - [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
 - [x] Add CI/CD — see `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, and
   `docs/ci-cd.md`. Remaining dependency work is tracked under "CI/CD follow-ups".
