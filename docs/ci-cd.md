@@ -56,10 +56,18 @@ push / PR
 No gate can be skipped. A red gate is fixed, not silenced: no `# noqa` without a
 reason in the comment, no `skip`ped test, no relaxed formatter.
 
-The tools that decide pass/fail (`ruff`, `ty`, `pymarkdown`) are pinned in
-`requirements-ci.txt`, because an unpinned upgrade could turn a green branch red
-without a commit touching it. `scripts/ci-check.sh` fails if the local versions drift
-from that file, so a local pass means a pipeline pass.
+The tools that decide pass/fail (`pytest`, `ruff`, `ty`, `pymarkdown`, `pip-audit`)
+are pinned in `requirements-ci.txt`, because an unpinned upgrade could turn a green
+branch red without a commit touching it. `scripts/ci-check.sh` fails if the local
+versions drift from that file, so a local pass means a pipeline pass.
+
+The *runtime* is pinned separately, in `requirements.lock`: a hashed
+`uv pip compile` of `requirements.txt` that the Dockerfile and CI both install, so the
+image and the gates resolve the same versions on any day. The lock names PyTorch's CPU
+index in the file itself (`torch==…+cpu` exists only there), which is what keeps the
+multi-GB CUDA wheel out of a CPU-only image. Edit `requirements.txt` and run
+`scripts/lock-deps.sh`; `tests/test_lockfile.py` checks offline that the lock stays
+pinned, hashed, complete, and consistent with those requirements.
 
 ### Why these and not more
 
@@ -124,8 +132,12 @@ from that file, so a local pass means a pipeline pass.
   `pyproject.toml`: the docs' valid GFM style (a heading or bold label immediately
   followed by a list, compact `|---|` tables) would otherwise need a mass reformat
   that changes no rendered output.
-- **No `pip-audit` yet.** `requirements.txt` is unpinned, so an audit reports the
-  resolver's current guesses, not what the image ships. Pin first (see Follow-ups).
+- **The dependency audit inspects the installed venv, not the lock file.**
+  `pip-audit -r requirements.lock` re-resolves and hash-verifies every wheel, which took
+  ten minutes here; CI has just installed that same lock, so auditing the venv is both
+  equivalent and seconds. torch's `+cpu` build has no PyPI release to map to, so
+  pip-audit lists it as skipped — `scripts/check-deps.sh` accepts exactly that one skip
+  and fails on any other, so an unaudited dependency cannot pass silently.
 - **The UI harnesses are not gates.** `map-smoke.mjs` needs a running server with a
   *populated* DB (any density works; an empty one cannot anchor its time-scrub window)
   and npm to install jsdom.
@@ -399,13 +411,13 @@ by CI on push, none by the hook:
   running each command locally; the first PR exercises `workflow_run`,
   `$GITHUB_PATH`, uv's interpreter cache and the deploy rollback on the real runner.
   Keep the `production` environment ungated until that passes.
-- **Pin the runtime dependencies (needs a decision).** `requirements.txt` is still
-  unpinned, so the image and CI install whatever the resolver picks that day. The gate
-  tools are pinned in `requirements-ci.txt`, which is what protects a green commit from
-  being reddened by a release; the runtime is not. Fixing that means committing a
-  lock file and installing from it in the Dockerfile — a dependency decision, so it is
-  deliberately left open. Until then there is no `pip-audit` gate and no pip ecosystem
-  in `dependabot.yml`: an audit against unpinned requirements reports guesses.
+- **Runtime dependencies are locked; keep the lock in the same PR.** Dependabot's pip
+  ecosystem bumps the constraints in `requirements.txt`, and the lock must be
+  regenerated with `scripts/lock-deps.sh` in that PR. `tests/test_lockfile.py` fails
+  when a pinned requirement is not satisfied by the lock, so forgetting is a red
+  build rather than an image that silently keeps the old version. `pip-audit` cannot
+  audit torch (see "Why these and not more"), so torch advisories are watched by
+  reading them, not by the gate.
 - **The UI harnesses stay out of CI by decision.** `map-smoke.mjs` now tolerates any
   populated fixture (dense, demo, or the real DB) and reports `SKIPPED` where a fixture
   cannot demonstrate a check, so its data-density caveat is gone. It is still not a

@@ -85,19 +85,17 @@ runs:
         REQUIREMENTS: ${{ inputs.requirements }}
       run: |
         set -euo pipefail
-        # The CPU index and the torch strip keep this identical to the
-        # Dockerfile: the bare `torch` requirement would otherwise pull the
-        # multi-GB CUDA wheel.
+        # requirements.lock names the PyTorch CPU index in the file itself and pins
+        # every version with a hash, so this installs exactly what the Dockerfile
+        # does. uv needs `unsafe-best-match` because its default strategy stops at
+        # the first index that carries a package, and the CPU index mirrors torch's
+        # dependencies at older versions; the hashes still pin the artifacts, so
+        # merging indexes cannot change what is installed.
         for spec in $REQUIREMENTS; do
           case "$spec" in
-            torch)
-              "$UV_BIN" pip install --python "$VENV/bin/python" torch \
-                --index-url https://download.pytorch.org/whl/cpu
-              ;;
-            requirements.txt)
-              grep -v '^torch' requirements.txt > "$RUNNER_TEMP/requirements-no-torch.txt"
+            requirements.lock)
               "$UV_BIN" pip install --python "$VENV/bin/python" \
-                -r "$RUNNER_TEMP/requirements-no-torch.txt"
+                --index-strategy unsafe-best-match -r "$spec"
               ;;
             *)
               "$UV_BIN" pip install --python "$VENV/bin/python" -r "$spec"

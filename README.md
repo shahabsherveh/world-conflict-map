@@ -28,13 +28,14 @@ cd global-conflict-map
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install CPU-only torch first: a single `pip install -r requirements.txt` resolves
-# torch from PyPI and pulls the multi-GB CUDA build on a CPU-only app. The Dockerfile
-# and CI install the CPU wheel first for the same reason.
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements.txt
+# One command: requirements.lock pins every runtime dependency (with hashes) and
+# carries the PyTorch CPU index, so torch resolves to the +cpu wheel, never the
+# multi-GB CUDA build. Edit requirements.txt and run scripts/lock-deps.sh to
+# change a dependency.
+pip install -r requirements.lock
 
-# Contributors only: the pinned ruff, ty, pymarkdown that ./scripts/ci-check.sh expects.
+# Contributors only: the pinned pytest, ruff, ty, pymarkdown and pip-audit that
+# ./scripts/ci-check.sh expects.
 pip install -r requirements-ci.txt
 
 alembic upgrade head

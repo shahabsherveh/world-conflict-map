@@ -16,9 +16,24 @@ updates:
     commit-message:
       prefix: "ui-test"
 
-  # Python dependencies are not listed here on purpose: requirements.txt is
-  # unpinned, so pip updates have nothing to bump. The runtime is the image's
-  # business (`requirements.txt` is installed by the Dockerfile), and the tools a
-  # gate depends on are pinned by hand in requirements-ci.txt so a release cannot
-  # redden a green commit. Revisit only if the runtime gets a real lock file
-  # (docs/ci-cd.md, "Follow-ups").
+  # Python dependencies. requirements.lock is generated (scripts/lock-deps.sh),
+  # so Dependabot bumps the human-editable constraints in requirements.txt; the
+  # lock must be regenerated in the same PR. Forgetting that does not pass
+  # silently: tests/test_lockfile.py fails when a pinned requirement is not
+  # satisfied by the lock.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    # The gate tools are pinned by hand (requirements-ci.txt) together with the
+    # local venv and uv.lock's ty pin, so a bot PR cannot leave the two out of
+    # step: bumping one of these means reinstalling the venv in the same change.
+    ignore:
+      - dependency-name: pytest
+      - dependency-name: ruff
+      - dependency-name: ty
+      - dependency-name: pymarkdownlnt
+      - dependency-name: pip-audit

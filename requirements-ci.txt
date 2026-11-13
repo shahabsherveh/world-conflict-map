@@ -8,3 +8,6 @@ ruff==0.17.4
 ty==0.0.99
 # Distribution name; the CLI is `pymarkdown`. Config lives in pyproject.toml.
 pymarkdownlnt==0.9.41
+# Dependency audit (scripts/check-deps.sh). Its findings depend on the advisory
+# database, so a release of this tool cannot change what the other gates report.
+pip-audit==2.10.1

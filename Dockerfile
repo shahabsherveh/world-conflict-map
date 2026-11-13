@@ -17,13 +17,12 @@ WORKDIR /app
 # bundles its own libgomp.so.1 (OpenMP), so `import torch` works on slim images
 # without installing libgomp1 — verified with a bare python:3.12-slim.
 
-# Install torch CPU-only first. requirements.txt lists bare `torch`, so strip
-# that line for the second install — otherwise pip "upgrades" to the multi-GB
-# CUDA wheel from PyPI.
-COPY requirements.txt ./
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
-    && grep -v '^torch' requirements.txt > requirements-no-torch.txt \
-    && pip install --no-cache-dir -r requirements-no-torch.txt \
-    && rm requirements-no-torch.txt
+# One install from the lock: every version and hash is fixed, and the file names
+# the PyTorch CPU index so torch resolves to the `+cpu` wheel rather than the
+# multi-GB CUDA build. Hashes mean pip rejects an unexpected artifact.
+# requirements-ci.txt (pytest, ruff, ty, pymarkdown, pip-audit) is deliberately
+# absent: those belong to the gates, not the runtime image.
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
 
 COPY . .

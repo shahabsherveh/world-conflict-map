@@ -25,9 +25,11 @@ Diagrams of these boundaries, the daily pipeline, and the schema live in
 
 ### Commands
 - Setup: `python -m venv .venv && . .venv/bin/activate`
-- Install (CPU torch first; a plain requirements install pulls the multi-GB CUDA build):
-  `pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements.txt`
-- Gate tools (contributors): `pip install -r requirements-ci.txt` (pinned ruff, ty, pymarkdown)
+- Install: `pip install -r requirements.lock` (pinned with hashes; the file names
+  PyTorch's CPU index, so torch is the `+cpu` wheel rather than the CUDA build).
+  Change a dependency in `requirements.txt`, then run `scripts/lock-deps.sh`.
+- Gate tools (contributors): `pip install -r requirements-ci.txt` (pinned pytest, ruff,
+  ty, pymarkdown, pip-audit)
 - Migrate: `alembic upgrade head`
 - Model (once): `python scripts/download_model.py` (~570 MB; the pipeline warns and
   skips the filter if it is unavailable)

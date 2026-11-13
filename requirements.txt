@@ -1,3 +1,14 @@
+# Runtime dependencies, installed by the Dockerfile and CI from requirements.lock
+# (regenerate with `scripts/lock-deps.sh` after editing this file).
+#
+# Pin only where the choice is load-bearing. `torch` is pinned to the *base*
+# version so a compile cannot silently pick a newer CUDA build from PyPI; the
+# lock records the `+cpu` local version, which exists only on the PyTorch CPU
+# index. `2.15.0+cpu` already installed satisfies `==2.15.0`, so `pip install -r
+# requirements.txt` after the README's CPU-torch step does not pull CUDA.
+#
+# Gate tools (pytest, ruff, ty, pymarkdown, pip-audit) live in
+# requirements-ci.txt: they decide pass/fail and are pinned there by hand.
 fastapi
 uvicorn[standard]
 sqlalchemy
@@ -5,8 +16,6 @@ alembic
 httpx
 pydantic
 pyyaml
-pytest
-ruff
-torch
+torch==2.15.0
 transformers
 huggingface_hub

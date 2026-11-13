@@ -16,7 +16,8 @@ daily from news data. Read this file before working in the repo.
 
 ```bash
 source .venv/bin/activate
-pip install -r requirements-ci.txt       # pinned ruff, ty, pymarkdown the gates expect
+pip install -r requirements.lock         # runtime, pinned + hashed (torch is the +cpu wheel)
+pip install -r requirements-ci.txt       # pinned pytest, ruff, ty, pymarkdown, pip-audit
 
 pytest                                   # full suite
 pytest tests/test_api.py -k conflicts    # focused
@@ -27,6 +28,8 @@ pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks  # markdown
 ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
 ./scripts/install-hooks.sh               # run those gates as a pre-commit hook
+./scripts/lock-deps.sh                    # regenerate requirements.lock after editing requirements.txt
+./scripts/check-deps.sh                   # pip-audit the installed runtime (needs network)
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 cd tests/ui && node browser-tests.mjs    # real Chrome over CDP (needs Chrome on :9222 + serve)

@@ -58,7 +58,9 @@ jobs:
           # the tool check below would run against an empty venv (which is
           # exactly how this failed: "no ruff in .../.venv", seconds after uv
           # reported success).
-          requirements: torch requirements.txt requirements-ci.txt
+          # The runtime comes from the lock (what the image installs); the gates
+          # add pytest/ruff/ty/pymarkdown/pip-audit from requirements-ci.txt.
+          requirements: requirements.lock requirements-ci.txt
 
       # Shell scripts are load-bearing (deploy/rollback, cutover, cron) and
       # actionlint only checks the `run:` blocks inside workflows. Version and
@@ -114,6 +116,12 @@ jobs:
 
       - name: Tests
         run: '"$GITHUB_WORKSPACE/.venv/bin/pytest" -q'
+
+      # Runtime packages come from requirements.lock; this checks the installed
+      # set against the advisory database. One script so CI and ci-check cannot
+      # drift, and so "torch cannot be audited" stays an explicit, named skip.
+      - name: Dependency audit
+        run: ./scripts/check-deps.sh
 
       # A fresh DB from migrations catches a revision that does not apply in
       # order; the drift check catches a model change with no migration.

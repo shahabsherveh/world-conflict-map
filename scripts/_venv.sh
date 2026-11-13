@@ -16,7 +16,7 @@ export GCM_VENV
 gcm_venv_python() {
   if [ ! -x "$GCM_VENV/bin/python" ]; then
     printf '[venv] no interpreter at %s\n' "$GCM_VENV" >&2
-    printf '[venv] create it: python3 -m venv %s && %s/bin/pip install -r %s/requirements.txt -r %s/requirements-ci.txt\n' \
+    printf '[venv] create it: python3 -m venv %s && %s/bin/pip install -r %s/requirements.lock -r %s/requirements-ci.txt\n' \
       "$GCM_VENV" "$GCM_VENV" "$gcm_repo_root" "$gcm_repo_root" >&2
     return 1
   fi
@@ -27,7 +27,7 @@ gcm_venv_python() {
 gcm_venv_tool() {
   local tool="$1"
   if [ ! -x "$GCM_VENV/bin/$tool" ]; then
-    printf '[venv] %s not installed in %s — install requirements.txt and requirements-ci.txt\n' \
+    printf '[venv] %s not installed in %s — install requirements.lock and requirements-ci.txt\n' \
       "$tool" "$GCM_VENV" >&2
     return 1
   fi

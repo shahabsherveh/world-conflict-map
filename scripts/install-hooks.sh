@@ -19,12 +19,12 @@ if ! gcm_venv_python >/dev/null; then
 fi
 
 missing=()
-for tool in ruff ty pymarkdown pytest alembic; do
+for tool in ruff ty pymarkdown pytest alembic pip-audit; do
   gcm_venv_tool "$tool" >/dev/null || missing+=("$tool")
 done
 if [ "${#missing[@]}" -gt 0 ]; then
   printf '[hooks] %s missing from %s\n' "${missing[*]}" "$GCM_VENV" >&2
-  printf '[hooks] fix: %s/bin/pip install -r %s/requirements.txt -r %s/requirements-ci.txt\n' \
+  printf '[hooks] fix: %s/bin/pip install -r %s/requirements.lock -r %s/requirements-ci.txt\n' \
     "$GCM_VENV" "$repo_root" "$repo_root" >&2
   exit 1
 fi

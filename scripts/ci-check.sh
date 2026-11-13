@@ -99,6 +99,12 @@ step "ty check"
 step "pytest"
 "$(gcm_venv_tool pytest)" -q
 
+# Last, because it is the only gate that needs the network (PyPI + OSV). A
+# failure here is either a real advisory or an unreachable database; the script
+# prints which, and never reports a clean run it could not verify.
+step "dependency audit"
+./scripts/check-deps.sh
+
 step "alembic: fresh upgrade + model drift"
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
