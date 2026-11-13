@@ -1165,6 +1165,95 @@ def test_group_events_keeps_placeless_events_apart() -> None:
     assert not any(_same_place(c, e) for c, e in hosted)
 
 
+def test_group_events_matches_anchorless_conflict_by_stored_places_not_its_name() -> None:
+    """Regression: a renamed conflict could never collect another event.
+
+    The no-coordinate fallback compared the event's city with `Conflict.name`,
+    documented as "the place string of the conflict's first event". A manual rename
+    breaks that (the UI supports renaming), and while the conflict has no anchor there
+    is no distance to measure, so the next event in the same theatre opened a second
+    conflict instead of joining it.
+    """
+    session = make_session()
+    session.add(_ev("a", "SY", "Aleppo, Aleppo, Syria", None, None, 10))
+    session.commit()
+    assert group_events(session) == 1
+
+    conflict = session.scalars(select(Conflict)).one()
+    conflict.name = "Battle of Aleppo"  # what a PATCH does to the record
+    session.commit()
+
+    # Same place, now geolocated: joins by the stored place string, and gives the
+    # conflict the anchor it never had.
+    session.add(_ev("b", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 12))
+    session.commit()
+    assert group_events(session) == 0
+    session.commit()
+    assert session.query(Conflict).count() == 1
+    assert {e.source_event_id for e in conflict.events} == {"a", "b"}
+
+    # The anchor really is set: a differently named town ~46 km away now joins by
+    # distance, which the name comparison could never do.
+    session.add(_ev("c", "SY", "Azaz, Aleppo, Syria", 36.58, 37.05, 14))
+    session.commit()
+    assert group_events(session) == 0
+    session.commit()
+    assert session.query(Conflict).count() == 1
+
+
+def test_group_events_keeps_an_anchorless_conflict_to_its_own_place() -> None:
+    """No anchor means no distance to measure, so a different city still splits.
+
+    Mutation guard: the fallback is a place comparison, not "same country, therefore
+    same conflict". Dropping it on the anchorless path would reinstate exactly the
+    country-level merging that the 100 km rule replaced.
+    """
+    session = make_session()
+    session.add_all(
+        [
+            _ev("a", "SY", "Homs, Homs, Syria", None, None, 10),
+            _ev("b", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 12),
+        ]
+    )
+    session.commit()
+
+    assert group_events(session) == 2
+    session.commit()
+    assert session.query(Conflict).count() == 2
+    assert session.scalars(select(Conflict)).all()[0].name == "Homs, Homs, Syria"
+
+
+def test_group_events_ungeocoded_event_sees_places_linked_earlier_in_the_run() -> None:
+    """The fallback must see a place linked earlier in this same run.
+
+    The session runs with autoflush off, so a just-linked event is not in the database
+    when the fallback reads the conflict's place strings. Without updating the cache as
+    events are linked, an ungeocoded event in a newly active town opened a second
+    conflict even though the event that introduced the town was a few rows earlier.
+    """
+    session = make_session()
+    session.add(_ev("a", "SY", "Aleppo, Aleppo, Syria", 36.20, 37.13, 10))
+    session.commit()
+    assert group_events(session) == 1
+
+    session.add_all(
+        [
+            # ~46 km away: joins the anchored conflict by distance and adds "azaz"
+            # to its known places.
+            _ev("b", "SY", "Azaz, Aleppo, Syria", 36.58, 37.05, 12),
+            # Same town, this time ungeocoded: only the cache knows about "azaz".
+            _ev("c", "SY", "Azaz, Aleppo, Syria", None, None, 13),
+        ]
+    )
+    session.commit()
+
+    assert group_events(session) == 0
+    session.commit()
+    assert session.query(Conflict).count() == 1
+    conflict = session.scalars(select(Conflict)).one()
+    assert {e.source_event_id for e in conflict.events} == {"a", "b", "c"}
+
+
 def test_group_events_keeps_unlocated_events_apart_from_located_conflicts() -> None:
     """An unlocated event must not join a conflict that has coordinates.
 

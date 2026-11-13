@@ -143,6 +143,9 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    It is now proximity-based (100 km anchor + a 14-day gap window). Do not reintroduce
    keyword matching. The window is a *gap since the last event*, not a total duration, and
    an explicit `end_date` overrides it — see `docs/SPEC-extraction.md#grouping-rule`.
+   The no-coordinate fallback compares place strings of the conflict's *events*, not
+   `Conflict.name` (a human can rename it), and it never compares names when the presence
+   of any stored place makes distance the only honest test.
 5. **N+1 is easy to reintroduce** in `list_conflicts`; the query-count test enforces ≤5.
 6. **Nominal `uvicorn` without `--reload` serves stale Python**; browsers cache `index.html`
    (mitigated by `no-store` middleware + `?v=N`).

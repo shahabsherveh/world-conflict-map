@@ -90,9 +90,18 @@ for 63 of 1,443 conflicts on the first real DB). It is a *gap*, not a duration, 
 event every 10 days chains indefinitely.
 
 Events with no coordinates fall back to comparing the first component of the place
-string. That is real evidence when the conflict is named after its first event's place,
-and it matches nothing for a placeless event (`city_of(None)` is `None`), so the
-unlocated tail stays one conflict per event rather than collapsing into one.
+string (GDELT's `City, Admin1, Country`). The comparison is against the cities named by
+the conflict's *events*, not against `Conflict.name`: the name is editable, and a
+renamed conflict became unmatchable — with no anchor there is no distance to measure, so
+the next event opened a second conflict for the same theatre. A conflict with no stored
+place strings (seeded or manually created) still compares its name, the only evidence it
+has. Place evidence is updated as events link, so the fallback also sees a town
+introduced earlier in the same run (the session runs with `autoflush` off).
+
+The fallback matches nothing for a placeless event (`city_of(None)` is `None`), so the
+unlocated tail stays one conflict per event rather than collapsing into one. It also
+splits on a *different* city: without an anchor nothing can measure the distance, so a
+name is evidence of the same theatre only when it is the same name.
 
 Candidate selection is ordered by `(start_date, id)`. Without an `ORDER BY` the winner
 was whatever rowid order returned, so identical data grouped differently after a

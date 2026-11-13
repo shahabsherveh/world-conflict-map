@@ -93,6 +93,7 @@ def _matches(
     cache: dict[int, tuple[float, float] | None],
     gap_days: int,
     last_dates: dict[int, date],
+    places: dict[int, set[str]],
 ) -> bool:
     # `is not` distinguishes two absent countries from a pair that matches. Written
     # as `!=` this was always false for NULL: `NULL = NULL` is NULL, never true, so
@@ -111,23 +112,67 @@ def _matches(
 
     if event.lat is None or event.lon is None:
         # No coordinates: fall back to the city name so the event is still grouped.
-        return _same_place(conflict, event)
+        return _place_matches(session, conflict, event, places)
 
     anchor = _anchor(session, conflict, cache)
     if anchor is None:
-        return _same_place(conflict, event)
+        return _place_matches(session, conflict, event, places)
     return haversine_km(event.lat, event.lon, anchor[0], anchor[1]) <= radius_km
 
 
 def _same_place(conflict: Conflict, event: ConflictEvent) -> bool:
-    """Fallback for a pair where at least one side has no coordinates.
+    """Name-only fallback, for a conflict that has no stored place strings.
 
-    The conflict name still holds the place string of its first event, so for a
-    conflict whose events were never geocoded that is real evidence. An event with no
-    place string yields None and matches nothing, which is what keeps the unlocated
-    tail (495 single-event conflicts on the real DB) from collapsing into one.
+    Used for a seeded or manually created conflict, which has no events to name a
+    place: its free-text name is then the only evidence there is. A conflict built
+    from events goes through `_place_matches` instead, because `Conflict.name` is
+    editable and must not steer grouping once a human has renamed it.
     """
     return city_of(conflict.name) == city_of(event.place_name)
+
+
+def _stored_cities(session: Session, conflict: Conflict, cache: dict[int, set[str]]) -> set[str]:
+    """Cities named by the conflict's stored events, cached per conflict.
+
+    Cached because the fallback runs for every candidate of every ungeocoded event,
+    and a conflict's place strings do not change during one grouping pass.
+    """
+    if conflict.id in cache:
+        return cache[conflict.id]
+    cities: set[str] = set()
+    stmt = select(ConflictEvent.place_name).where(ConflictEvent.conflict_id == conflict.id)
+    for (place_name,) in session.execute(stmt):
+        city = city_of(place_name)
+        if city is not None:
+            cities.add(city)
+    cache[conflict.id] = cities
+    return cities
+
+
+def _place_matches(
+    session: Session, conflict: Conflict, event: ConflictEvent, cache: dict[int, set[str]]
+) -> bool:
+    """Fallback for a pair where at least one side has no coordinates.
+
+    Compares the event's city with the cities the conflict's *events* name, not with
+    `Conflict.name`. The name was the first event's place string, which held until a
+    human renamed the conflict (the UI supports that) or the first event was
+    placeless: while the conflict has no anchor there is no distance to measure, so a
+    renamed conflict could never collect another event and split into a second
+    conflict for the same theatre.
+
+    A conflict with no stored place strings is seeded or manual, and falls back to
+    its name. An event with no place string yields None and matches nothing, which is
+    what keeps the unlocated tail (495 single-event conflicts on the real DB) from
+    collapsing into one.
+    """
+    city = city_of(event.place_name)
+    if city is None:
+        return False
+    stored = _stored_cities(session, conflict, cache)
+    if stored:
+        return city in stored
+    return _same_place(conflict, event)
 
 
 def _country_matches(country: str | None):
@@ -186,6 +231,7 @@ def group_events(
     created = 0
     anchors: dict[int, tuple[float, float] | None] = {}
     last_dates = _last_event_dates(session)
+    places: dict[int, set[str]] = {}
     for event in unlinked:
         match = next(
             (
@@ -199,7 +245,9 @@ def group_events(
                     # a new event with the theatre that has been running longest.
                     .order_by(Conflict.start_date, Conflict.id)
                 )
-                if _matches(session, event, conflict, radius_km, anchors, gap_days, last_dates)
+                if _matches(
+                    session, event, conflict, radius_km, anchors, gap_days, last_dates, places
+                )
             ),
             None,
         )
@@ -221,7 +269,17 @@ def group_events(
             anchors[match.id] = (
                 (event.lat, event.lon) if event.lat is not None and event.lon is not None else None
             )
+            # The new event is pending too (autoflush off), so its place is only in
+            # the cache if it is seeded here; `_stored_cities` cannot read it back.
+            places[match.id] = {city} if (city := city_of(event.place_name)) else set()
         event.conflict_id = match.id
+        # Keep the place evidence in step with what was just linked, for the same
+        # reason as above: a later ungeocoded event in this run must see it.
+        city = city_of(event.place_name)
+        if city is not None:
+            if match.id not in places:
+                _stored_cities(session, match, places)
+            places[match.id].add(city)
         # Keep the window in step with what was just added, so a later event in this
         # same loop measures its gap from this one rather than from an older query.
         if event.event_date > last_dates.get(match.id, match.start_date):

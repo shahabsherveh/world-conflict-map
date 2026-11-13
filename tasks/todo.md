@@ -608,12 +608,20 @@ without registering anything.
   country matches only another absent country rather than every null-country conflict
   (`test_group_events_links_events_that_have_no_country`, which deliberately gives the
   two events different place strings so the city fallback cannot mask the country path).
-- [ ] **Residual anchorless case in grouping.** Why: fixing the never-upgraded anchor still
-  leaves one gap — when the *first* geolocated event in a theatre has a different city name
-  than the conflict's oldest (ungeocoded) event, it cannot be measured against a missing
-  anchor and opens a second conflict. How: match on the stored place strings for
-  anchorless conflicts, or defer anchoring to the first located event and merge the
-  unplaced remainder afterwards — grouping rule, so get approval first.
+- [x] **Residual anchorless case in grouping.** Fixed: the no-coordinate fallback now
+  compares the event's city with the cities named by the conflict's **events** (cached
+  per conflict, updated as events link) instead of with `Conflict.name`. The name is
+  editable, so a manual rename made an anchorless conflict unmatchable and the next
+  event opened a second conflict for the same theatre; with `autoflush` off, a town
+  introduced earlier in the same run was also invisible to the fallback. A conflict with
+  no stored places (seeded/manual) still compares its name; a *different* city still
+  splits, because without an anchor there is no distance to measure. Tests:
+  `test_group_events_matches_anchorless_conflict_by_stored_places_not_its_name`,
+  `..._ungeocoded_event_sees_places_linked_earlier_in_the_run`,
+  and `..._keeps_an_anchorless_conflict_to_its_own_place` as the must-still-split guard.
+  Mutation-checked: reverting to the name-only comparison failed 2 tests, returning
+  `True` for any stored place failed the split test, and dropping the cache update on
+  link failed the same-run test.
 - [x] **Clear the minor review findings.** All five fixed, each with a regression test that
   fails without the fix. `load_config()` returns a fresh copy of a privately cached dict,
   so a caller mutating the result can no longer poison later reads. The engine is built
@@ -834,14 +842,12 @@ and how to know it worked.
 - [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
 ### Approval state
-Pending approval (a grouping-rule change): the residual anchorless case — the first
-geolocated event in a theatre with a different city name than the conflict's oldest
-(ungeocoded) event cannot be measured against a missing anchor and opens a second
-conflict. The other two grouping items (bounded time window, deterministic candidate
-selection) shipped in `43d4a89` and are no longer waiting on you. **Evidence that
-remains**: the Task 12 briefing run showed broad clusters titled `## Belgium` and
-`## Belfast, Belfast, United Kingdom` — place-derived titles, not a window bug, so
-it is a naming/content decision rather than something the three items above fix.
+No grouping-rule change is pending. The three items that waited on approval are done:
+bounded time window and deterministic candidate selection (with `43d4a89`) and the
+residual anchorless case (this pass). **Evidence that remains**: the Task 12 briefing run
+showed broad clusters titled `## Belgium` and `## Belfast, Belfast, United Kingdom` —
+place-derived titles, not a window bug, so it is a naming/content decision rather than
+something the three items above fix.
 
 Also open for a decision: pinning the runtime dependencies (see "CI/CD follow-ups").
 Article-title fetching is still declined; raw payload storage is implemented in
