@@ -2,6 +2,42 @@
 
 Build order: storage → ingestion → extraction → api → ui. Full plan: `tasks/plan.md`.
 
+## Status at a glance
+
+Read this first; the rest of the file is the record of how each item was decided.
+
+**Done** — all of Phase 1–5 except Task 13, and every in-repo follow-up from the
+code-review and CI/CD passes: data integrity (download retries, WAL + `busy_timeout`,
+the minor review findings, stale-run settling), the three grouping-rule changes (bounded
+window and deterministic selection in `43d4a89`, the anchorless fallback in `98ef12b`),
+the UI work (clustering, heat ramp, in-view list, no-location panel), the CI/CD gaps that
+were code (config source, cutover rehearsal, watcher scripts, dependency pinning +
+audit, UI smoke made fixture-independent), the API documentation surface (`4cebde5`),
+and the case study (`4ce2362`).
+
+**Open, and why** — thirteen unchecked boxes, and no others:
+
+| Item | Blocker |
+|---|---|
+| Demand test: 8 issues + per-issue counts (Task 13) | ~8 weeks of publishing; not code |
+| Go/no-go memo written from those counts | needs the eight issues |
+| Read each issue before it ships (verification) | per issue, at publish time |
+| Public identity + hosting posture for issue 1 | your decision, before issue 1 |
+| Host: daemon `dns` (runbook §1) | deploy host (Docker daemon config) |
+| Host: install the health timer + pipeline cron (runbook §5) | deploy host (systemd/cron) |
+| Host: `production` environment required reviewers (runbook §6) | GitHub repo setting |
+| Host: real cutover, if a legacy DB exists (runbook §3–4) | deploy host, only when one exists |
+| Raw retention: 30 days or 0 (runbook §7) | your decision, after a backup on the host |
+| Housekeeping: prune images + build cache (runbook §8) | deploy host |
+| Backfill before 2026-10-29 (runbook §9) | optional; host time, ~30 min/day of data |
+| Fetch real article `<title>` for headlines | declined earlier; reopen only if slugs prove unusable |
+| Split `app/static/app.js` if it grows further | no trigger yet; not actionable now |
+
+The last two rows are the only entries under "Optional" and exist as reminders, not work.
+Host steps are specified command by command in `docs/host-runbook.md`.
+
+---
+
 ## Phase 1: Foundation
 
 ### Task 1: Project scaffolding
@@ -9,7 +45,8 @@ Build order: storage → ingestion → extraction → api → ui. Full plan: `ta
 package, a minimal FastAPI app with a `/health` endpoint, pytest/ruff/black config, `.gitignore`.
 
 **Acceptance criteria:**
-- [x] `pip install -r requirements.txt` succeeds in a fresh venv
+- [x] `pip install -r requirements.lock` succeeds in a fresh venv (the lock was
+  introduced later; `requirements.txt` carries the constraints)
 - [x] `uvicorn app.main:app` serves `GET /health` → 200
 - [x] `pytest` runs and passes a trivial test
 - [x] `ruff check .` and `black --check .` pass
@@ -174,7 +211,9 @@ controls re-querying `/api/conflicts`, and a click-for-news side panel.
 
 **Verification:**
 - [x] JS syntax valid (`node --check`), static files served, API data shape matches UI
-- [ ] Visual browser smoke (user): open `http://localhost:8000`, scrub time, click a marker
+- [x] Visual browser smoke: open `http://localhost:8000`, scrub time, click a marker — done
+  in headless Chrome through the `chrome-devtools` MCP (see "UI / product" below), and
+  since then continuously by `tests/ui/browser-tests.mjs`, which drives real Chrome over CDP
 
 **Dependencies:** Task 6
 
@@ -193,7 +232,8 @@ controls re-querying `/api/conflicts`, and a click-for-news side panel.
 
 **Verification:**
 - [x] PATCH/POST endpoints tested (`pytest tests/test_api.py`); UI wired to them
-- [ ] Visual browser smoke (user): edit a conflict and confirm it persists after reload
+- [x] Visual browser smoke: edit a conflict and confirm it persists after reload — done the
+  same way; persistence is also asserted by the API tests and the jsdom harness
 
 **Dependencies:** Task 7
 
@@ -204,7 +244,7 @@ controls re-querying `/api/conflicts`, and a click-for-news side panel.
 
 ## Checkpoint: API + UI
 - [x] Full UI wired end-to-end against seeded data (view, scrub, click, edit)
-- [ ] Visual browser smoke by user pending
+- [x] Visual browser smoke done in headless Chrome (details under "UI / product")
 
 ---
 
@@ -234,7 +274,7 @@ daily cron instructions, `.gitignore` finalization.
 ## Checkpoint: Complete
 - [x] Fresh-clone setup documented and verified
 - [x] All acceptance criteria met (75 tests passing)
-- [ ] Visual browser smoke test by user (open <http://localhost:8000>)
+- [x] Visual browser smoke (headless Chrome; see "UI / product")
 
 ---
 
@@ -577,6 +617,9 @@ without registering anything.
 
 ### Remaining work (not started)
 
+Superseded in part: what is still open is the table at the top of this file. Ticked
+entries below are kept because each records *how* it was verified.
+
 #### Data integrity (from the code review)
 - [x] **Retry GDELT downloads instead of aborting the run.** `GDELTClient._request` retries
   transport errors and 408/425/429/5xx three times with exponential backoff (0.5 s
@@ -911,6 +954,45 @@ commits on `main`: `4cebde5` (API documentation surface + its invariant test),
 `8156462` + the follow-up commit (state directory layout: one `/data` mount, database
 at `/data/db/conflicts.db`), and `1b8548b` (this task log). The in-flight UI
 clustering work had already landed in `870560e`/`cf226c5`.
+
+## Session handoff state (this session — read the "Status at a glance" table above)
+
+Eight commits on `main`, tree clean, `./scripts/ci-check.sh` green (169 tests, ruff,
+format, shellcheck, pymarkdown, ty, dependency audit, alembic apply + drift).
+
+| Commit | What |
+|---|---|
+| `4cebde5` | API documented at `/docs` (tags, summaries, parameter docs) + `test_openapi_document_names_every_operation` |
+| `8156462` | Model cache mounted where `HF_HOME` points, instead of landing inside the data volume |
+| `1b8548b` | Task log for the two above |
+| `9e30ff0` | Closed the two grouping items that had shipped in `43d4a89` but were still listed open |
+| `57d98a7` | One `${GCM_DATA_ROOT}:/data` mount, so the database is `/data/db/conflicts.db` in host and container |
+| `98ef12b` | Anchorless grouping matches the conflict's events' places, not its (editable) name |
+| `84dcb90` | `requirements.lock` (hashed, CPU torch index), `pip-audit` gate, Dependabot pip re-enabled |
+| `4ce2362` | `docs/CASE-STUDY.md` — the pipeline for a non-specialist, with its limits |
+| `7f6a0fd` | `docs/host-runbook.md` — the host-only steps, command by command |
+
+This log pass (the commit after `7f6a0fd`) only edits this file: a status table at the
+top, so the open set is readable without scrolling 900 lines, three stale "visual
+browser smoke by user pending" boxes ticked (the headless-Chrome checks and
+`tests/ui/browser-tests.mjs` cover them), and the note that the runtime now installs
+from `requirements.lock`.
+
+Verification baseline for the next session — unchanged, and the fastest way to know the
+tree is healthy:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.lock -r requirements-ci.txt   # once per venv
+./scripts/ci-check.sh
+```
+
+Environment notes: docker cannot pull the `koalaman/shellcheck` image here, so the
+shellcheck gate needs a local v0.11.0 binary on `PATH` (CI downloads the pinned tarball
+and is unaffected); `pypi.org/simple/` (the index root) times out on this network while
+per-package pages work, so `uv pip compile` and `lock-deps.sh --check` need
+`UV_HTTP_TIMEOUT=60` or more. UI harnesses need a *populated* DB and a server; see
+`tests/ui/README.md`.
 
 ## Session handoff state (API docs + state-dir split pass)
 
