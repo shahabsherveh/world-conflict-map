@@ -124,29 +124,30 @@ docker compose run --rm pipeline                    # real data (downloads the m
 docker compose run --rm web python scripts/seed.py  # or instant demo data
 ```
 
-Both use the same volume as the `web` container above (the local `./data/db` unless
-`GCM_DATA_DIR` is set). Do not run `python scripts/seed.py` on the host for the Docker
+Both use the same volume as the `web` container above (the local `./data` unless
+`GCM_DATA_ROOT` is set). Do not run `python scripts/seed.py` on the host for the Docker
 stack: the host script writes `./conflicts.db`, while the container reads
-`/data/conflicts.db` (the `GCM_DATA_DIR` volume).
+`/data/db/conflicts.db` (the `GCM_DATA_ROOT` volume).
 
 - **Web app** binds to `127.0.0.1:8000` only — the app has no auth by design, so it is
   deliberately not reachable from the network.
-- **State** lives in two host directories, both gitignored, both defined once in
-  `scripts/_data-dir.sh`:
-  - `GCM_DATA_DIR` (`./data/db` locally, `/data/db` deployed) holds `conflicts.db` and
-    is mounted at `/data` in both services.
-  - `GCM_HF_HOME` (`./data/hf-cache` locally, `/data/hf-cache` deployed) is the
-    HuggingFace cache for the ~570 MB zero-shot model, mounted where the Dockerfile's
-    `HF_HOME` points. It is a separate mount on purpose: a model cache can be copied
-    between machines without carrying a database.
+- **State** lives under one host directory, mounted at `/data` in both services so the
+  paths are identical inside and outside the container (`scripts/_data-dir.sh` defines
+  all three, locally under `./data`, deployed under `/data`):
+  - `GCM_DATA_ROOT` (`./data` / `/data`) — the mount root.
+  - `GCM_DATA_DIR` (`$root/db`) — `conflicts.db` and its WAL files:
+    `/data/db/conflicts.db`.
+  - `GCM_HF_HOME` (`$root/hf-cache`) — the HuggingFace cache for the ~570 MB zero-shot
+    model, and the value exported as `HF_HOME` (the Dockerfile's `HF_HOME` points at
+    the same directory). Being a sibling of `db/` rather than a subdirectory keeps the
+    database backup independent of the model cache.
 
-  The `/data/...` defaults are what the CI deploy uses, so the database survives
-  checkouts (`docs/ci-cd.md`). `scripts/deploy.sh` and `scripts/docker-daily.sh` both
-  source that file, so the served app, the daily pipeline, and the host run always
-  share one database and one model cache. A bare `docker compose up` (neither variable
-  set) still uses `./data`.
+  The `/data` defaults are what the CI deploy uses, so the database survives checkouts
+  (`docs/ci-cd.md`). `scripts/deploy.sh` and `scripts/docker-daily.sh` both source that
+  file, so the served app, the daily pipeline, and the host run always share one
+  database and one model cache. A bare `docker compose up` (nothing set) uses `./data`.
 - **Daily pipeline** is a one-shot service, not started by `up`. For the local stack
-  above (data in `./data/db`):
+  above (data in `./data`):
 
   ```bash
   docker compose run --rm pipeline          # default lookback (config/gdelt.yaml)
@@ -154,13 +155,13 @@ stack: the host script writes `./conflicts.db`, while the container reads
   ```
 
   For the deployed stack, use `./scripts/docker-daily.sh` instead: it sources
-  `scripts/_data-dir.sh`, so its `GCM_DATA_DIR` matches the deployed web app. A bare
-  `docker compose run` falls back to `./data/db` when `GCM_DATA_DIR` is unset, which
-  is the wrong database once the stack is deployed.
+  `scripts/_data-dir.sh`, so its `GCM_DATA_ROOT` matches the deployed web app. A bare
+  `docker compose run` falls back to `./data` when nothing is set, which is the wrong
+  database once the stack is deployed.
 
   Schedule it with host cron (`0 6 * * * /absolute/path/to/scripts/docker-daily.sh`),
   or keep using the host `scripts/daily.sh` — either works. For a local cron, export
-  `GCM_DATA_DIR=./data/db` first so it matches the local stack.
+  `GCM_DATA_ROOT=./data` first so it matches the local stack.
 - **Config** is bind-mounted read-only from `config/gdelt.yaml`; edit it and
   `docker compose restart web` to apply.
 - **Existing host database?** The container starts with a fresh empty database. To
@@ -173,8 +174,9 @@ stack: the host script writes `./conflicts.db`, while the container reads
   ./scripts/cutover-data.sh --apply --owner "$USER"
   ```
 
-  It targets `GCM_DATA_DIR` and `GCM_HF_HOME` (the same paths `deploy.sh` and
-  `docker-daily.sh` use), not `./data/db`. Details in `docs/ci-cd.md`.
+  It targets `GCM_DATA_ROOT` (`./data` locally, `/data` deployed), so the database
+  lands at `<root>/db/conflicts.db`, the same path the container reads. Details in
+  `docs/ci-cd.md`.
 
 ## Fetch raw data or backfill history
 
@@ -282,7 +284,7 @@ python scripts/seed.py
 
 This writes the host database (`./conflicts.db` by default). For the Docker stack use
 `docker compose run --rm web python scripts/seed.py` instead — a host seed does not
-populate the container's `/data/conflicts.db`.
+populate the container's `/data/db/conflicts.db`.
 
 ## Weekly briefing (Markdown)
 

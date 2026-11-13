@@ -23,17 +23,17 @@ services:
       # host binding is what matters.
       - "127.0.0.1:8000:8000"
     environment:
-      GCM_DATABASE_URL: sqlite:////data/conflicts.db
+      # /data/db, not /data: the database is a file inside the db directory, and the
+      # path is the same on the host ($GCM_DATA_ROOT/db) and in the container, so a
+      # backup or a `docker exec` never has to translate one to the other.
+      GCM_DATABASE_URL: sqlite:////data/db/conflicts.db
     volumes:
-      # GCM_DATA_DIR lets the deploy job keep state outside the CI checkout:
+      # One mount for all state (db/ and hf-cache/), which also means the host and
+      # the container resolve HF_HOME to the identical directory.
+      # GCM_DATA_ROOT lets the deploy job keep state outside the CI checkout:
       # actions/checkout runs `git clean -ffdx`, which would delete an in-tree
-      # data/ directory along with the database. Local use keeps ./data/db.
-      - ${GCM_DATA_DIR:-./data/db}:/data
-      # The model cache is its own host directory, mounted where the Dockerfile's
-      # HF_HOME points. The mount is not optional: without it /data/hf-cache would
-      # land inside the *data* volume, and the host pipeline (HF_HOME from
-      # scripts/_data-dir.sh) would keep a second copy of the ~570 MB weights.
-      - ${GCM_HF_HOME:-${HF_HOME:-./data/hf-cache}}:/data/hf-cache
+      # data/ directory along with the database. Local use keeps ./data.
+      - ${GCM_DATA_ROOT:-./data}:/data
       # Defined once in scripts/_data-dir.sh, like the data dir: the deploy
       # checkout is disposable, so a hand edit here would vanish on redeploy.
       # Deployed config changes go through git.
@@ -51,10 +51,9 @@ services:
     profiles: ["tools"]
     entrypoint: ["/app/docker/pipeline-entrypoint.sh"]
     environment:
-      GCM_DATABASE_URL: sqlite:////data/conflicts.db
+      GCM_DATABASE_URL: sqlite:////data/db/conflicts.db
     volumes:
-      - ${GCM_DATA_DIR:-./data/db}:/data
-      - ${GCM_HF_HOME:-${HF_HOME:-./data/hf-cache}}:/data/hf-cache
+      - ${GCM_DATA_ROOT:-./data}:/data
       # Defined once in scripts/_data-dir.sh, like the data dir: the deploy
       # checkout is disposable, so a hand edit here would vanish on redeploy.
       # Deployed config changes go through git.

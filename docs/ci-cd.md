@@ -184,22 +184,23 @@ the compose stack live. One-time setup:
    `name: global-conflict-map`, so whichever checkout the runner uses, it drives the
    same stack.
 
-4. Create the two deploy state directories, owned by the runner user:
+4. Create the deploy state root, owned by the runner user:
 
    ```bash
-   sudo install -d -o "$USER" -g "$USER" /data/db /data/hf-cache
+   sudo install -d -o "$USER" -g "$USER" /data /data/db /data/hf-cache
    ```
 
-   `scripts/_data-dir.sh` sets `GCM_DATA_DIR=/data/db` (the SQLite file, mounted at
-   `/data`) and `GCM_HF_HOME=/data/hf-cache` (the model cache, mounted at the
-   container's `HF_HOME`) and is sourced by both `deploy.sh` and `docker-daily.sh`
-   (which also create both directories as the invoking user, so Docker does not make
-   them root-owned), so the served app and the daily pipeline can never point at
-   different databases or caches. It is deliberately *not* duplicated in the
-   workflow: that duplication is how they drifted apart. Local `docker compose up`
-   still uses `./data/db` and `./data/hf-cache`. If a directory is missing, Docker
-   creates it root-owned as the bind-mount target, and later pipeline runs cannot
-   write to it.
+   `scripts/_data-dir.sh` sets `GCM_DATA_ROOT=/data` (mounted at `/data` in both
+   services), and derives `GCM_DATA_DIR=/data/db` (the SQLite file,
+   `/data/db/conflicts.db`) and `GCM_HF_HOME=/data/hf-cache` (the model cache, the
+   Dockerfile's `HF_HOME`). Host and container therefore use the *same* paths. The
+   file is sourced by both `deploy.sh` and `docker-daily.sh` (which also create the
+   directories as the invoking user, so Docker does not make them root-owned), so the
+   served app and the daily pipeline can never point at different databases or caches.
+   It is deliberately *not* duplicated in the workflow: that duplication is how they
+   drifted apart. Local `docker compose up` uses `./data`. If a directory is missing,
+   Docker creates it root-owned as the bind-mount target, and later pipeline runs
+   cannot write to it.
 5. No repository secrets are needed: the deploy uses local docker only.
 
 ### Security: a self-hosted runner runs the PR's code
@@ -211,7 +212,8 @@ not exposed: it triggers from `workflow_run` on `main` only, never from a PR.
 
 ### First deploy: bring the existing database across
 
-The deployed stack reads `GCM_DATA_DIR` (default `/data/db`), not `./data/db`, and the
+The deployed stack reads `GCM_DATA_ROOT=/data`, so its database is
+`/data/db/conflicts.db` rather than `./data/db/conflicts.db`, and the
 project name is pinned to `global-conflict-map`. Without a
 cutover, an old `workspace` stack keeps port 8000 and the new app starts on an empty DB
 that looks like data loss. `scripts/cutover-data.sh` moves the data; dry-run first:
@@ -325,10 +327,10 @@ sudo ./scripts/install-health-watch.sh          # app is answering
 ```
 
 Anything else that touches the stack (cron, a manual `docker compose` run) must use
-the same `GCM_DATA_DIR` / `GCM_HF_HOME`: source `scripts/_data-dir.sh`, or run through
+the same `GCM_DATA_ROOT`: source `scripts/_data-dir.sh`, or run through
 `scripts/docker-daily.sh` / `scripts/deploy.sh`, which do it for you. The daily
 script also forwards arguments, so `scripts/docker-daily.sh --days 7` is a real
-backfill (a bare `docker compose run --rm pipeline` uses `./data/db` and used to
+backfill (a bare `docker compose run --rm pipeline` uses `./data` and used to
 drop the flag).
 
 Config follows the same rule as data: `scripts/_data-dir.sh` defines

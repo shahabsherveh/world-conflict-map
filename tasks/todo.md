@@ -593,7 +593,7 @@ without registering anything.
   caught. Tests: WAL + 5000 reported on connect, and two real writers where the second
   blocks (rather than raising "database is locked") and commits once the first releases.
   Not yet observed on the deployed file — WAL is persistent per database, so confirm with
-  `PRAGMA journal_mode` against `/data/conflicts.db` after the next deploy.
+  `PRAGMA journal_mode` against `/data/db/conflicts.db` after the next deploy.
 - [x] **Bound the grouping time window.** Done in `43d4a89`: the window is now a gap
   since the conflict's most recent event (`DEFAULT_GAP_DAYS = 14`), not a total
   duration, and an explicit `end_date` still wins. Tests:
@@ -885,9 +885,9 @@ the demo seed, on a 200-conflict centroid-stack fixture, and on the real DB; it 
 ### Working tree
 Clean. The two sets of changes that were mixed together on entry are now separate
 commits on `main`: `4cebde5` (API documentation surface + its invariant test),
-`8156462` (state directories: `/data/db` + `/data/hf-cache`, cache mount and docs),
-and `1b8548b` (this task log). The in-flight UI clustering work had already landed in
-`870560e`/`cf226c5`.
+`8156462` + the follow-up commit (state directory layout: one `/data` mount, database
+at `/data/db/conflicts.db`), and `1b8548b` (this task log). The in-flight UI
+clustering work had already landed in `870560e`/`cf226c5`.
 
 ## Session handoff state (API docs + state-dir split pass)
 
@@ -909,28 +909,36 @@ enforced by `test_openapi_document_names_every_operation`: the document must bui
 every operation must carry a summary, and every tag used must be declared in
 `openapi_tags` (an undeclared tag is silently unstyled in Swagger UI).
 
-### State directories: `/data/db` + `/data/hf-cache` (new)
+### State directories: one `/data` mount, database at `/data/db/conflicts.db` (new)
 `scripts/_data-dir.sh` had been edited to default `GCM_DATA_DIR=/data/db` and
-`HF_HOME=/data/hf-cache` while compose still mounted only `${GCM_DATA_DIR}:/data`, so
-the container's `HF_HOME` resolved to `/data/db/hf-cache` — the exact host/container
-cache divergence gotcha #7 exists to prevent. Resolved by making the cache a first-class
-mount rather than a subdirectory:
+`HF_HOME=/data/hf-cache` while compose still mounted `${GCM_DATA_DIR}:/data`, so the
+database landed at `/data/conflicts.db` and the container's `HF_HOME` resolved to
+`/data/db/hf-cache` — both the wrong location and the host/container cache divergence
+gotcha #7 exists to prevent.
 
-- `docker-compose.yml` mounts `${GCM_HF_HOME:-${HF_HOME:-./data/hf-cache}}` at
-  `/data/hf-cache` for **both** services, next to the existing data mount.
-- `scripts/_data-dir.sh` documents both paths and `gcm_ensure_data_dir` is now
-  `gcm_ensure_dirs`, creating the data dir *and* the cache dir as the invoking user
-  (Docker creates missing bind targets root-owned, which broke later writes).
+Resolved by mounting the *root* instead of the db directory, so host and container use
+identical paths:
+
+- `docker-compose.yml` mounts `${GCM_DATA_ROOT:-./data}:/data` in both services and
+  sets `GCM_DATABASE_URL=sqlite:////data/db/conflicts.db`. The database lives in the
+  `db/` subdirectory, not at the mount root; the model cache is a sibling at
+  `/data/hf-cache`, which keeps the unrecoverable directory separable for backups.
+- `scripts/_data-dir.sh` defines `GCM_DATA_ROOT` (default `/data`) and derives
+  `GCM_DATA_DIR=$root/db` and `GCM_HF_HOME=$root/hf-cache`.
+  `gcm_ensure_data_dir` became `gcm_ensure_dirs`: it creates the db *and* cache
+  directories as the invoking user, since Docker creates missing bind targets
+  root-owned and later writes then fail.
 - `scripts/cutover-data.sh` copies the model cache to `$GCM_HF_HOME` (was
   `$dst_dir/hf-cache`) and copies *into* an existing empty directory (`cp -a src/. dst/`
   — `cp -a src dst` would have nested it); `--owner` now chowns the cache too.
-- Every user-facing hint that named the old path was corrected: the
+- Every user-facing hint that named an old path was corrected: the
   `download_model.py` warning/docstring, the `classifier.py` warning, the deploy
   workflow comment, `README.md`, `docs/ci-cd.md`, and gotchas #7/#9 in `AGENTS.md`.
 
-Verified: `docker compose config` renders `source: /data/db` → `/data` and
-`source: /data/hf-cache` → `/data/hf-cache` with the deployed defaults, and
-`./data/db` / `./data/hf-cache` with none set; `source scripts/_data-dir.sh` exports
-`/data/db` + `HF_HOME=/data/hf-cache` and `gcm_ensure_dirs` succeeds. Gates:
+Verified: `docker compose config` renders `source: /data` → `target: /data` with the
+deployed defaults and `./data` with none set, and both services carry
+`sqlite:////data/db/conflicts.db`; `source scripts/_data-dir.sh` exports
+`GCM_DATA_ROOT=/data`, `GCM_DATA_DIR=/data/db`, `HF_HOME=/data/hf-cache` and
+`gcm_ensure_dirs` succeeds. Gates:
 `./scripts/ci-check.sh` green (161 tests, ruff, format, shellcheck v0.11.0 via the
 pinned image, pymarkdown, ty, alembic apply + drift).

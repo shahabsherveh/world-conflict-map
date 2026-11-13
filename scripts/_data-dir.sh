@@ -3,27 +3,32 @@
 # cache, and its config file. Sourced by every script that touches the stack:
 # deploy.sh, docker-daily.sh, daily.sh and cutover-data.sh.
 #
-# Two host directories, each mounted at a fixed path by docker-compose.yml:
+# One host directory is mounted at /data by docker-compose.yml, and it holds the
+# two stateful siblings:
 #
-#   GCM_DATA_DIR  -> /data               conflicts.db and its WAL files
-#   GCM_HF_HOME   -> /data/hf-cache      the ~570 MB zero-shot model cache
+#   GCM_DATA_ROOT=/data          the mount root
+#   GCM_DATA_DIR=$root/db        conflicts.db and its WAL files
+#   GCM_HF_HOME=$root/hf-cache   the ~570 MB zero-shot model cache
 #
-# They are separate mounts on purpose. The data dir is the one directory whose
-# loss is unrecoverable, and a model cache that can be copied in from another
-# machine without dragging a database along is worth one extra volume. The
-# Dockerfile sets HF_HOME=/data/hf-cache; this file exports the same value for
-# the host pipeline, so both resolve the one cache (gotcha #7 in AGENTS.md)
-# instead of downloading the weights twice.
+# Paths are identical inside and outside the container (/data/db/conflicts.db,
+# /data/hf-cache), so a log line, a backup command and a `docker exec` all refer
+# to the same file instead of needing a translation. The cache stays a sibling of
+# the db directory rather than a subdirectory of it, so the one directory whose
+# loss is unrecoverable can be backed up on its own. The Dockerfile sets
+# HF_HOME=/data/hf-cache; this file exports the same value for the host pipeline,
+# so both resolve the one cache (gotcha #7 in AGENTS.md) instead of downloading
+# the weights twice.
 #
 # This exists because the paths did drift: the deploy job exported a data dir
 # while the cron pipeline used the compose default ./data/db — inside the CI
 # checkout, which the next checkout's `git clean -ffdx` deletes. The web app
 # then served a database the pipeline never touched.
 #
-# Override for a throwaway stack by exporting GCM_DATA_DIR / GCM_HF_HOME. Bare
-# `docker compose up` (neither set) still falls back to ./data/db and
-# ./data/hf-cache for local use.
-: "${GCM_DATA_DIR:=/data/db}"
+# Override for a throwaway stack by exporting GCM_DATA_ROOT (or GCM_DATA_DIR /
+# GCM_HF_HOME individually). Bare `docker compose up` (none set) uses ./data.
+: "${GCM_DATA_ROOT:=/data}"
+export GCM_DATA_ROOT
+: "${GCM_DATA_DIR:=$GCM_DATA_ROOT/db}"
 export GCM_DATA_DIR
 
 # Config gets the same treatment. The deploy checkout is disposable (`git clean
@@ -33,13 +38,13 @@ export GCM_DATA_DIR
 : "${GCM_CONFIG_DIR:=./config}"
 export GCM_CONFIG_DIR
 
-# HuggingFace model cache (the ~570 MB zero-shot weights). Its own mount, not
-# <data dir>/hf-cache: the container resolves it as HF_HOME and so does the host
+# HuggingFace model cache (the ~570 MB zero-shot weights). It is its own
+# directory beside the db, resolved as HF_HOME by the container and by the host
 # pipeline. Without this, `scripts/daily.sh` used ~/.cache/huggingface while the
 # container used its own copy: two downloads, so a model copied in from another
 # machine looked like it kept re-downloading. Override with GCM_HF_HOME or
 # HF_HOME to keep a cache elsewhere.
-: "${GCM_HF_HOME:=${HF_HOME:-/data/hf-cache}}"
+: "${GCM_HF_HOME:=${HF_HOME:-$GCM_DATA_ROOT/hf-cache}}"
 export GCM_HF_HOME
 export HF_HOME="$GCM_HF_HOME"
 
