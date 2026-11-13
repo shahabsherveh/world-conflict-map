@@ -20,7 +20,7 @@ chrome/
 .agents/
 .pi/
 
-# Editor atomic-save temp files (draw.io desktop writes .$<name>.drawio.dtmp)
+# Editor atomic-save temp files (e.g. draw.io desktop writes .$<name>.drawio.dtmp)
 *.dtmp
 
 # CI runner state (a self-hosted runner must never live in the repo:

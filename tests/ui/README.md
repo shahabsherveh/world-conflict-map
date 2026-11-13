@@ -3,9 +3,10 @@
 Two harnesses, both read-only and both opt-in:
 
 - `map-smoke.mjs` loads the real `index.html` + Leaflet + `leaflet.markercluster` +
-  `app.js` in [jsdom](https://github.com/jsdom/jsdom) and drives them against a running
-  API. It covers the JavaScript regressions — cluster loading, marker counts, time
-  scrubbing, DOM shapes — without a browser install.
+  the split scripts (`map.js`/`state.js`/`list.js`/`detail.js`/`app.js`) in
+  [jsdom](https://github.com/jsdom/jsdom) and drives them against a running API. It
+  covers the JavaScript regressions — cluster loading, marker counts, time scrubbing,
+  DOM shapes — without a browser install.
 - `browser-tests.mjs` drives a real Chrome over CDP: hit-testing, popup anchoring,
   computed CSS, basemap tiles, Pick-on-map. Setup is in “Browser tests” below.
 
@@ -36,7 +37,7 @@ every event is geocoded) assert that they are hidden, not that they have rows.
 
 ## What it asserts
 
-- Leaflet and markercluster load; `app.js` throws no uncaught errors.
+- Leaflet and markercluster load; the split scripts throw no uncaught errors.
 - The conflict list renders and no error notice is shown.
 - Every geolocated event in the default 30-day window is in the cluster layer tree
   (counts are checked against `/api/events`, not hardcoded).

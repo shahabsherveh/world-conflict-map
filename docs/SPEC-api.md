@@ -5,7 +5,7 @@ Serve conflicts/events filtered by time frame, expose conflict detail with under
 news, and provide manual edit/create endpoints. Serve the UI static files.
 
 ## Tech stack
-FastAPI + Pydantic. (Conventions: CAPABILITY-MAP.md)
+FastAPI + Pydantic. (Conventions: AGENTS.md)
 
 ## Endpoints
 - `GET /api/conflicts?start=&end=` → conflicts active in range (intensity + location)
@@ -45,7 +45,7 @@ score is ordinal and its scale is unvalidated.
 - `app/api/routes.py`, `app/api/schemas.py`, `app/main.py`
 
 ## Code style
-Conventions: CAPABILITY-MAP.md. Pydantic response models for every endpoint.
+Conventions: AGENTS.md. Pydantic response models for every endpoint.
 
 ## Testing strategy
 - FastAPI TestClient integration tests against a seeded in-memory/temp SQLite DB.

@@ -29,16 +29,13 @@ ty check                                 # types (targets 3.12)
 ./scripts/ci-check.sh                    # every non-docker CI gate, in order
 ./scripts/install-hooks.sh               # run those gates as a pre-commit hook
 ./scripts/lock-deps.sh                    # regenerate requirements.lock after editing requirements.txt
-./scripts/check-deps.sh                   # pip-audit the installed runtime (needs network)
 ./scripts/ci-check.sh --docker           # …plus the image build + import check
 cd tests/ui && node map-smoke.mjs        # headless UI smoke (needs npm install + serve)
 cd tests/ui && node browser-tests.mjs    # real Chrome over CDP (needs Chrome on :9222 + serve)
 
 # Chrome for the chrome-devtools MCP (see Gotchas #12); CDP on :9222
-npx -y @puppeteer/browsers install chrome@stable   # once; ./chrome/ is gitignored
 chrome/linux-*/chrome-linux64/chrome --headless=new --no-sandbox --disable-gpu \
-  --disable-dev-shm-usage --remote-debugging-port=9222 \
-  --user-data-dir=chrome/profile about:blank &
+  --disable-dev-shm-usage --remote-debugging-port=9222 --user-data-dir=chrome/profile about:blank &
 alembic upgrade head                     # apply migrations
 alembic revision --autogenerate -m "…"   # new migration
 
@@ -49,8 +46,6 @@ uvicorn app.main:app --reload --port 8000 # serve (always use --reload)
 python scripts/seed.py                   # demo data (no network)
 python scripts/briefing.py --days 7      # Markdown digest of the DB (stdlib only, read-only)
 ./scripts/check-health.sh                # is the deployed app answering? (cron/timer)
-./scripts/install-health-watch.sh --dry-run  # the 15-minute systemd timer that runs it
-./scripts/install-runner.sh --url …     # register the CI runner (RUNNER_TOKEN=…)
 # host-only steps (daemon dns, watchers, cutover, retention, pruning): docs/host-runbook.md
 ./scripts/cutover-data.sh                # dry-run: move existing DB into GCM_DATA_DIR
 ./scripts/cutover-data.sh --apply        # ...and copy (WAL-safe, verified, keeps a .bak)
@@ -75,7 +70,7 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 | GDELT download | `app/ingest/gdelt.py`, `normalizer.py` | 61-column positional TSV, no header |
 | Extraction | `app/extract/` | `base.py` = swappable adapter seam; `grouping.py` links events to conflicts (proximity, not keywords) |
 | API | `app/api/routes.py`, `schemas.py` | Pydantic models for every endpoint |
-| UI | `app/static/` | `app.js`, `index.html`, `style.css` |
+| UI | `app/static/` | `app.js` (wiring) + `map.js`/`state.js`/`list.js`/`detail.js`, `index.html`, `style.css` |
 
 ## Conventions
 
@@ -83,8 +78,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 - Accessors/tests query through `app/queries.py` helpers — don't duplicate SQL in routes.
 - Adapters stay pure: no DB or HTTP inside `app/extract/gdelt_adapter.py` or `base.py`.
 - Every endpoint has a Pydantic response model; validate inputs with `Field` bounds.
-- Frontend: `esc()` every interpolated string in `app.js` (values come from external news).
-- Assets in `index.html` carry a `?v=N` query; bump it when changing `app.js`/`style.css`.
+- Frontend: `esc()` every interpolated string (values come from external news).
+- Assets in `index.html` carry a `?v=N` query; bump it when changing any JS or `style.css`.
+  The JS is plain scripts (no build step) sharing the global scope: `map.js` → `state.js` →
+  `list.js` → `detail.js` → `app.js` (wiring); keep that order when adding a script.
 - Comments explain *why*, especially where a naive approach was rejected.
 
 ## Testing
@@ -100,18 +97,13 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
   jsdom against a running server. `tests/ui/browser-tests.mjs` covers what jsdom cannot
   (hit-testing, popup anchoring, computed CSS, tiles, Pick-on-map) by driving a real
   Chrome over CDP. Neither is part of pytest or the CI gates; run them when touching
-  `app/static/app.js` (`tests/ui/README.md`).
-- CI (`.github/workflows/ci.yml`) runs lint, format, shellcheck, `ty check`, `pytest`, a fresh
-  `alembic upgrade head` + `alembic check`, an app-import check, an artifact guard, and a
-  docker build that serves `/health`. `docs/ci-cd.md` explains each gate and the deploy
-  rollback. Run `./scripts/ci-check.sh` before pushing so the pipeline has nothing to find.
-- `./scripts/install-hooks.sh` points `core.hooksPath` at the tracked
-  `scripts/git-hooks/`, so `git commit` runs `scripts/ci-check.sh` and a red gate stops
-  the commit. It is opt-in per clone (git never auto-enables hooks) and
-  `git commit --no-verify` bypasses it for deliberately dirty WIP.
-- Visual/CSS checks need a real browser. Use the `chrome-devtools` MCP (codemode tools
-  `mcp__chrome_devtools__*`), which attaches to the headless Chrome on `:9222`; see
-  `tests/ui/README.md` for the workflow and what each layer covers.
+  `app/static/*.js` (`tests/ui/README.md`).
+- CI (`.github/workflows/ci.yml`) mirrors `./scripts/ci-check.sh`; `docs/ci-cd.md` explains
+  each gate and the deploy rollback.
+- `./scripts/install-hooks.sh` points `core.hooksPath` at `scripts/git-hooks/` so `git commit`
+  runs the gates; opt-in per clone, `git commit --no-verify` bypasses.
+- Visual/CSS checks need a real browser: use the `chrome-devtools` MCP (`mcp__chrome_devtools__*`)
+  against headless Chrome on `:9222` (see Gotchas #12 and `tests/ui/README.md`).
 
 ## Boundaries
 

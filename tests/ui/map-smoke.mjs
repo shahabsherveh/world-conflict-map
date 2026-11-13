@@ -261,7 +261,13 @@ async function main() {
     return group;
   };
 
-  window.eval(fs.readFileSync(path.join(STATIC, "app.js"), "utf8"));
+  // The scripts share one global scope via plain <script> tags in the browser;
+  // jsdom's repeated window.eval does not share const/let across calls, so eval
+  // the concatenation (same order index.html serves them) as a single script.
+  // Script *loading order* fidelity (a real global-scope concern) is covered by
+  // browser-tests.mjs against real Chrome; this harness asserts the logic.
+  const scriptOrder = ["map.js", "state.js", "list.js", "detail.js", "app.js"];
+  window.eval(scriptOrder.map((f) => fs.readFileSync(path.join(STATIC, f), "utf8")).join("\n"));
 
   // The event popup is a pure function of the payload, so its corroboration badge
   // can be asserted without a browser; only popup *positioning* needs one.

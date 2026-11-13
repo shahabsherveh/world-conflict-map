@@ -10,54 +10,10 @@
 
 Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 
+Cross-cutting conventions, commands, and gotchas live in [`AGENTS.md`](../AGENTS.md);
+each module's contract is in its `SPEC-<module>.md`.
+
 Diagrams of these boundaries, the daily pipeline, and the schema live in
-[`diagrams/`](diagrams/README.md) as `.drawio` files. A non-specialist walkthrough of the
+[`diagrams/`](diagrams/README.md) as Mermaid blocks. A non-specialist walkthrough of the
 same pipeline (what goes in, what each stage decides, what the numbers and limits are)
 is [`CASE-STUDY.md`](CASE-STUDY.md).
-
-## Project conventions (shared by all module specs)
-
-### Tech stack
-- Python 3.12+, FastAPI (backend + serves UI)
-- SQLite via SQLAlchemy 2.0, migrations via Alembic
-- GDELT 2.0 raw event files (`.export.CSV.zip`) via `httpx` (structured conflict
-  events — already geolocated + classified)
-- `transformers` + `torch` (zero-shot armed-conflict filter, CPU)
-- Leaflet + OpenStreetMap tiles (frontend, no API key)
-
-### Commands
-- Setup: `python -m venv .venv && . .venv/bin/activate`
-- Install: `pip install -r requirements.lock` (pinned with hashes; the file names
-  PyTorch's CPU index, so torch is the `+cpu` wheel rather than the CUDA build).
-  Change a dependency in `requirements.txt`, then run `scripts/lock-deps.sh`.
-- Gate tools (contributors): `pip install -r requirements-ci.txt` (pinned pytest, ruff,
-  ty, pymarkdown, pip-audit)
-- Migrate: `alembic upgrade head`
-- Model (once): `python scripts/download_model.py` (~570 MB; the pipeline warns and
-  skips the filter if it is unavailable)
-- Extract (fetch + filter + persist + group): `python -m app.extract.run`
-- Serve: `uvicorn app.main:app --reload --port 8000`
-- Test: `pytest`
-- Lint/format/types: `ruff check . && ruff format --check . && ty check`
-- Markdown: `pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks`
-- All CI gates: `./scripts/ci-check.sh` (see `ci-cd.md`)
-
-### Project structure
-- `app/` — backend package
-- `app/static/` — UI (index.html, app.js, style.css)
-- `tests/` — pytest
-- `tests/fixtures/` — zero-shot evaluation samples
-- `config/` — data-source config
-- `scripts/` — operator tools (seed, fetch, backfill, briefing, gates)
-- `docs/` — intent and specs
-- `tasks/` — plan, task log, demand-test log
-
-### Code style
-- Python: PEP 8, ruff-formatted (`ruff format`), full type hints, ruff lint.
-- JS: plain modern ES, no framework, no build step.
-
-### Testing strategy
-- pytest for all backend modules.
-- `storage`/`api`: unit + integration tests.
-- `ingestion`/`extraction`: fixture-based tests (inline GDELT TSV records).
-- `ui`: jsdom smoke test (`tests/ui/map-smoke.mjs`) plus manual/browser checks.

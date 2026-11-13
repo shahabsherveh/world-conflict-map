@@ -6,7 +6,7 @@ normalize them into our raw-event shape, dedupe by `GLOBALEVENTID`, and record e
 in `ingestion_run`.
 
 ## Tech stack
-`httpx` + `pyyaml` + stdlib `zipfile`. (Conventions: CAPABILITY-MAP.md)
+`httpx` + `pyyaml` + stdlib `zipfile`. (Conventions: AGENTS.md)
 
 Parsing is a plain `line.split("\t")` against the 61-column list, not the `csv` module:
 the export is tab-separated with no quoting or embedded newlines, and `csv` would only
@@ -54,7 +54,7 @@ GDELT 2.0 15-minute event exports, one zipped TSV per 15-min slot:
 - `config/gdelt.yaml`
 
 ## Code style
-Conventions: CAPABILITY-MAP.md
+Conventions: AGENTS.md
 
 ## Testing strategy
 - Inline TSV rows built from `COLUMNS` (`make_row` in `tests/test_ingestion.py`) → assert

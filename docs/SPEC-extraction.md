@@ -8,7 +8,7 @@ a T5 model or an LLM can replace/augment GDELT later without touching other modu
 
 ## Tech stack
 Python + `transformers`/`torch` (zero-shot armed-conflict filter, CPU; degrades gracefully
-when the model is unavailable). (Conventions: CAPABILITY-MAP.md)
+when the model is unavailable). (Conventions: AGENTS.md)
 
 ## Interface (the swappable boundary)
 - `app/extract/base.py`: `BaseSourceAdapter` with `to_event_draft(raw) -> EventDraft | None`
@@ -74,7 +74,7 @@ when the model is unavailable). (Conventions: CAPABILITY-MAP.md)
 - `app/extract/run.py` — pipeline entrypoint (fetch → adapt → filter → persist → group)
 
 ## Code style
-Conventions: CAPABILITY-MAP.md. Adapter returns dataclasses; no DB/HTTP access inside it.
+Conventions: AGENTS.md. Adapter returns dataclasses; no DB/HTTP access inside it.
 
 ## Grouping rule
 

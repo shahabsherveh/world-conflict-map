@@ -6,7 +6,7 @@ events, conflicts (merged), and manual edits — with the timestamps needed to a
 "what was active in [start, end]?".
 
 ## Tech stack
-SQLite + SQLAlchemy 2.0 ORM + Alembic migrations. (Conventions: CAPABILITY-MAP.md)
+SQLite + SQLAlchemy 2.0 ORM + Alembic migrations. (Conventions: AGENTS.md)
 
 ## Schema
 - `conflict_event`: id, source_event_id (unique, nullable — GDELT `GLOBALEVENTID` for
@@ -46,7 +46,7 @@ SQLite + SQLAlchemy 2.0 ORM + Alembic migrations. (Conventions: CAPABILITY-MAP.m
 - `app/migrations/` — Alembic
 
 ## Code style
-Conventions: CAPABILITY-MAP.md. Models are SQLAlchemy 2.0 declarative with typed columns.
+Conventions: AGENTS.md. Models are SQLAlchemy 2.0 declarative with typed columns.
 
 ## Testing strategy
 - Test every query the API needs: conflicts active in a range, events in a range by

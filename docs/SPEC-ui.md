@@ -6,7 +6,7 @@ that re-query the API, click-for-news, and manual edit/create controls.
 
 ## Tech stack
 Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build step.
-(Conventions: CAPABILITY-MAP.md)
+(Conventions: AGENTS.md)
 
 ## Behavior
 - Map centered on world; one marker per event, grouped by Leaflet.markercluster at every
@@ -51,15 +51,16 @@ Leaflet + OpenStreetMap tiles, vanilla HTML/CSS/JS, served by FastAPI. No build 
 - Manual smoke: open `http://localhost:8000`, scrub time, click, edit.
 
 ## Project structure (module)
-- `app/static/index.html`, `app/static/app.js`, `app/static/style.css`
+- `app/static/index.html`, `app/static/app.js` (wiring) + `map.js`/`state.js`/
+  `list.js`/`detail.js`, `app/static/style.css`
 
 ## Code style
-Conventions: CAPABILITY-MAP.md. Plain modern JavaScript, `fetch()` to `/api/*`.
+Conventions: AGENTS.md. Plain modern JavaScript, `fetch()` to `/api/*`.
 
 ## Testing strategy
 - `tests/ui/map-smoke.mjs`: jsdom + real Leaflet/markercluster against a running server —
   marker/cluster counts checked against `/api/events`, bounded DOM, cluster clicks, scrub.
-  Run it when touching `app.js`; it is not part of pytest (needs npm + a server).
+  Run it when touching `app/static/*.js`; it is not part of pytest (needs npm + a server).
 - Real-browser checks through the `chrome-devtools` MCP (headless Chrome on `:9222`):
   hit-testing, popups, "Pick on map", basemap. `tests/ui/browser-tests.mjs` automates
   them over CDP (zero npm dependencies, read-only); the MCP remains for exploration.
