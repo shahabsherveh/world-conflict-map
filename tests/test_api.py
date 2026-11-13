@@ -801,3 +801,25 @@ def test_patch_logs_null_distinctly_from_empty(client) -> None:
     c.patch(f"/api/conflicts/{conflict.id}", json={"name": "War A"})
     session.expire_all()
     assert session.query(EditLog).count() == 1  # unchanged value logs nothing
+
+
+def test_openapi_document_names_every_operation(client) -> None:
+    """`/docs` is the API's only readable documentation, so it must not be blank.
+
+    Guards the metadata that has no other test: an untagged or untitled operation
+    shows up in Swagger UI as a bare verb, and a tag that is not declared in
+    `openapi_tags` is silently unstyled/misordered. Prose is not asserted (that
+    would be a change-detector); the invariants are.
+    """
+    c, _ = client
+    doc = c.get("/openapi.json").json()
+
+    declared = {tag["name"] for tag in doc["tags"]}
+    assert declared == {"conflicts", "events", "pipeline", "sources", "system"}
+
+    for path, operations in doc["paths"].items():
+        for method, operation in operations.items():
+            where = f"{method.upper()} {path}"
+            assert operation.get("tags"), f"{where} has no tag"
+            assert set(operation["tags"]) <= declared, f"{where} uses an undeclared tag"
+            assert operation.get("summary"), f"{where} has no summary"

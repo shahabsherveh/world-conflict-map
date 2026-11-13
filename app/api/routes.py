@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.schemas import (
@@ -121,8 +121,23 @@ def _apply_patch(db: Session, obj, updates: dict, target_type: str) -> None:
             setattr(obj, field, value)
 
 
-@router.get("/conflicts", response_model=list[ConflictSummary])
-def list_conflicts(start: date, end: date, db: DbSession):
+@router.get(
+    "/conflicts",
+    response_model=list[ConflictSummary],
+    tags=["conflicts"],
+    summary="List conflicts active in a time range",
+    description=(
+        "Conflicts with an event in `[start, end]`, plus manually created "
+        "conflicts with no events whose own span overlaps the range. Each item "
+        "summarises the newest in-range event: intensity, location, event count, "
+        "and a headline."
+    ),
+)
+def list_conflicts(
+    start: Annotated[date, Query(description="Start of the range (inclusive).")],
+    end: Annotated[date, Query(description="End of the range (inclusive).")],
+    db: DbSession,
+):
     _validate_range(start, end)
     conflicts = conflicts_active_in_range(db, start, end)
     if not conflicts:
@@ -140,8 +155,18 @@ def list_conflicts(start: date, end: date, db: DbSession):
     return [_summarize(c, by_conflict.get(c.id, [])) for c in conflicts]
 
 
-@router.get("/conflicts/{conflict_id}", response_model=ConflictDetail)
-def get_conflict(conflict_id: int, db: DbSession):
+@router.get(
+    "/conflicts/{conflict_id}",
+    response_model=ConflictDetail,
+    tags=["conflicts"],
+    summary="Get one conflict with its events",
+    description=(
+        "The conflict plus every event linked to it, oldest first. The event list "
+        "is not bounded by the conflict's own date span: `conflict_id` is the "
+        "authoritative link, so a shortened span still shows the linked events."
+    ),
+)
+def get_conflict(conflict_id: Annotated[int, Path(description="Conflict id.")], db: DbSession):
     conflict = db.get(Conflict, conflict_id)
     if conflict is None:
         raise HTTPException(status_code=404, detail="Conflict not found")
@@ -205,23 +230,55 @@ def _events_out(db: Session, events: list[ConflictEvent]) -> list[ConflictEventO
     return [_event_out(event, counts.get(event.source_event_id or "")) for event in events]
 
 
-@router.get("/events", response_model=list[ConflictEventOut])
-def list_events(start: date, end: date, db: DbSession, conflict_id: int | None = None):
+@router.get(
+    "/events",
+    response_model=list[ConflictEventOut],
+    tags=["events"],
+    summary="List events in a time range",
+    description="Events dated within `[start, end]`, optionally scoped to one conflict.",
+)
+def list_events(
+    start: Annotated[date, Query(description="Start of the range (inclusive).")],
+    end: Annotated[date, Query(description="End of the range (inclusive).")],
+    db: DbSession,
+    conflict_id: Annotated[
+        int | None, Query(description="Restrict results to this conflict, if given.")
+    ] = None,
+):
     _validate_range(start, end)
     events = events_in_range(db, start, end, conflict_id=conflict_id)
     return _events_out(db, events)
 
 
-@router.get("/events/{event_id}", response_model=ConflictEventOut)
-def get_event(event_id: int, db: DbSession):
+@router.get(
+    "/events/{event_id}",
+    response_model=ConflictEventOut,
+    tags=["events"],
+    summary="Get one event",
+    description="A single event including corroboration counts and a headline.",
+)
+def get_event(event_id: Annotated[int, Path(description="Event id.")], db: DbSession):
     event = db.get(ConflictEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
     return _events_out(db, [event])[0]
 
 
-@router.patch("/conflicts/{conflict_id}", response_model=ConflictOut)
-def update_conflict(conflict_id: int, payload: ConflictUpdate, db: DbSession):
+@router.patch(
+    "/conflicts/{conflict_id}",
+    response_model=ConflictOut,
+    tags=["conflicts"],
+    summary="Edit a conflict",
+    description=(
+        "Apply a partial update. Every changed field is appended to `edit_log`. "
+        "Only the fields present in the request body are touched."
+    ),
+)
+def update_conflict(
+    conflict_id: Annotated[int, Path(description="Conflict id.")],
+    payload: ConflictUpdate,
+    db: DbSession,
+):
     conflict = db.get(Conflict, conflict_id)
     if conflict is None:
         raise HTTPException(status_code=404, detail="Conflict not found")
@@ -238,7 +295,17 @@ def update_conflict(conflict_id: int, payload: ConflictUpdate, db: DbSession):
     return conflict
 
 
-@router.post("/conflicts", response_model=ConflictOut, status_code=201)
+@router.post(
+    "/conflicts",
+    response_model=ConflictOut,
+    status_code=201,
+    tags=["conflicts"],
+    summary="Create a conflict",
+    description=(
+        "Manually create a conflict. It has no `provenance` column; an event "
+        "created under it later carries `provenance='manual'`."
+    ),
+)
 def create_conflict(payload: ConflictCreate, db: DbSession):
     conflict = Conflict(**payload.model_dump())
     db.add(conflict)
@@ -247,8 +314,22 @@ def create_conflict(payload: ConflictCreate, db: DbSession):
     return conflict
 
 
-@router.patch("/events/{event_id}", response_model=ConflictEventOut)
-def update_event(event_id: int, payload: EventUpdate, db: DbSession):
+@router.patch(
+    "/events/{event_id}",
+    response_model=ConflictEventOut,
+    tags=["events"],
+    summary="Edit an event",
+    description=(
+        "Apply a partial update; only fields present in the body are touched, and "
+        "every change is appended to `edit_log`. The merged record is validated, so "
+        "a partial `lat`/`lon` update is allowed only when the pair stays complete."
+    ),
+)
+def update_event(
+    event_id: Annotated[int, Path(description="Event id.")],
+    payload: EventUpdate,
+    db: DbSession,
+):
     event = db.get(ConflictEvent, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -263,7 +344,17 @@ def update_event(event_id: int, payload: EventUpdate, db: DbSession):
     return _events_out(db, [event])[0]
 
 
-@router.post("/events", response_model=ConflictEventOut, status_code=201)
+@router.post(
+    "/events",
+    response_model=ConflictEventOut,
+    status_code=201,
+    tags=["events"],
+    summary="Create an event",
+    description=(
+        "Manually create an event, stored with `provenance='manual'`. "
+        "`conflict_id`, when given, must reference an existing conflict."
+    ),
+)
 def create_event(payload: EventCreate, db: DbSession):
     if payload.conflict_id is not None and db.get(Conflict, payload.conflict_id) is None:
         raise HTTPException(status_code=404, detail="Conflict not found")
@@ -275,15 +366,34 @@ def create_event(payload: EventCreate, db: DbSession):
     return _events_out(db, [event])[0]
 
 
-@router.get("/ingestion-runs", response_model=list[IngestionRunOut])
+@router.get(
+    "/ingestion-runs",
+    response_model=list[IngestionRunOut],
+    tags=["pipeline"],
+    summary="List recent ingestion runs",
+    description=(
+        "Recent pipeline runs, newest first, including `error`, `degraded_reason` "
+        "and `phase` (null for a per-day row)."
+    ),
+)
 def list_ingestion_runs(
     db: DbSession,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    limit: Annotated[int, Query(ge=1, le=100, description="Number of runs to return.")] = 20,
 ):
     return recent_ingestion_runs(db, limit)
 
 
-@router.get("/pipeline-health", response_model=PipelineHealthOut)
+@router.get(
+    "/pipeline-health",
+    response_model=PipelineHealthOut,
+    tags=["pipeline"],
+    summary="Report pipeline freshness",
+    description=(
+        "Age of the last successful ingestion run and a `stale` flag against "
+        "`pipeline_stale_hours`. Day rows only: a `raw_only` run never reaches the "
+        "map, and a successful phase row cannot say which day's data is current."
+    ),
+)
 def pipeline_health(db: DbSession):
     """Answer "is the map still updating?" without reading logs or the DB.
 
@@ -311,7 +421,13 @@ def pipeline_health(db: DbSession):
     )
 
 
-@router.get("/sources", response_model=SourcesOut)
+@router.get(
+    "/sources",
+    response_model=SourcesOut,
+    tags=["sources"],
+    summary="List data sources",
+    description="The data source behind the map, for transparency.",
+)
 def list_sources():
     cfg = load_config()
     return SourcesOut(

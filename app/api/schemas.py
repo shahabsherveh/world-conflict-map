@@ -33,6 +33,8 @@ def _validate_source_url(value: str | None) -> str | None:
 
 
 class ConflictEventOut(BaseModel):
+    """An event, with corroboration counts and a derived headline."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -56,15 +58,19 @@ class ConflictEventOut(BaseModel):
     # unknown (a manual event, or one whose raw row has been pruned), never
     # "zero outlets". `well_corroborated` is a counts predicate computed by the
     # API: the ordinal `confidence` score has no validated threshold.
-    sources: int | None = None
-    articles: int | None = None
-    well_corroborated: bool = False
+    sources: int | None = Field(default=None, description="Distinct outlets, or null if unknown.")
+    articles: int | None = Field(default=None, description="Article count, or null if unknown.")
+    well_corroborated: bool = Field(
+        default=False, description="True when `sources >= 2` and `articles >= 3`."
+    )
     headline: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 class ConflictOut(BaseModel):
+    """A conflict's core fields."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -76,6 +82,8 @@ class ConflictOut(BaseModel):
 
 
 class ConflictSummary(ConflictOut):
+    """A conflict plus a summary of its newest in-range event."""
+
     intensity: int
     lat: float | None
     lon: float | None
@@ -84,10 +92,14 @@ class ConflictSummary(ConflictOut):
 
 
 class ConflictDetail(ConflictSummary):
+    """A conflict summary with its full, oldest-first event list."""
+
     events: list[ConflictEventOut]
 
 
 class IngestionRunOut(BaseModel):
+    """One pipeline run."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -114,12 +126,16 @@ class PipelineHealthOut(BaseModel):
 
 
 class SourcesOut(BaseModel):
+    """The data source behind the map."""
+
     source: str
     base_url: str
     lookback_days: int
 
 
 class ConflictUpdate(BaseModel):
+    """Partial update for a conflict; only the fields present are changed."""
+
     name: Name | None = None
     country: Country | None = None
     start_date: date | None = None
@@ -143,6 +159,8 @@ class ConflictUpdate(BaseModel):
 
 
 class ConflictCreate(BaseModel):
+    """A new conflict."""
+
     name: Name
     country: Country | None = None
     start_date: date
@@ -157,6 +175,8 @@ class ConflictCreate(BaseModel):
 
 
 class EventUpdate(BaseModel):
+    """Partial update for an event; only the fields present are changed."""
+
     place_name: PlaceName | None = None
     country: Country | None = None
     lat: Latitude | None = None
@@ -186,6 +206,8 @@ class EventUpdate(BaseModel):
 
 
 class EventCreate(BaseModel):
+    """A new, manually created event."""
+
     place_name: PlaceName | None = None
     country: Country | None = None
     lat: Latitude | None = None
