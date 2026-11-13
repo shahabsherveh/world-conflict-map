@@ -11,7 +11,9 @@
 Build order: `storage` → `ingestion` → `extraction` → `api` → `ui`
 
 Diagrams of these boundaries, the daily pipeline, and the schema live in
-[`diagrams/`](diagrams/README.md) as `.drawio` files.
+[`diagrams/`](diagrams/README.md) as `.drawio` files. A non-specialist walkthrough of the
+same pipeline (what goes in, what each stage decides, what the numbers and limits are)
+is [`CASE-STUDY.md`](CASE-STUDY.md).
 
 ## Project conventions (shared by all module specs)
 

@@ -325,6 +325,9 @@ The publishing plan and engagement counts live in `tasks/demand-test.md`.
 Diagrams of those boundaries, the daily pipeline, the schema, the class structure, and the
 request flow are in [`docs/diagrams/`](docs/diagrams/README.md).
 
+For a plain-language explanation of what the pipeline does and what the data cannot tell
+you (no code required), see [`docs/CASE-STUDY.md`](docs/CASE-STUDY.md).
+
 Contributing with an AI agent? Read **`AGENTS.md`** first — it carries the commands,
 conventions, boundaries, and the gotchas that cost real debugging time.
 

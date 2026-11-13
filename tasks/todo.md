@@ -376,8 +376,11 @@ session; it needs eight weeks of publishing.
 - [ ] Eight issues published, each at most one page, every claim linked
 - [ ] Per-issue count recorded: replies, reshares, audience growth
 - [ ] Written go/no-go memo: continue, narrow scope, or stop — citing the counts
-- [ ] `docs/CASE-STUDY.md` explains the pipeline for a non-specialist (fetch → filter →
-  group → serve) with no personal or location identifiers
+- [x] `docs/CASE-STUDY.md` explains the pipeline for a non-specialist (fetch → filter →
+  group → serve) with no personal or location identifiers. Written; every number comes
+  from the project's own database or a measured run, and the limits section states what
+  the data cannot do (no casualties, centroid locations, counts are not verification).
+  Linked from `README.md` and `docs/CAPABILITY-MAP.md`; markdown gate clean.
 - [ ] Public identity and hosting posture decided and recorded before issue 1
 
 **Verification:**
