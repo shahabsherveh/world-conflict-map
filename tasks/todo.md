@@ -382,7 +382,7 @@ session; it needs eight weeks of publishing.
 
 **Verification:**
 - [ ] Human review: you read each issue before it ships
-- [ ] Markdown gate: `pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks`
+- [x] Markdown gate: `pymarkdown scan -r README.md AGENTS.md docs tests/ui/README.md tasks`
 
 **Dependencies:** Task 12
 
@@ -594,19 +594,20 @@ without registering anything.
   blocks (rather than raising "database is locked") and commits once the first releases.
   Not yet observed on the deployed file — WAL is persistent per database, so confirm with
   `PRAGMA journal_mode` against `/data/conflicts.db` after the next deploy.
-- [ ] **Bound the grouping time window.** Why: grouping never sets `Conflict.end_date` and
-  `_time_overlaps` only checks the existing span, so two events in the same 100 km and
-  country merge even five years apart, resurrecting dormant theatres as active. How: cap
-  the gap since the conflict's last event (or set `end_date` when creating/joining) — this
-  changes the grouping rule, so get approval first. Done when a multi-year gap produces
-  two conflicts and an adjacent-day event still merges.
-- [ ] **Make grouping's candidate selection explicit.** Why: the candidate query filters
-  on `Conflict.country` with no `ORDER BY`, so the first match wins by rowid order, and
-  `country IS NULL` matches every null-country conflict, letting two events in different
-  countries merge if within 100 km. How: order candidates deterministically (e.g. earliest
-  anchor/`id`) and decide what an absent country code may match — grouping rule, so get
-  approval first. Done when the merge target for a null-country event is specified by a
-  test rather than by rowid.
+- [x] **Bound the grouping time window.** Done in `43d4a89`: the window is now a gap
+  since the conflict's most recent event (`DEFAULT_GAP_DAYS = 14`), not a total
+  duration, and an explicit `end_date` still wins. Tests:
+  `test_group_events_starts_a_new_conflict_after_a_dormant_gap`,
+  `..._keeps_a_quiet_week_inside_one_conflict`,
+  `..._gap_is_measured_from_the_last_event_not_the_start`,
+  `..._never_lets_an_explicit_end_date_absorb_later_events`. Measured on the real DB:
+  1,443 → 1,517 conflicts, no event unlinked.
+- [x] **Make grouping's candidate selection explicit.** Done in `43d4a89`: candidates
+  are ordered oldest-first, so the same data groups the same way after a re-import
+  (`test_group_events_picks_the_same_conflict_regardless_of_row_order`), and an absent
+  country matches only another absent country rather than every null-country conflict
+  (`test_group_events_links_events_that_have_no_country`, which deliberately gives the
+  two events different place strings so the city fallback cannot mask the country path).
 - [ ] **Residual anchorless case in grouping.** Why: fixing the never-upgraded anchor still
   leaves one gap — when the *first* geolocated event in a theatre has a different city name
   than the conflict's oldest (ungeocoded) event, it cannot be measured against a missing
@@ -833,13 +834,14 @@ and how to know it worked.
 - [ ] Split `app/static/app.js` into smaller modules if it grows further.
 
 ### Approval state
-Pending approvals (all grouping-rule changes, so all wait on you): bound the conflict time
-window so a multi-year gap starts a new conflict, make candidate selection deterministic
-instead of rowid-ordered, and the residual anchorless case. **New evidence for the first
-two**: the Task 12 briefing run on the real DB shows the consequence in public — a
-7-day issue's top theatres were titled `## Belgium` and `## Belfast, Belfast, United
-Kingdom`, i.e. broad clusters named after a place inside them. That is what a subscriber
-would read, so grouping quality is now a content risk, not only a data-quality one.
+Pending approval (a grouping-rule change): the residual anchorless case — the first
+geolocated event in a theatre with a different city name than the conflict's oldest
+(ungeocoded) event cannot be measured against a missing anchor and opens a second
+conflict. The other two grouping items (bounded time window, deterministic candidate
+selection) shipped in `43d4a89` and are no longer waiting on you. **Evidence that
+remains**: the Task 12 briefing run showed broad clusters titled `## Belgium` and
+`## Belfast, Belfast, United Kingdom` — place-derived titles, not a window bug, so
+it is a naming/content decision rather than something the three items above fix.
 
 Also open for a decision: pinning the runtime dependencies (see "CI/CD follow-ups").
 Article-title fetching is still declined; raw payload storage is implemented in
@@ -881,17 +883,11 @@ the demo seed, on a 200-conflict centroid-stack fixture, and on the real DB; it 
 (`BASE_URL=http://127.0.0.1:PORT node map-smoke.mjs`).
 
 ### Working tree
-Uncommitted at the time of writing, on `main`. Two sets of changes are mixed together and
-should be committed separately:
-
-1. The in-flight UI clustering work that was already dirty on entry (markercluster at
-   every zoom, spiderfy at max zoom, `browser-tests.mjs` coincident-event check, and the
-   matching `README`/`AGENTS`/`SPEC-ui`/`tests/ui/README` prose).
-2. This pass: `app/db.py`, `app/ingest/{gdelt,audit,raw_store}.py`, `app/extract/{run,
-   filter,grouping}.py`, `app/api/routes.py`, `app/config.py`, `config/gdelt.yaml`,
-   `docker-compose.yml`, `scripts/_data-dir.sh`, `scripts/briefing.py`,
-   `scripts/check-health.sh`, `scripts/install-health-watch.sh`, the workflows, tests,
-   docs and tasks.
+Clean. The two sets of changes that were mixed together on entry are now separate
+commits on `main`: `4cebde5` (API documentation surface + its invariant test),
+`8156462` (state directories: `/data/db` + `/data/hf-cache`, cache mount and docs),
+and `1b8548b` (this task log). The in-flight UI clustering work had already landed in
+`870560e`/`cf226c5`.
 
 ## Session handoff state (API docs + state-dir split pass)
 
