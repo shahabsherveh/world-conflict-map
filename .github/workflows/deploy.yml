@@ -20,11 +20,11 @@ concurrency:
 permissions:
   contents: read
 
-# GCM_DATA_DIR is *not* set here: scripts/_data-dir.sh owns the deployed data
-# path, and deploy.sh + docker-daily.sh both source it. Setting it in the
-# workflow too is how the web app and the cron pipeline drifted onto different
-# databases. The script default keeps state at /var/lib/global-conflict-map/db,
-# outside the checkout that `git clean -ffdx` wipes.
+# GCM_DATA_DIR and GCM_HF_HOME are *not* set here: scripts/_data-dir.sh owns the
+# deployed paths, and deploy.sh + docker-daily.sh both source it. Setting them in
+# the workflow too is how the web app and the cron pipeline drifted onto
+# different databases. The script defaults keep state at /data/db and
+# /data/hf-cache, outside the checkout that `git clean -ffdx` wipes.
 
 jobs:
   deploy:

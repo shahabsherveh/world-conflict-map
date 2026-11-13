@@ -5,22 +5,22 @@ Run from anywhere:
     python scripts/download_model.py --check    # verify only, no network
 
 The cache location comes from HF_HOME. scripts/_data-dir.sh exports it to
-<GCM_DATA_DIR>/hf-cache, and the container uses the same path (the Dockerfile
-sets HF_HOME=/data/hf-cache over the mounted data dir). Note that this only
-applies when a script sources _data-dir.sh: running this file directly with
-HF_HOME unset uses ~/.cache/huggingface, which the pipeline will NOT load — the
-script warns when that happens. To target the shared cache explicitly:
+GCM_HF_HOME (/data/hf-cache), the same directory the container mounts at its
+Dockerfile HF_HOME. Note that this only applies when a script sources
+_data-dir.sh: running this file directly with HF_HOME unset uses
+~/.cache/huggingface, which the pipeline will NOT load — the script warns when
+that happens. To target the shared cache explicitly:
 
-    HF_HOME=/var/lib/global-conflict-map/db/hf-cache python scripts/download_model.py
+    HF_HOME=/data/hf-cache python scripts/download_model.py
 
 If this machine cannot reach HuggingFace's large-file CDN (cdn-lfs times out),
 larger downloads stall and leave *.incomplete blobs. In that case copy a complete
 cache from a machine that has one — no need to download here:
 
     rsync -a ~/.cache/huggingface/hub/models--cross-encoder--nli-deberta-v3-small \\
-          "$GCM_DATA_DIR/hf-cache/hub/"
+          /data/hf-cache/hub/
 
-(`scripts/cutover-data.sh` also copies an existing <data dir>/hf-cache.)
+(`scripts/cutover-data.sh` also copies an existing cache directory.)
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def warn_if_default_cache() -> None:
     """Point out a cache the deployed stack does not read.
 
     HF_HOME is normally exported by scripts/_data-dir.sh (which sets it to
-    <GCM_DATA_DIR>/hf-cache, the volume the container mounts). Running this
+    GCM_HF_HOME, /data/hf-cache, the volume the container mounts). Running this
     script by hand, or `python -m app.extract.run` directly, does not source
     that file, so the model lands in ~/.cache/huggingface instead — a second
     copy the pipeline then downloads again. Say so rather than let it drift.
@@ -56,10 +56,10 @@ def warn_if_default_cache() -> None:
         return
     print(
         "warning: HF_HOME is not set, so this uses ~/.cache/huggingface.\n"
-        "          scripts/daily.sh and the container use <GCM_DATA_DIR>/hf-cache,\n"
+        "          scripts/daily.sh and the container use /data/hf-cache (GCM_HF_HOME),\n"
         "          so a model downloaded here is not the one they will load.\n"
         "          Use the shared location: source scripts/_data-dir.sh first,\n"
-        "          or run: HF_HOME=$GCM_DATA_DIR/hf-cache python scripts/download_model.py",
+        "          or run: HF_HOME=/data/hf-cache python scripts/download_model.py",
         file=sys.stderr,
     )
 

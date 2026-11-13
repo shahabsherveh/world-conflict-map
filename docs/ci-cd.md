@@ -184,19 +184,22 @@ the compose stack live. One-time setup:
    `name: global-conflict-map`, so whichever checkout the runner uses, it drives the
    same stack.
 
-4. Create the deploy data directory, owned by the runner user:
+4. Create the two deploy state directories, owned by the runner user:
 
    ```bash
-   sudo install -d -o "$USER" -g "$USER" /var/lib/global-conflict-map/db
+   sudo install -d -o "$USER" -g "$USER" /data/db /data/hf-cache
    ```
 
-   `scripts/_data-dir.sh` sets `GCM_DATA_DIR` to it and is sourced by both
-   `deploy.sh` and `docker-daily.sh` (which also creates the directory as the
-   invoking user, so Docker does not make it root-owned), so the served app and the daily pipeline can
-   never point at different databases. It is deliberately *not* duplicated in the
-   workflow: that duplication is how the two drifted apart. Local `docker compose up`
-   still uses `./data/db`. If the directory is missing, Docker creates it root-owned
-   as the bind-mount target, and later pipeline runs cannot write the database.
+   `scripts/_data-dir.sh` sets `GCM_DATA_DIR=/data/db` (the SQLite file, mounted at
+   `/data`) and `GCM_HF_HOME=/data/hf-cache` (the model cache, mounted at the
+   container's `HF_HOME`) and is sourced by both `deploy.sh` and `docker-daily.sh`
+   (which also create both directories as the invoking user, so Docker does not make
+   them root-owned), so the served app and the daily pipeline can never point at
+   different databases or caches. It is deliberately *not* duplicated in the
+   workflow: that duplication is how they drifted apart. Local `docker compose up`
+   still uses `./data/db` and `./data/hf-cache`. If a directory is missing, Docker
+   creates it root-owned as the bind-mount target, and later pipeline runs cannot
+   write to it.
 5. No repository secrets are needed: the deploy uses local docker only.
 
 ### Security: a self-hosted runner runs the PR's code
@@ -208,8 +211,8 @@ not exposed: it triggers from `workflow_run` on `main` only, never from a PR.
 
 ### First deploy: bring the existing database across
 
-The deployed stack reads `GCM_DATA_DIR` (default `/var/lib/global-conflict-map/db`),
-not `./data/db`, and the project name is pinned to `global-conflict-map`. Without a
+The deployed stack reads `GCM_DATA_DIR` (default `/data/db`), not `./data/db`, and the
+project name is pinned to `global-conflict-map`. Without a
 cutover, an old `workspace` stack keeps port 8000 and the new app starts on an empty DB
 that looks like data loss. `scripts/cutover-data.sh` moves the data; dry-run first:
 
@@ -230,13 +233,14 @@ What it guarantees, each rehearsed against a synthetic DB:
   counts on the copy; unequal counts fail the run.
 - **Non-destructive.** An existing target is renamed `conflicts.db.bak-<timestamp>`
   (`--force` required); the old database is never deleted.
-- **Cache-aware.** Copies `<source dir>/hf-cache` when present, avoiding a ~570 MB
-  re-download on the first pipeline run. That is the *only* model cache both the
-  container (`HF_HOME=/data/hf-cache`) and the host pipeline use — `daily.sh`
-  sources `scripts/_data-dir.sh`, which exports `HF_HOME="$GCM_DATA_DIR/hf-cache"`.
+- **Cache-aware.** Copies `<source dir>/hf-cache` into `GCM_HF_HOME`
+  (`/data/hf-cache`) when present, avoiding a ~570 MB re-download on the first
+  pipeline run. That is the *only* model cache both the container
+  (`HF_HOME=/data/hf-cache`, its own volume) and the host pipeline use — `daily.sh`
+  sources `scripts/_data-dir.sh`, which exports `HF_HOME="$GCM_HF_HOME"`.
   If the host cannot reach `cdn-lfs.huggingface.co` (downloads stall as
   `*.incomplete`), copy a finished cache from another machine into
-  `$GCM_DATA_DIR/hf-cache/hub/` and verify with
+  `/data/hf-cache/hub/` and verify with
   `python scripts/download_model.py --check`.
 - **Refuses unsafe runs.** Wrong-schema file, missing source, or a running container
   that mounts the target directory all abort before writing.
@@ -321,7 +325,7 @@ sudo ./scripts/install-health-watch.sh          # app is answering
 ```
 
 Anything else that touches the stack (cron, a manual `docker compose` run) must use
-the same `GCM_DATA_DIR`: source `scripts/_data-dir.sh`, or run through
+the same `GCM_DATA_DIR` / `GCM_HF_HOME`: source `scripts/_data-dir.sh`, or run through
 `scripts/docker-daily.sh` / `scripts/deploy.sh`, which do it for you. The daily
 script also forwards arguments, so `scripts/docker-daily.sh --days 7` is a real
 backfill (a bare `docker compose run --rm pipeline` uses `./data/db` and used to

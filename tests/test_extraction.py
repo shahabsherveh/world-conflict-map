@@ -1250,7 +1250,7 @@ def test_group_events_picks_the_same_conflict_regardless_of_row_order() -> None:
 
 def test_model_cache_warning_when_hf_home_unset(monkeypatch, capsys) -> None:
     # Running the pipeline by hand must not silently load ~/.cache while the
-    # cron/container use <GCM_DATA_DIR>/hf-cache.
+    # cron/container use /data/hf-cache (GCM_HF_HOME).
     monkeypatch.delenv("HF_HOME", raising=False)
     warn_if_model_cache_is_local()
     assert "HF_HOME is not set" in capsys.readouterr().err

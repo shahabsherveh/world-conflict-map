@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Move an existing SQLite database (and HF model cache) into GCM_DATA_DIR,
-# before the first CI deploy.
+# Move an existing SQLite database (and HF model cache) into GCM_DATA_DIR /
+# GCM_HF_HOME, before the first CI deploy.
 #
 # Dry-run by default: it reads the source, prints the plan and the row counts.
 # `--apply` performs the copy. The target is never overwritten silently: an
@@ -112,7 +112,9 @@ dst="${dst:-$GCM_DATA_DIR/conflicts.db}"
 dst_dir=$(dirname "$dst")
 dst_dir_real=$(realpath -m "$dst_dir")
 cache_src="$(dirname "$src")/hf-cache"
-cache_dst="$dst_dir/hf-cache"
+# The cache is its own host directory (mounted at the container's HF_HOME), not a
+# subdirectory of the data dir: copy it to the path the deployed pipeline reads.
+cache_dst="$GCM_HF_HOME"
 
 if [ -n "$owner" ] && ! id "$owner" >/dev/null 2>&1; then
   fail "no such user for --owner: $owner"
@@ -218,13 +220,18 @@ if [ "$dst_stats" != "$src_stats" ]; then
 fi
 log "verified: $(printf '%s' "$src_stats" | tr '\n' ' ')"
 
-if [ -d "$cache_src" ] && [ ! -e "$cache_dst" ]; then
-  cp -a "$cache_src" "$cache_dst"
+if [ -d "$cache_src" ] && [ -z "$(find "$cache_dst" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+  # `dir/.` not `dir`: the target directory may already exist (Docker creates an
+  # empty bind-mount target), and `cp -a src dst` would then copy *inside* it.
+  mkdir -p "$cache_dst" && cp -a "$cache_src"/. "$cache_dst"/
   log "copied model cache to $cache_dst"
 fi
 
 if [ -n "$owner" ]; then
   chown -R "$owner:$owner" "$dst_dir"
+  # The cache is a separate mount now, so it needs the same ownership fix or the
+  # first pipeline run cannot write into the copy it just received.
+  [ -d "$cache_dst" ] && chown -R "$owner:$owner" "$cache_dst"
   log "owner set to $owner"
 fi
 

@@ -147,10 +147,12 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
 6. **Nominal `uvicorn` without `--reload` serves stale Python**; browsers cache `index.html`
    (mitigated by `no-store` middleware + `?v=N`).
 7. **The zero-shot model downloads once** via `python scripts/download_model.py`; the pipeline
-   degrades gracefully (skips the filter) if unavailable. It is cached under
-   `$GCM_DATA_DIR/hf-cache` and shared by the host run and the container (`scripts/_data-dir.sh`
-   exports `HF_HOME`, the Dockerfile sets `HF_HOME=/data/hf-cache`); don't let them diverge into
-   two copies. `HF_HOME` is set by that script, not by the code — `python scripts/download_model.py`
+   degrades gracefully (skips the filter) if unavailable. It is cached in
+   `GCM_HF_HOME` (default `/data/hf-cache`; a separate volume, not a subdirectory of the
+   data dir) and shared by the host run and the container (`scripts/_data-dir.sh` exports
+   `HF_HOME`, the Dockerfile sets `HF_HOME=/data/hf-cache`, and both compose services mount
+   `$GCM_HF_HOME` there); don't let them diverge into two copies. `HF_HOME` is set by that
+   script, not by the code — `python scripts/download_model.py`
    or `python -m app.extract.run` run straight from a shell use `~/.cache/huggingface` instead, so
    either source `scripts/_data-dir.sh` first or pass `HF_HOME=` explicitly; both warn on stderr
    when the default cache is in use. On a network that can't reach `cdn-lfs.huggingface.co`, large
@@ -158,10 +160,10 @@ Dependency direction is one-way: `storage → ingestion → extraction → api �
    machine instead and confirm with `python scripts/download_model.py --check`.
 8. **Auto-generated Alembic revisions are excluded** from ruff lint/format — don't reformat them.
    `ty check` excludes them too.
-9. **The containerized stack's data path is `GCM_DATA_DIR`, defined only in
-   `scripts/_data-dir.sh`** (default `/var/lib/global-conflict-map/db`; bare
-   `docker compose up` uses `./data/db`). Both `deploy.sh` and `docker-daily.sh`
-   source it. Setting it in one place only is how the web app and the daily pipeline
+9. **The containerized stack's state paths are `GCM_DATA_DIR` and `GCM_HF_HOME`, defined only
+   in `scripts/_data-dir.sh`** (defaults `/data/db` and `/data/hf-cache`; bare
+   `docker compose up` uses `./data/db` and `./data/hf-cache`). Both `deploy.sh` and
+   `docker-daily.sh` source it. Setting it in one place only is how the web app and the daily pipeline
    ended up on different databases — the map simply stopped updating. Use
    `scripts/docker-daily.sh` for backfills: it forwards args (a bare
    `docker compose run --rm pipeline --days 7` uses `./data/db`). `GET

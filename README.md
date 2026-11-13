@@ -131,13 +131,20 @@ stack: the host script writes `./conflicts.db`, while the container reads
 
 - **Web app** binds to `127.0.0.1:8000` only — the app has no auth by design, so it is
   deliberately not reachable from the network.
-- **State** lives in `./data/db/` (gitignored): `conflicts.db` plus the HuggingFace
-  model cache. The first pipeline run downloads the ~570 MB zero-shot model there.
-  The CI deploy puts it at `GCM_DATA_DIR=/var/lib/global-conflict-map/db` so the
-  database survives checkouts (`docs/ci-cd.md`). `scripts/_data-dir.sh` is the single
-  definition of that path: both `scripts/deploy.sh` and `scripts/docker-daily.sh`
-  source it, so the served app and the daily pipeline always share one database.
-  A bare `docker compose up` (no `GCM_DATA_DIR`) still uses `./data/db`.
+- **State** lives in two host directories, both gitignored, both defined once in
+  `scripts/_data-dir.sh`:
+  - `GCM_DATA_DIR` (`./data/db` locally, `/data/db` deployed) holds `conflicts.db` and
+    is mounted at `/data` in both services.
+  - `GCM_HF_HOME` (`./data/hf-cache` locally, `/data/hf-cache` deployed) is the
+    HuggingFace cache for the ~570 MB zero-shot model, mounted where the Dockerfile's
+    `HF_HOME` points. It is a separate mount on purpose: a model cache can be copied
+    between machines without carrying a database.
+
+  The `/data/...` defaults are what the CI deploy uses, so the database survives
+  checkouts (`docs/ci-cd.md`). `scripts/deploy.sh` and `scripts/docker-daily.sh` both
+  source that file, so the served app, the daily pipeline, and the host run always
+  share one database and one model cache. A bare `docker compose up` (neither variable
+  set) still uses `./data`.
 - **Daily pipeline** is a one-shot service, not started by `up`. For the local stack
   above (data in `./data/db`):
 
@@ -166,8 +173,8 @@ stack: the host script writes `./conflicts.db`, while the container reads
   ./scripts/cutover-data.sh --apply --owner "$USER"
   ```
 
-  It targets `GCM_DATA_DIR` (the same path `deploy.sh` and `docker-daily.sh` use), not
-  `./data/db`. Details in `docs/ci-cd.md`.
+  It targets `GCM_DATA_DIR` and `GCM_HF_HOME` (the same paths `deploy.sh` and
+  `docker-daily.sh` use), not `./data/db`. Details in `docs/ci-cd.md`.
 
 ## Fetch raw data or backfill history
 

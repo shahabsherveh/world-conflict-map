@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/_data-dir.sh
 source scripts/_data-dir.sh
-gcm_ensure_data_dir
+gcm_ensure_dirs
 
 HEALTH_URL="${GCM_HEALTH_URL:-http://127.0.0.1:8000/health}"
 # /health is a static 200: it stays green if a migration left the schema broken.

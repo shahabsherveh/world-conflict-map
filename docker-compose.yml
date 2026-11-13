@@ -29,6 +29,11 @@ services:
       # actions/checkout runs `git clean -ffdx`, which would delete an in-tree
       # data/ directory along with the database. Local use keeps ./data/db.
       - ${GCM_DATA_DIR:-./data/db}:/data
+      # The model cache is its own host directory, mounted where the Dockerfile's
+      # HF_HOME points. The mount is not optional: without it /data/hf-cache would
+      # land inside the *data* volume, and the host pipeline (HF_HOME from
+      # scripts/_data-dir.sh) would keep a second copy of the ~570 MB weights.
+      - ${GCM_HF_HOME:-${HF_HOME:-./data/hf-cache}}:/data/hf-cache
       # Defined once in scripts/_data-dir.sh, like the data dir: the deploy
       # checkout is disposable, so a hand edit here would vanish on redeploy.
       # Deployed config changes go through git.
@@ -49,6 +54,7 @@ services:
       GCM_DATABASE_URL: sqlite:////data/conflicts.db
     volumes:
       - ${GCM_DATA_DIR:-./data/db}:/data
+      - ${GCM_HF_HOME:-${HF_HOME:-./data/hf-cache}}:/data/hf-cache
       # Defined once in scripts/_data-dir.sh, like the data dir: the deploy
       # checkout is disposable, so a hand edit here would vanish on redeploy.
       # Deployed config changes go through git.

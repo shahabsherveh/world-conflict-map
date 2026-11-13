@@ -18,7 +18,7 @@ def warn_if_model_cache_is_local() -> None:
     """Say so when the model will load from ~/.cache instead of the shared cache.
 
     `scripts/daily.sh` sources scripts/_data-dir.sh, which exports HF_HOME to
-    <GCM_DATA_DIR>/hf-cache — the volume the container also mounts. Running
+    GCM_HF_HOME (/data/hf-cache) — the volume the container also mounts. Running
     `python -m app.extract.run` by hand does not, so it silently loads a
     different cache and re-downloads the ~570 MB model. HF_HOME is deliberately
     not guessed here: the default lives in scripts/_data-dir.sh, and a second
@@ -28,7 +28,7 @@ def warn_if_model_cache_is_local() -> None:
         print(
             "WARNING: HF_HOME is not set; loading the model from the default "
             "~/.cache/huggingface. The daily pipeline and container use "
-            "<GCM_DATA_DIR>/hf-cache — source scripts/_data-dir.sh to match.",
+            "/data/hf-cache (GCM_HF_HOME) — source scripts/_data-dir.sh to match.",
             file=sys.stderr,
             flush=True,
         )
