@@ -892,3 +892,49 @@ should be committed separately:
    `docker-compose.yml`, `scripts/_data-dir.sh`, `scripts/briefing.py`,
    `scripts/check-health.sh`, `scripts/install-health-watch.sh`, the workflows, tests,
    docs and tasks.
+
+## Session handoff state (API docs + state-dir split pass)
+
+Two independent pieces were sitting uncommitted on `main`, both now finished and
+separated into their own commits.
+
+### API documentation surface (new)
+The JSON API had response models but no readable `/docs`: every endpoint was an
+unlabelled operation with no parameter descriptions, so Swagger UI showed nine bare
+`GET`/`PATCH` lines. `app/main.py` now carries a title summary, description, version and
+`openapi_tags` (conflicts, events, pipeline, sources, system); `app/api/routes.py` tags,
+summarises and describes every endpoint plus each query/path parameter; and
+`app/api/schemas.py` documents the corroboration fields (`sources`, `articles`,
+`well_corroborated`) where a reader looks for them. `/health` keeps its trivial
+behaviour — CI and deploy curl it — and only gained a docstring and a tag.
+
+No test asserts prose (that would be a change-detector), but the invariants are
+enforced by `test_openapi_document_names_every_operation`: the document must build,
+every operation must carry a summary, and every tag used must be declared in
+`openapi_tags` (an undeclared tag is silently unstyled in Swagger UI).
+
+### State directories: `/data/db` + `/data/hf-cache` (new)
+`scripts/_data-dir.sh` had been edited to default `GCM_DATA_DIR=/data/db` and
+`HF_HOME=/data/hf-cache` while compose still mounted only `${GCM_DATA_DIR}:/data`, so
+the container's `HF_HOME` resolved to `/data/db/hf-cache` — the exact host/container
+cache divergence gotcha #7 exists to prevent. Resolved by making the cache a first-class
+mount rather than a subdirectory:
+
+- `docker-compose.yml` mounts `${GCM_HF_HOME:-${HF_HOME:-./data/hf-cache}}` at
+  `/data/hf-cache` for **both** services, next to the existing data mount.
+- `scripts/_data-dir.sh` documents both paths and `gcm_ensure_data_dir` is now
+  `gcm_ensure_dirs`, creating the data dir *and* the cache dir as the invoking user
+  (Docker creates missing bind targets root-owned, which broke later writes).
+- `scripts/cutover-data.sh` copies the model cache to `$GCM_HF_HOME` (was
+  `$dst_dir/hf-cache`) and copies *into* an existing empty directory (`cp -a src/. dst/`
+  — `cp -a src dst` would have nested it); `--owner` now chowns the cache too.
+- Every user-facing hint that named the old path was corrected: the
+  `download_model.py` warning/docstring, the `classifier.py` warning, the deploy
+  workflow comment, `README.md`, `docs/ci-cd.md`, and gotchas #7/#9 in `AGENTS.md`.
+
+Verified: `docker compose config` renders `source: /data/db` → `/data` and
+`source: /data/hf-cache` → `/data/hf-cache` with the deployed defaults, and
+`./data/db` / `./data/hf-cache` with none set; `source scripts/_data-dir.sh` exports
+`/data/db` + `HF_HOME=/data/hf-cache` and `gcm_ensure_dirs` succeeds. Gates:
+`./scripts/ci-check.sh` green (161 tests, ruff, format, shellcheck v0.11.0 via the
+pinned image, pymarkdown, ty, alembic apply + drift).
