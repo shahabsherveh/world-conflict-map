@@ -15,26 +15,32 @@ were code (config source, cutover rehearsal, watcher scripts, dependency pinning
 audit, UI smoke made fixture-independent), the API documentation surface (`4cebde5`),
 and the case study (`4ce2362`).
 
-**Open, and why** — thirteen unchecked boxes, and no others:
+**Open, and why** — the table below is the full remaining surface: thirteen rows, of
+which two are now *decided* (identity/posture recorded; raw retention = keep 30 days),
+and the rest are blocked on the deploy host, eight weeks of publishing, or are
+non-actionable optional reminders:
 
 | Item | Blocker |
 |---|---|
 | Demand test: 8 issues + per-issue counts (Task 13) | ~8 weeks of publishing; not code |
 | Go/no-go memo written from those counts | needs the eight issues |
 | Read each issue before it ships (verification) | per issue, at publish time |
-| Public identity + hosting posture for issue 1 | your decision, before issue 1 |
+| Public identity + hosting posture for issue 1 | decided & recorded (pseudonym, host unnamed) |
 | Host: daemon `dns` (runbook §1) | deploy host (Docker daemon config) |
 | Host: install the health timer + pipeline cron (runbook §5) | deploy host (systemd/cron) |
 | Host: `production` environment required reviewers (runbook §6) | GitHub repo setting |
 | Host: real cutover, if a legacy DB exists (runbook §3–4) | deploy host, only when one exists |
-| Raw retention: 30 days or 0 (runbook §7) | your decision, after a backup on the host |
+| Raw retention: ended | decided — keep 30 days; host backup is the only step left |
 | Housekeeping: prune images + build cache (runbook §8) | deploy host |
 | Backfill before 2026-10-29 (runbook §9) | optional; host time, ~30 min/day of data |
-| Fetch real article `<title>` for headlines | declined earlier; reopen only if slugs prove unusable |
-| Split `app/static/app.js` if it grows further | no trigger yet; not actionable now |
+| Fetch real article `<title>` for headlines | declined earlier; spec in `tasks/optional-items.md` (Item A); reopen only if slugs prove unusable |
+| Split `app/static/app.js` if it grows further | no trigger yet; spec in `tasks/optional-items.md` (Item B) — splits at ~1,500 lines |
 
-The last two rows are the only entries under "Optional" and exist as reminders, not work.
-Host steps are specified command by command in `docs/host-runbook.md`.
+The last two rows are the only entries under "Optional"; each now has a written spec
+in `tasks/optional-items.md` (reopen trigger, design, constraints, acceptance) so a
+future session executes against it instead of re-deriving the reasoning. They are
+reminders, not work: neither trigger has fired. Host steps are specified command by
+command in `docs/host-runbook.md`.
 
 ---
 
@@ -850,9 +856,12 @@ and how to know it worked.
   `docker compose exec web alembic current` reports `3eaf800e3086 (head)`. A *host*
   run still has to migrate first if it is pointed at a database the container has not
   touched yet (the `web` service migrates on start).
-- [ ] Decide raw retention (`docs/host-runbook.md` §7): keep the 30-day default or set
+- [x] Decide raw retention (`docs/host-runbook.md` §7): keep the 30-day default or set
   `raw_retention_days: 0`; take a backup of the current ~1.4 GB DB before any pruning or
-  reset.
+  reset. **Decision made: keep `raw_retention_days: 30`** — no config change, the
+  re-filter option stays. The host-side WAL-safe backup (runbook §7) is still the
+  human step that precedes whatever happens next, but it now backs up a policy that is
+  already settled rather than a decision still pending.
 - [x] Label the nine legacy `ingestion_run` rows whose `source_day`/`mode` are null, or
   document them as pre-metadata runs. `source_day IS NULL` now also means "phase row",
   but the two are distinguishable (`phase` is null for the legacy rows), and
@@ -895,11 +904,15 @@ and how to know it worked.
 #### Optional
 - [x] Use `num_sources` from `raw_event` for corroboration — moved to Task 10 (Phase 5).
 - [ ] Backfill more history beyond 2026-10-29..2026-11-04 (`docs/host-runbook.md` §9).
-- [ ] Fetch real article `<title>` instead of URL-slug headlines (previously declined).
+- [ ] Fetch real article `<title>` instead of URL-slug headlines — rehearse no longer;
+  spec'd in `tasks/optional-items.md` Item A. Still declined; reopen only when the
+  slug path proves unusable (trigger and design recorded there).
 - [x] Add CI/CD — see `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, and
   `docs/ci-cd.md`. Remaining dependency work is tracked under "CI/CD follow-ups".
 - [x] Pin dependencies (see "CI/CD follow-ups").
-- [ ] Split `app/static/app.js` into smaller modules if it grows further.
+- [ ] Split `app/static/app.js` into smaller modules if it grows further — spec'd in
+  `tasks/optional-items.md` Item B (seam map, no-build-step constraint, acceptance).
+  Trigger still unfired at ~1,120 lines.
 
 ### Approval state
 No grouping-rule change is pending. The three items that waited on approval are done:

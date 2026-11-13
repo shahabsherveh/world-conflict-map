@@ -12,12 +12,18 @@ continue if there is repeat readership plus at least one request for more.
 
 ## Decisions to record before issue 1
 
-- [ ] Public identity: real name, pseudonym, or anonymous — and where it is stated.
-- [ ] Hosting posture: where the briefing is published, and whether this map's host is
-      named. The map has no auth by design and must not be advertised as a service.
-- [ ] Distribution channel (newsletter, feed, or a pinned post) and its analytics.
-- [ ] Whether past issues are archived publicly or mailed only.
-- [ ] How "engaged reader" is counted for this test (open, click, reply, reshare).
+- [x] Public identity: a pseudonym (the running name goes in the briefing masthead and
+      the case-study footer; the map's operator is not identified under a real name).
+- [x] Hosting posture: the briefings are the only public surface. This map's host is
+      **not** named and must not be advertised as a service — the app is loopback-only
+      and has no auth by design (AGENTS.md).
+- [x] Distribution channel: a newsletter, using its built-in open/click analytics for
+      the per-issue counts.
+- [x] Past issues are archived publicly (each issue linked from the case study / a
+      public archive page), not mailed-only.
+- [x] "Engaged reader" = the full set, each counted separately every issue: opens,
+      clicks, replies, and reshares. The go/no-go memo compares them, not a single
+      blended number.
 
 ## Issue log
 
