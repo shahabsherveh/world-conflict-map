@@ -27,18 +27,20 @@ that visibly fails.
 
 ## Why I built this
 
-I wanted to understand armed conflict as *data* — not as headlines, but as a stream of
-geolocated events that could be filtered, grouped, and browsed over time. Existing tools
-either show static maps or rely on curated, one-off reports; none let you watch the
-underlying news stream turn into a map that updates itself.
+I wanted a project that exercised a full stack end to end — not a demo that works once
+but a system that runs every day. Armed conflict happened to be an ideal subject: a
+real, noisy, geolocated data stream with no paid feed required.
 
-So I built the pipeline end to end: ingest the raw feed, filter the signal from the
-noise, group scattered reports into coherent conflicts, and make the result editable
-where automation gets it wrong. Along the way it became an exercise in the unglamorous
-parts of real software — dependency pinning, type checking, migration drift, and the
-failure mode where a cron job keeps "succeeding" while the map quietly stops updating.
+So I built the pipeline end to end: ingest the raw GDELT feed, filter the signal from
+the noise, group scattered reports into coherent conflicts, and make the result editable
+where automation gets it wrong.
 
-It's a personal tool first, but it's architected as if it might one day be a product.
+The part I cared about most was the filter. GDELT codes every kind of political event,
+so most of a day's rows are not armed conflict — and the data is far messier than I
+expected. Yemen is coded `YM` (a FIPS code, not ISO), and when GDELT cannot pin a city
+it silently geocodes a country centroid and reports it as if it were precise. A first
+keyword-based grouping collapsed every event in Yemen into one giant conflict. The honest
+lesson: the machine's job is mostly deciding what *not* to show.
 
 ## Requirements
 
