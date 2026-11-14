@@ -122,6 +122,13 @@ def main(argv: list[str] | None = None) -> int:
     from huggingface_hub import snapshot_download
     from transformers import pipeline
 
+    # On a network that cannot reach huggingface.co (blocked/slow from some
+    # regions, e.g. Iran), point HF_ENDPOINT at a mirror so cdn-lfs.huggingface.co
+    # stalls do not leave *.incomplete blobs (gotcha #7). huggingface_hub reads
+    # the env var itself; a copied cache is the fallback when no mirror works.
+    if endpoint := os.environ.get("HF_ENDPOINT"):
+        print(f"using HF_ENDPOINT={endpoint}")
+
     snapshot_download(MODEL, max_workers=1)
     print("Download complete. Running sanity check...")
 
