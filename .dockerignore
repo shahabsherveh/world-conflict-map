@@ -12,6 +12,13 @@ data/
 .pytest_cache/
 .ruff_cache/
 .env
+# Chrome for Testing (installed via @puppeteer/browsers for chrome-devtools MCP)
+# — dev-only browser tooling, ~500 MB, never read by the runtime image.
+chrome/
+# graphify knowledge-graph output — analysis artifacts, not runtime source.
+# (The tracked graph.html/graph.json/GRAPH_REPORT.md still ship in git; this
+# just stops the whole directory, incl. its cache, entering the build context.)
+graphify-out/
 tests/
 docs/
 CAPABILITY-MAP.md
