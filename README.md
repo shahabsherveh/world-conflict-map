@@ -1,17 +1,44 @@
 # Global Conflict Map
 
-A personal web app that maps armed conflicts worldwide, browsable across time, and
-updates itself daily from news data. Built personal-first but architected so it could
+A personal web app that turns the GDELT 2.0 news stream — ~57k geolocated events a day
+— into a browsable, self-updating map of armed conflicts. A zero-shot semantic filter
+separates real conflict events from noise, a proximity-based grouping algorithm links
+events into conflicts, and a Leaflet map lets you scrub through time, zoom into
+clusters, and edit the results by hand. Built personal-first but architected so it could
 become a product without a rewrite.
 
-## What it does
+## How it works
 
-1. Fetches **GDELT 2.0 raw event files** (free, no API key) — news already coded into
-   geolocated events.
-2. Filters to **armed conflicts** (CAMEO root codes 18/19/20) and applies a
-   **zero-shot semantic filter** to drop false positives (podcasts, jet crashes, etc.).
-3. Groups events into **conflicts** and stores them in SQLite.
-4. Serves an interactive **Leaflet map** with time-scrub and manual editing.
+Every day, the pipeline follows the same four steps:
+
+1. **Fetch** — download the latest GDELT 2.0 raw event files (free, no API key), each
+   already coded as a geolocated event with an actor type and an intensity score.
+2. **Filter** — keep only candidate conflict events (CAMEO root codes 18/19/20), then
+   run a zero-shot semantic classifier to drop false positives like podcasts and plane
+   crashes.
+3. **Group** — link events into *conflicts* by geographic proximity (not keywords), so
+   scattered news reports become one browsable conflict with a timeline.
+4. **Serve** — store the results in SQLite and expose them through a FastAPI backend to
+   a Leaflet map with time-scrubbing, clustering, and manual editing.
+
+The whole thing runs on a schedule (cron or Docker), and a freshness check alerts you if
+the map has stopped updating — because a pipeline that silently fails is worse than one
+that visibly fails.
+
+## Why I built this
+
+I wanted to understand armed conflict as *data* — not as headlines, but as a stream of
+geolocated events that could be filtered, grouped, and browsed over time. Existing tools
+either show static maps or rely on curated, one-off reports; none let you watch the
+underlying news stream turn into a map that updates itself.
+
+So I built the pipeline end to end: ingest the raw feed, filter the signal from the
+noise, group scattered reports into coherent conflicts, and make the result editable
+where automation gets it wrong. Along the way it became an exercise in the unglamorous
+parts of real software — dependency pinning, type checking, migration drift, and the
+failure mode where a cron job keeps "succeeding" while the map quietly stops updating.
+
+It's a personal tool first, but it's architected as if it might one day be a product.
 
 ## Requirements
 
